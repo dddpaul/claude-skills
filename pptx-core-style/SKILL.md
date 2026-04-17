@@ -12,6 +12,7 @@ Canonical visual style for architectural slides. Use alongside the `pptx` skill.
 - Layout: `LAYOUT_WIDE` (13.3 x 7.5 inches, 16:9)
 - Font: Arial (all elements)
 - Corners: roundRect with `adj=4246` for content blocks, `adj=50000` for badges
+- PptxGenJS `rectRadius` mapping: `adj=4246` → `rectRadius: 0.08`, `adj=50000` → `rectRadius: 0.12`
 
 ## Color Palette
 
@@ -82,9 +83,14 @@ When listing details under a category (e.g., technologies, tools, metrics), use 
 - Text: x=0.50 y=0 w=12.50 h=0.70
 
 ### Two-Column Layout
-- Divider: vertical line at x=6.20, from y=0.88 to y=6.98
+- Divider: vertical line at x=6.20, from y=0.88 to y=6.98, color=BORDER_GRAY, width=1pt, solid
 - Left column: x=0.40, w=5.60
 - Right column: x=6.45, w=6.45
+
+### Single-Column Layout
+- Full-width content: x=0.40, w=12.50
+- Use for slides with a single large table, diagram, or full-width key insight block
+- Same header bar and content area y-positions apply
 
 ### Content Area
 - Top: y=0.78 (section titles)
@@ -92,17 +98,29 @@ When listing details under a category (e.g., technologies, tools, metrics), use 
 - Bottom margin: y=7.10 max (0.40" from slide edge)
 - Available height: ~5.9"
 
+### Title Slide
+- Background: fill=NAVY (full slide)
+- Main title: 44pt bold WHITE, centered horizontally, y≈2.30 (optically centered)
+- Subtitle: 28pt regular BLUE, centered, directly below title
+- Decorative accent: horizontal line, w≈5.00", color=ORANGE, width=2.5pt, centered at slide midpoint
+- Tagline (optional): 14pt regular WHITE, centered, below accent line
+- No header bar, no divider, no footnote
+
 ## Component Styles
 
 ### Content Blocks
 - Full-width block: x=0.40 w=5.60
 - Split blocks (two categories side by side):
-  - Primary: w=3.85 (70%)
-  - Secondary: w=1.65 (30%)
+  - Primary: x=0.40, w=3.85 (70%)
+  - Secondary: x=4.35, w=1.65 (30%)
   - Gap: 0.10" between blocks
-- Badge: w=1.55 h=0.24, positioned at top-right corner of block
+- Block height: ~0.30" per item + 0.10" total vertical padding (e.g., 3 items → h≈1.00", 4 items → h≈1.30")
+- Badge: w=1.55 h=0.24, inset 0.10" from block right edge and 0.02" below block top edge
   - Contrast rule: badge color must contrast with block color (ORANGE badge on BLUE block, NAVY badge on ORANGE/STEEL block)
+  - **Badge clearance (narrow blocks):** when a narrow (30%) block has a badge, push ALL content 0.26" below the block top — the badge spans most of the width.
+  - **Badge clearance (wide blocks):** when a full-width or primary (70%) block has a badge, shorten the FIRST content item width by 1.85" (badge + inset + gap) so text wraps before the badge. Do NOT push text down — this wastes vertical space on wide blocks.
 - Block title: ABOVE the block (not inside), numbered, DARK_GRAY on white
+- Content item padding: left/right 0.12" inset from block edges
 - Items inside blocks: separated by white horizontal lines (9525 width, 60% alpha)
 - Arrows between blocks: downArrow, fill=ORANGE, cx=0.25" cy=0.20"
 
@@ -115,11 +133,12 @@ When listing details under a category (e.g., technologies, tools, metrics), use 
 
 ### Key Insight Block
 - fill=NAVY, full column width
-- Headline: 14pt bold WHITE
-- Formula / key statement: 11pt bold WHITE
-- Subtitle: 9pt regular WHITE
-- Distribution bar (optional): BLUE segment + ORANGE segment, h=0.30"
-- Legend: colored squares 0.22x0.22" with labels, sz=9pt WHITE
+- Internal padding: left/right 0.25", top 0.15"
+- Headline: 14pt bold WHITE, 0.15" from top
+- Formula / key statement: 11pt bold WHITE, 0.45" below headline top
+- Subtitle: 9pt regular WHITE, 0.40" below formula
+- Distribution bar (optional): BLUE segment + ORANGE segment, h=0.30", 0.55" below subtitle
+- Legend: colored squares 0.22x0.22" with labels, sz=9pt WHITE, 0.45" below bar top
 
 ### Category Descriptions
 - Text blocks, each with:
@@ -150,5 +169,5 @@ When listing details under a category (e.g., technologies, tools, metrics), use 
 7. **Table header** is always NAVY fill with WHITE bold text
 8. **Accent rows** use LIGHT_ORANGE fill to mark items of the secondary (ORANGE) category
 9. **Distribution bar** segments use only category colors (BLUE + ORANGE)
-10. **Footnotes** are italic MUTED_GRAY, positioned at the bottom of the content area (y ≤ 7.10 in)
+10. **Footnotes** are italic MUTED_GRAY, positioned 0.20–0.30" below the last content element (never floating with a large gap). Maximum y ≤ 7.10 in
 11. **No shadows** on any shapes — all elements are flat. Add empty `<a:effectLst/>` to `spPr` to override theme-inherited shadows
