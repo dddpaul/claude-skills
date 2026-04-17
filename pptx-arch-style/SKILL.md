@@ -322,6 +322,27 @@ Terminal rectangles: fill light blue (#DAEAF5) or light green (#D9EAD3)
 Connectors:          thin lines with "Yes"/"No" labels
 ```
 
+## EMU Reference
+
+1 inch = 914400 EMU. Common conversions for this template:
+- 0.042" = 38405 EMU (red accent line height)
+- 0.050" = 45720 EMU (box top/bottom padding)
+- 0.070" = 64008 EMU (left accent border width)
+- 0.100" = 91440 EMU (box left/right padding)
+- 0.400" = 365760 EMU (group header bar height)
+- 0.450" = 411480 EMU (numbered circle diameter)
+- 0.496" = 453542 EMU (page number badge width)
+- 0.500" = 457200 EMU (red accent line y-position)
+- 0.518" = 473659 EMU (page number badge height)
+- 0.600" = 548640 EMU (content area left margin)
+- 0.626" ≈ 572414 EMU (title text box height)
+- 0.700" = 640080 EMU (category card / accent height)
+- 0.750" = 685800 EMU (title text box x-start)
+- 0.787" ≈ 719633 EMU (content area top)
+- 5.625" = 5143500 EMU (slide height)
+- 9.234" ≈ 8443570 EMU (title text box width)
+- 10.000" = 9144000 EMU (slide width)
+
 ## Rules
 
 1. **Always** use the page number badge + red accent line on content slides

@@ -58,6 +58,25 @@ When listing details under a category (e.g., technologies, tools, metrics), use 
 
 ## Layout Grid
 
+### Slide Anatomy
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  NAVY bar  │  "Slide Title" 24pt bold WHITE              │ ← 0 – 0.70 in
+├────────────┬────┬────────────────────────────────────────┤
+│ Left col   │ ▏  │ Right col                              │ ← 0.78 in
+│ x=0.40     │ ▏  │ x=6.45                                 │
+│ w=5.60     │ ▏  │ w=6.45                                 │
+│            │ ▏  │                                        │
+│ Blocks +   │ ▏  │ Table / Key Insight /                  │
+│ badges +   │ ▏  │ category descriptions                  │
+│ ↓ arrows   │ ▏  │                                        │
+│            │ ▏  │                                        │
+│ Footnote   │ ▏  │ Footnote                               │ ← 7.10 in max
+└────────────┴────┴────────────────────────────────────────┘
+              ↑ divider x=6.20
+```
+
 ### Header
 - Bar: x=0 y=0 w=13.30 h=0.70 fill=NAVY
 - Text: x=0.50 y=0 w=12.50 h=0.70
@@ -119,3 +138,17 @@ When listing details under a category (e.g., technologies, tools, metrics), use 
 - 0.55" = 502920 EMU
 - 6.45" = 5897880 EMU
 - 13.30" = 12161520 EMU
+
+## Rules
+
+1. **Always** render the NAVY header bar at the top of every slide
+2. **Badge contrast:** ORANGE badge on BLUE block, NAVY badge on ORANGE or STEEL block — never same color for badge and block
+3. **Block titles** go ABOVE the block (numbered, DARK_GRAY on white), never inside the colored fill
+4. **Items inside blocks** are separated by semi-transparent white lines (width 9525, `a:alpha val="60000"`), not solid borders
+5. **Category assignment:** BLUE = primary / dominant category, ORANGE = secondary, STEEL = legacy / out-of-scope
+6. **Arrows** between vertically stacked blocks: ORANGE `downArrow`, 0.25 × 0.20 in
+7. **Table header** is always NAVY fill with WHITE bold text
+8. **Accent rows** use LIGHT_ORANGE fill to mark items of the secondary (ORANGE) category
+9. **Distribution bar** segments use only category colors (BLUE + ORANGE)
+10. **Footnotes** are italic MUTED_GRAY, positioned at the bottom of the content area (y ≤ 7.10 in)
+11. **No shadows** on any shapes — all elements are flat. Add empty `<a:effectLst/>` to `spPr` to override theme-inherited shadows

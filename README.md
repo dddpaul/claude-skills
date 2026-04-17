@@ -1,6 +1,6 @@
 # Claude Code Skills
 
-A collection of custom skills for Claude Code that extend its capabilities for architecture documentation and diagramming.
+A collection of custom skills for Claude Code that extend its capabilities for architecture documentation, diagramming, and presentation styling.
 
 ## Skills
 
@@ -48,6 +48,28 @@ Generate professional draw.io diagrams in XML format from architectural descript
 Create a draw.io diagram for a microservices architecture with API Gateway, 3 services, message bus, and databases
 ```
 
+### pptx-core-style
+
+Corporate presentation style guide for core principles architecture slides. Provides a canonical visual language — color palette, typography scale, layout grid, and component styles — to use alongside the `pptx` skill.
+
+**Covers**: NAVY/BLUE/ORANGE/STEEL color tokens, two-column layout with divider, content blocks with badges, tables with accent rows, key insight blocks, distribution bars, category descriptions with colored emphasis.
+
+**Example**:
+```
+Create an architecture slide using pptx-core-style with three numbered content blocks and a comparison table
+```
+
+### pptx-arch-style
+
+Architectural presentation style guide for architecture committee reviews. Defines a complete visual system adapted from a Google Slides "Modern Business" template.
+
+**Covers**: title/section/content slide layouts, page number badge + red accent line, semantic status colors (done/planned/not verified), three table styles (checklist, status tracker, data), content boxes, numbered circles, category cards with left accent, stat callout funnels, flow and decision tree diagram conventions.
+
+**Example**:
+```
+Create an architecture review deck using pptx-arch-style with a title slide, status tracker table, and flow diagram
+```
+
 ## Project Structure
 
 ```
@@ -61,6 +83,10 @@ claude-skills/
 │   └── references/
 │       ├── cheatsheet.md           # Quick reference for XML elements
 │       └── agent-prompt.md         # Prompt templates and validation
+├── pptx-core-style/
+│   └── SKILL.md                    # Style guide for core architecture slides
+├── pptx-arch-style/
+│   └── SKILL.md                    # Style guide for architecture committee decks
 └── README.md
 ```
 
