@@ -8,6 +8,8 @@ description: Architectural presentation style guide. Apply this style when creat
 ## Slide Dimensions
 
 - **Size:** 10.000in x 5.625in (16:9 widescreen)
+- **PptxGenJS:** `pres.layout = "LAYOUT_16x9"`
+- **Corner radius mapping:** `adj=5000` → `rectRadius: 0.08`, `adj=9595` → `rectRadius: 0.15`
 - **Origin:** Google Slides template "Modern Business", adapted
 
 ## Color Palette
@@ -25,7 +27,7 @@ description: Architectural presentation style guide. Apply this style when creat
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| accent1 | `#176451` | Title/section slide background (under image overlay) |
+| accent1 | `#176451` | Fallback background (only visible if image overlay missing) |
 | accent3 | `#D3EAC9` | Light green fills |
 | accent4 | `#B6D7A8` | Medium green fills |
 | accent5 | `#93C47D` | Green accents |
@@ -106,21 +108,27 @@ Every content slide has these fixed elements:
 ```
 
 - **Page number badge:** top-left corner (0, 0), 0.496in x 0.518in, `#595959` fill, white 15pt centered text
-- **Red accent line:** full width at y=0.500in, height 0.042in (3px), color `#F12D16`
-- **Title text box:** starts at x=0.750in, y=0, width ~9.234in, height ~0.626in
-- **Content area:** starts at ~0.787in from top, with 0.600in left margin
+- **Red accent line:** x=0, y=0.500, w=10.00, h=0.042 (full width, no margin), color `#F12D16`
+- **Title text box:** x=0.750, y=0, w=9.234, h=0.626
+- **Subtitle line** (optional): x=0.750, y=0.55, w=9.00, h=0.22, 10pt regular `#666666`
+- **Content area:** x=0.600, y=0.787, ends at y≈5.10
+- **Footer zone:** y=5.15–5.40, x=0.600, w=8.80, 8pt `#666666`
 
 ### Title Slide
 
-- Full-slide image overlay on `#176451` background (brand red with geometric shapes)
-- Main title: centered, Roboto Condensed 52pt bold, `#F3F3F3`
+- Background: `#F12D16` (brand red) fill. When a brand image overlay with geometric shapes is available, layer it on top.
+- Main title: Roboto Condensed 52pt bold, `#F3F3F3`, left-aligned
+  - Position: x=0.80, y=1.20, w=8.40, h=2.50, `lineSpacingMultiple: 0.90`
+- Subtitle line (optional): 10pt regular `#666666`
+  - Position: x=0.80, y=3.80, w=8.40, h=0.40
 - Speaker info block: bottom-left, tab-separated labels/values, 15pt bold `#434343`
-- No page number badge
+  - Position: x=0.80, y=4.30, w=5.00, h=0.80
+- No page number badge, no red accent line
 - Corporate logo watermark top-right (if available)
 
 ### Section Divider Slide
 
-- Same full-slide image as title slide (red with geometric shapes)
+- Background: same as title slide — `#F12D16` (brand red) fill, with optional brand image overlay
 - Section text: centered, Roboto Condensed 40.5pt, `#EFEFEF`
 - No page number badge
 - No red accent line
@@ -206,6 +214,12 @@ Card title: 14pt bold #000000, Arial
 Card subtitle: 11pt regular #666666, Arial
 ```
 
+**Card layout positioning:**
+- 3-across: w=2.80, gap=0.20, starting x=0.60 → cards at x=0.60, 3.60, 6.60
+- 2-across: w=4.30, gap=0.20, starting x=0.60 → cards at x=0.60, 5.10
+- Card height: 0.65–0.70 (adjust for subtitle length)
+- y: first row at content area top (y=0.87), subsequent rows spaced by card height + 0.15
+
 ### Stat Callout Boxes (Funnel)
 
 Large number callout boxes, decreasing in width (funnel effect):
@@ -218,6 +232,12 @@ Box 3 (smallest): fill #595959 (gray), big number 28pt bold white, subtitle 12pt
 No shadow. No border.
 Arrow annotations between boxes: 9pt #888888
 ```
+
+**Funnel layout positioning:**
+- Height: 0.90 for all boxes, rectRadius: 0.06
+- Box 1: x=0.60, w=3.20 | Box 2: x=4.30, w=2.60 | Box 3: x=7.40, w=2.00
+- Arrow text ("→") between boxes: 18pt `#666666`, centered in the gap
+- Big number y-offset: +0.05 from top, h=0.50; subtitle y-offset: +0.55, h=0.30
 
 ### Group Headers + Category Rows
 
@@ -305,14 +325,21 @@ Body rows:
 Component boxes in a sequential flow:
 
 ```
-Mandatory inline:    fill #DAEAF5 (light blue), border #9CC3E5
-Optional offload:    fill #FFF2CC (light yellow), dashed border #D6B656
-Initiator/response:  fill #D9EAD3 (light green), border #82B366
+Mandatory inline:    fill #DAEAF5 (light blue), border #9CC3E5 (1pt solid)
+Optional offload:    fill #FFF2CC (light yellow), border #D6B656 (1pt, dashType: "dash")
+Initiator/response:  fill #D9EAD3 (light green), border #82B366 (1pt solid)
 ```
 
-Labels below each box: component name (bold) + function description (regular), 8-9pt.
+**Box dimensions:** w=1.45, h=0.70, rectRadius: 0.06, gap between boxes: 0.18
+- 5 boxes across: x starts at 0.60, each at x[i-1] + 1.45 + 0.18
+- Text inside: component name (bold 9pt) + description (regular 8pt), padding 0.08 inset
 
-Arrow connectors between boxes: thin solid lines with triangle arrowheads.
+**Arrow connectors:** line width 1pt, color `#595959`, `headEnd: { type: "triangle", w: "sm", len: "sm" }`
+- Protocol labels: 7pt `#666666`, centered above the arrow in the gap between boxes (y = box_y - 0.18)
+
+**Offload boxes** (below main flow): same width as the box they connect to, h=0.55, gap 0.50 below main row. Connected by vertical arrows (bidirectional for workers, unidirectional for others).
+
+Labels below each box: component name (bold) + function description (regular), 8-9pt.
 
 ### Decision Tree Diagrams
 
@@ -347,12 +374,12 @@ Connectors:          thin lines with "Yes"/"No" labels
 
 1. **Always** use the page number badge + red accent line on content slides
 2. **Never** use the page number badge on title or section divider slides
-3. **Red accent line** is always at y=0.500in, full slide width minus small margins
+3. **Red accent line** is always at x=0, y=0.500, w=10.00 (full slide width, no side margins)
 4. **Left-align** all body text; center only slide titles on title/section slides
 5. **No underlines** under titles — use the red accent line as the separator
 6. **Footer/source** text goes near the bottom in 8pt `#666666`
 7. **Numbered circles** (red) for standalone items outside boxes; text "1. 2. 3." for lists inside a content box
 8. **Use semantic colors** for status — green=done, amber=planned, gray=unverified — never arbitrary colors
-9. **Two-box layout** (green + amber side by side) for summary/takeaway slides
+9. **Two-box layout** (green + amber side by side) for summary/takeaway slides. Layout: green x=0.60 w=4.20, amber x=5.00 w=4.40, same y, h=0.85. Use below a dashed separator line
 10. **Content area** starts at 0.787in from top, uses 0.600in left margin
 11. **No shadows** on any shapes or text — all elements are flat. Add empty `<a:effectLst/>` to `spPr` to override theme-inherited shadows
