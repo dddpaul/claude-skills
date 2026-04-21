@@ -349,6 +349,85 @@ Terminal rectangles: fill light blue (#DAEAF5) or light green (#D9EAD3)
 Connectors:          thin lines with "Yes"/"No" labels
 ```
 
+## Dynamic Layout Formulas
+
+All component positions are computed from the content area bounds. Hardcoded examples in the sections above are for the most common case — use these formulas for any count.
+
+### Content Area Constants
+
+```
+X0     = 0.60        // left margin
+XE     = 9.40        // right edge (10.00 - 0.60)
+W      = 8.80        // content width (XE - X0)
+Y0     = 0.87        // content top (below subtitle line)
+YE     = 5.10        // content bottom (above footer zone)
+GAP    = 0.20        // standard horizontal gap
+VGAP   = 0.15        // standard vertical gap between rows
+```
+
+### N Elements in a Row (equal width)
+
+Cards, flow boxes, or any equal-width elements:
+
+```
+itemW  = (W - (n - 1) * GAP) / n
+itemX[i] = X0 + i * (itemW + GAP)       // i = 0..n-1
+```
+
+### N Elements in a Row (custom ratio)
+
+When elements have different proportional widths (e.g., funnel, split blocks):
+
+```
+Given ratios r[0..n-1] that sum to 1.0:
+totalGap = (n - 1) * GAP
+availW   = W - totalGap
+itemW[i] = availW * r[i]
+itemX[0] = X0
+itemX[i] = itemX[i-1] + itemW[i-1] + GAP   // i = 1..n-1
+```
+
+**Funnel shortcut** (decreasing widths for stat callouts):
+```
+ratios for n boxes: r[i] = (n - i) / sum(1..n)
+Example n=3: r = [3/6, 2/6, 1/6] = [0.50, 0.33, 0.17]
+Example n=4: r = [4/10, 3/10, 2/10, 1/10] = [0.40, 0.30, 0.20, 0.10]
+```
+
+### Two-Box Summary Layout (green + amber)
+
+For any width split ratio `r` (default 0.48 / 0.52):
+
+```
+greenW = W * r - GAP / 2
+amberW = W * (1 - r) - GAP / 2
+greenX = X0
+amberX = X0 + greenW + GAP
+```
+
+### Table Column Widths
+
+Column widths should sum to content width `W`:
+
+```
+Given relative weights w[0..c-1]:
+totalW  = sum(w)
+colW[i] = W * w[i] / totalW
+```
+
+Row heights: header 0.28, data rows 0.28–0.36 depending on content density.
+
+### Vertical Stacking
+
+For vertically stacked elements (blocks, cards across multiple rows):
+
+```
+itemY[0] = Y0
+itemY[i] = itemY[i-1] + itemH[i-1] + VGAP   // i = 1..n-1
+```
+
+Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
+
 ## EMU Reference
 
 1 inch = 914400 EMU. Common conversions for this template:

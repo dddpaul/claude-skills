@@ -146,6 +146,96 @@ When listing details under a category (e.g., technologies, tools, metrics), use 
   - Line 2: Details (bold), colored per category (see Category-Colored Emphasis)
 - Spacing between blocks: ~0.55" per block
 
+## Dynamic Layout Formulas
+
+All component positions are computed from column bounds. Hardcoded examples above are for the most common case — use these formulas for any count or ratio.
+
+### Content Area Constants
+
+```
+// Two-column mode
+L_X0   = 0.40        // left column start
+L_W    = 5.60        // left column width
+R_X0   = 6.45        // right column start
+R_W    = 6.45        // right column width
+// Single-column mode
+F_X0   = 0.40        // full-width start
+F_W    = 12.50       // full-width
+// Vertical
+Y0     = 1.18        // first content block top
+YE     = 7.10        // max bottom
+GAP    = 0.10        // standard horizontal gap (split blocks)
+VGAP   = 0.08        // vertical gap between block title and block
+ARROW_H = 0.20       // arrow height
+ARROW_GAP = 0.08     // space above/below arrow
+```
+
+### Split Blocks (any ratio)
+
+For any primary/secondary width split within a column of width `COL_W` starting at `COL_X`:
+
+```
+Given ratio r (0.0–1.0, primary share):
+primaryW   = COL_W * r - GAP / 2
+secondaryW = COL_W * (1 - r) - GAP / 2
+primaryX   = COL_X
+secondaryX = COL_X + primaryW + GAP
+```
+
+Default ratio: `r = 0.70` → primary w=3.85, secondary w=1.65 (in left column).
+
+### Block Height (any item count)
+
+```
+h = items * 0.30 + 0.10
+```
+
+When a badge is present on a narrow block, add 0.26 for badge clearance:
+```
+h = items * 0.30 + 0.10 + 0.26
+```
+
+### N Blocks Vertically Stacked with Arrows
+
+```
+blockTitleH = 0.26
+blockY[0]   = Y0
+blockTopY[0] = Y0 + blockTitleH + VGAP
+
+For i = 1..n-1:
+  arrowY[i]    = blockTopY[i-1] + blockH[i-1] + ARROW_GAP
+  blockY[i]    = arrowY[i] + ARROW_H + ARROW_GAP
+  blockTopY[i] = blockY[i] + blockTitleH + VGAP
+
+Check: blockTopY[n-1] + blockH[n-1] ≤ YE
+```
+
+### Distribution Bar (any segment count)
+
+For N segments with ratios r[0..n-1] summing to 1.0:
+
+```
+barX    = ix              // bar left edge (inside Key Insight block)
+barW    = available width
+segW[i] = barW * r[i]
+segX[0] = barX
+segX[i] = segX[i-1] + segW[i-1]    // i = 1..n-1
+```
+
+Default: 2 segments (BLUE + ORANGE). For 3+, cycle through: BLUE, ORANGE, STEEL.
+
+### Table Column Widths
+
+Column widths should sum to the container width (`L_W`, `R_W`, or `F_W`):
+
+```
+Given relative weights w[0..c-1]:
+totalW  = sum(w)
+colW[i] = containerW * w[i] / totalW
+```
+
+Row heights: header 0.32, data rows 0.36. Reduce to 0.28/0.30 for dense tables (8+ rows).
+
 ## EMU Reference
 
 1 inch = 914400 EMU. Common conversions:
