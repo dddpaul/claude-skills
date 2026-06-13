@@ -1,0 +1,9 @@
+{
+  "name": "architect",
+  "description": "Architecture documentation and diagramming skills",
+  "version": "0.1.0",
+  "author": { "name": "Pavel Derendyaev" },
+  "homepage": "https://github.com/dddpaul/claude-skills",
+  "repository": "https://github.com/dddpaul/claude-skills",
+  "license": "Apache-2.0"
+}

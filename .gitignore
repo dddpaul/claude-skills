@@ -2,6 +2,7 @@
 __pycache__/
 .idea/
 .vscode/
+.venv/
 
 # Ralph working files (generated during runs)
 backlog/.ralph-status.json

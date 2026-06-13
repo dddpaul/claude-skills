@@ -1,0 +1,16 @@
+{
+  "name": "dddpaul-claude-skills",
+  "owner": { "name": "Pavel Derendyaev" },
+  "plugins": [
+    {
+      "name": "architect",
+      "source": "./plugins/architect",
+      "description": "Architecture documentation and diagramming skills — describe IT systems with ASCII diagrams (arch-describe) and generate draw.io XML diagrams (arch-draw)."
+    },
+    {
+      "name": "presentation",
+      "source": "./plugins/presentation",
+      "description": "Presentation style guides for the pptx skill — corporate core-style and architecture-committee arch-style."
+    }
+  ]
+}
