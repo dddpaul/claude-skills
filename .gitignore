@@ -3,3 +3,21 @@ __pycache__/
 .idea/
 .vscode/
 
+# Ralph working files (generated during runs)
+backlog/.ralph-status.json
+backlog/.ralph-run.log
+backlog/.ralph-launch.log
+backlog/.ralph-heartbeat
+
+# Claude Code (ignore local overrides, track project config)
+.claude/*
+!.claude/settings.json
+!.claude/task-reviewer-rules.md
+!.claude/brainstorm-rules.md
+!.claude/hooks/
+
+# Obsidian (vault-local state — not shared)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/plugins/
+.obsidian/community-plugins.json
