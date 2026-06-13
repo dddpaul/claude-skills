@@ -1,9 +1,10 @@
 ---
 id: TASK-2
 title: Document plugin marketplace install for teammates
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-13 18:18'
+updated_date: '2026-06-13 18:31'
 labels:
   - 'feature:plugin-marketplace-distribution'
 dependencies:
@@ -65,11 +66,21 @@ And add a sentence: *"If the skill belongs to a new domain (e.g., `obsidian`), c
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 README.md Installation section contains the literal string "/plugin marketplace add https://github.com/dddpaul/claude-skills" and "/plugin install architect@dddpaul-claude-skills"
-- [ ] #2 grep -F "claude config add skills" README.md returns no matches and grep -F "\"skills\":" README.md returns no matches (the obsolete settings.json snippet has been removed)
-- [ ] #3 README.md Project Structure section shows plugins/architect/skills/ and plugins/presentation/skills/ directory tree (not the flat arch-describe/ at root layout)
-- [ ] #4 Under each of the four skill subheadings (arch-describe, arch-draw, pptx-core-style, pptx-arch-style) in README.md, a one-line plugin tag like "Plugin: architect" or "Plugin: presentation" is present
-- [ ] #5 README.md Creating New Skills section shows the plugins/<domain>/skills/<skill-name>/ directory template and contains a sentence instructing readers to register new domains in .claude-plugin/marketplace.json
-- [ ] #6 CLAUDE.md Project-Specific section contains a bullet that mentions both the plugins/<domain>/skills/<name>/ layout and the SemVer bump rule (patch/minor/major) for the owning plugin.json version field
-- [ ] #7 uv run ruff check . returns exit code 0 (documentation changes do not break linting)
+- [x] #1 README.md Installation section contains the literal string "/plugin marketplace add https://github.com/dddpaul/claude-skills" and "/plugin install architect@dddpaul-claude-skills"
+- [x] #2 grep -F "claude config add skills" README.md returns no matches and grep -F "\"skills\":" README.md returns no matches (the obsolete settings.json snippet has been removed)
+- [x] #3 README.md Project Structure section shows plugins/architect/skills/ and plugins/presentation/skills/ directory tree (not the flat arch-describe/ at root layout)
+- [x] #4 Under each of the four skill subheadings (arch-describe, arch-draw, pptx-core-style, pptx-arch-style) in README.md, a one-line plugin tag like "Plugin: architect" or "Plugin: presentation" is present
+- [x] #5 README.md Creating New Skills section shows the plugins/<domain>/skills/<skill-name>/ directory template and contains a sentence instructing readers to register new domains in .claude-plugin/marketplace.json
+- [x] #6 CLAUDE.md Project-Specific section contains a bullet that mentions both the plugins/<domain>/skills/<name>/ layout and the SemVer bump rule (patch/minor/major) for the owning plugin.json version field
+- [x] #7 uv run ruff check . returns exit code 0 (documentation changes do not break linting)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: Rewrite README.md Installation, Project Structure, per-skill summary tags, and Creating New Skills sections; add CLAUDE.md Project-Specific bullet about plugin layout and SemVer bump. Then run ruff check to verify AC #7.
+
+Commit: `c1d1998` - task-2: rewrite installation docs and add plugin layout note
+
+Implemented: README Installation/Project Structure/per-skill plugin tags/Creating New Skills sections rewritten for plugin marketplace; CLAUDE.md gained Plugin layout + SemVer bump bullet. All 7 AC verified. Task-reviewer APPROVED.
+<!-- SECTION:NOTES:END -->

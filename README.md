@@ -6,6 +6,8 @@ A collection of custom skills for Claude Code that extend its capabilities for a
 
 ### arch-describe
 
+*Plugin: architect*
+
 Generate structured IT architecture descriptions with ASCII diagrams from short prompts.
 
 **Usage**: Ask Claude to describe, explain, or document the architecture of any IT system.
@@ -24,6 +26,8 @@ Describe the architecture of a Kafka cluster
 Includes reference documentation for 20+ common systems including Kafka, Kubernetes, PostgreSQL HA, Redis Cluster, Elasticsearch, and more.
 
 ### arch-draw
+
+*Plugin: architect*
 
 Generate professional draw.io diagrams in XML format from architectural descriptions.
 
@@ -50,6 +54,8 @@ Create a draw.io diagram for a microservices architecture with API Gateway, 3 se
 
 ### pptx-core-style
 
+*Plugin: presentation*
+
 Corporate presentation style guide for core principles architecture slides. Provides a canonical visual language — color palette, typography scale, layout grid, and component styles — to use alongside the `pptx` skill.
 
 **Covers**: NAVY/BLUE/ORANGE/STEEL color tokens, two-column layout with divider, content blocks with badges, tables with accent rows, key insight blocks, distribution bars, category descriptions with colored emphasis.
@@ -60,6 +66,8 @@ Create an architecture slide using pptx-core-style with three numbered content b
 ```
 
 ### pptx-arch-style
+
+*Plugin: presentation*
 
 Architectural presentation style guide for architecture committee reviews. Defines a complete visual system adapted from a Google Slides "Modern Business" template.
 
@@ -72,39 +80,57 @@ Create an architecture review deck using pptx-arch-style with a title slide, sta
 
 ## Project Structure
 
+Skills are grouped by domain under `plugins/architect/skills/` and `plugins/presentation/skills/`:
+
 ```
 claude-skills/
-├── arch-describe/
-│   ├── SKILL.md                    # Skill definition and instructions
-│   └── references/
-│       └── architectures.md        # Reference for 20+ common systems
-├── arch-draw/
-│   ├── SKILL.md                    # Skill definition and instructions
-│   └── references/
-│       ├── cheatsheet.md           # Quick reference for XML elements
-│       └── agent-prompt.md         # Prompt templates and validation
-├── pptx-core-style/
-│   └── SKILL.md                    # Style guide for core architecture slides
-├── pptx-arch-style/
-│   └── SKILL.md                    # Style guide for architecture committee decks
-└── README.md
+├── .claude-plugin/
+│   └── marketplace.json                          # Marketplace manifest
+└── plugins/
+    ├── architect/                                # plugins/architect/skills/
+    │   ├── .claude-plugin/
+    │   │   └── plugin.json                       # Plugin manifest
+    │   └── skills/
+    │       ├── arch-describe/
+    │       │   ├── SKILL.md                      # Skill definition and instructions
+    │       │   └── references/
+    │       │       └── architectures.md          # Reference for 20+ common systems
+    │       └── arch-draw/
+    │           ├── SKILL.md                      # Skill definition and instructions
+    │           └── references/
+    │               ├── cheatsheet.md             # Quick reference for XML elements
+    │               └── agent-prompt.md           # Prompt templates and validation
+    └── presentation/                             # plugins/presentation/skills/
+        ├── .claude-plugin/
+        │   └── plugin.json                       # Plugin manifest
+        └── skills/
+            ├── pptx-core-style/
+            │   └── SKILL.md                      # Style guide for core architecture slides
+            └── pptx-arch-style/
+                └── SKILL.md                      # Style guide for architecture committee decks
 ```
 
 ## Installation
 
-Add the skills directory to your Claude Code configuration:
+These skills are distributed as Claude Code plugins via a marketplace.
 
-```bash
-# Add to your Claude Code settings
-claude config add skills /path/to/claude-skills
+### One-time setup
+
+```
+/plugin marketplace add https://github.com/dddpaul/claude-skills
 ```
 
-Or configure in your project's `.claude/settings.json`:
+### Install the plugins you want
 
-```json
-{
-  "skills": ["/path/to/claude-skills"]
-}
+```
+/plugin install architect@dddpaul-claude-skills      # arch-describe + arch-draw
+/plugin install presentation@dddpaul-claude-skills   # pptx-core-style + pptx-arch-style
+```
+
+### Update later
+
+```
+/plugin marketplace update dddpaul-claude-skills
 ```
 
 ## Creating New Skills
@@ -112,11 +138,13 @@ Or configure in your project's `.claude/settings.json`:
 Each skill follows this structure:
 
 ```
-skill-name/
-├── SKILL.md           # Required: Skill definition with frontmatter
-└── references/        # Optional: Supporting documentation
+plugins/<domain>/skills/<skill-name>/
+├── SKILL.md           # Required: frontmatter + body
+└── references/        # Optional
     └── *.md
 ```
+
+If the skill belongs to a new domain (e.g., `obsidian`), create a new `plugins/<domain>/` with its own `.claude-plugin/plugin.json` and register it in the root `.claude-plugin/marketplace.json`.
 
 The `SKILL.md` file must include YAML frontmatter:
 
