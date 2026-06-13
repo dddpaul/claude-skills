@@ -88,6 +88,7 @@ This gate applies even if autonomous mode is otherwise active — a Source-carry
 - **Lint:** `uv run ruff check .`
 - **Test:** `uv run pytest`
 - **Framework:** Claude Skills repository (skill definitions + scripts)
+- **Plugin layout:** skills live under `plugins/<domain>/skills/<name>/` — not at repo root. The repo is itself a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`). When adding or modifying a skill, also bump the `version` in the owning plugin's `plugin.json` per SemVer: patch for content tweaks, minor for new skills or broadened triggers, major for renames/removals or breaking trigger narrowing.
 
 ### Conventions
 
