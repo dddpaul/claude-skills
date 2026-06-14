@@ -3,10 +3,10 @@ id: TASK-10
 title: >-
   Restyle books PDF: justified text, minimal table borders, page numbers, auto
   TOC
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-14 17:57'
-updated_date: '2026-06-14 18:06'
+updated_date: '2026-06-14 18:21'
 labels: []
 dependencies: []
 priority: high
@@ -153,19 +153,36 @@ Open the PDF and confirm:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 md-to-pdf.py strips fenced code blocks with language 'table-of-contents' before passing source to markdown.markdown
-- [ ] #2 md-to-pdf.py uses a markdown.Markdown instance with extensions fenced_code, tables, and toc, and toc_depth configured to '1-2'
-- [ ] #3 md-to-pdf.py rewrites every <li><a href="X"> in the toc HTML to <li data-href="X"><a href="X"> before injection
-- [ ] #4 md-to-pdf.py wraps the toc HTML in <nav class="toc"><h2 class="toc-title">Contents</h2>...</nav> and injects it at the top of the body when toc HTML is non-empty
-- [ ] #5 styles.css @page rule has 'margin: 15mm 15mm 15mm 20mm' and an @bottom-center sub-rule with 'content: counter(page)'
-- [ ] #6 styles.css body rule includes 'text-align: justify'
-- [ ] #7 styles.css table rule includes 'font-size: 10pt' plus 'border-top' and 'border-bottom' declarations; the 'border: 1px solid #999' previously on th/td is removed
-- [ ] #8 styles.css th, td rule includes 'overflow-wrap: break-word' and has no per-cell border declaration
-- [ ] #9 styles.css th rule has 'border-bottom' and 'font-weight: bold' and no 'background: #f0f0f0'
-- [ ] #10 styles.css contains a nav.toc block including 'target-counter(attr(data-href, url), page)' for the page number and a dotted-leader pseudo-element (border-bottom: 1pt dotted)
-- [ ] #11 plugins/reading/.claude-plugin/plugin.json version field is bumped by one minor level from its prior value
-- [ ] #12 Rendering the verification sample described in the task body produces a PDF where: TOC heading reads 'Contents', H1 and H2 entries appear with dot leaders and page numbers, no literal 'table-of-contents' string is present, the wide table fits the page, paragraphs are justified, and every page has a centered footer page number
-- [ ] #13 uv run ruff check . passes from repo root
-- [ ] #14 uv run pytest passes from repo root
-- [ ] #15 task-reviewer agent verdict on git diff master..HEAD is APPROVED
+- [x] #1 md-to-pdf.py strips fenced code blocks with language 'table-of-contents' before passing source to markdown.markdown
+- [x] #2 md-to-pdf.py uses a markdown.Markdown instance with extensions fenced_code, tables, and toc, and toc_depth configured to '1-2'
+- [x] #3 md-to-pdf.py rewrites every <li><a href="X"> in the toc HTML to <li data-href="X"><a href="X"> before injection
+- [x] #4 md-to-pdf.py wraps the toc HTML in <nav class="toc"><h2 class="toc-title">Contents</h2>...</nav> and injects it at the top of the body when toc HTML is non-empty
+- [x] #5 styles.css @page rule has 'margin: 15mm 15mm 15mm 20mm' and an @bottom-center sub-rule with 'content: counter(page)'
+- [x] #6 styles.css body rule includes 'text-align: justify'
+- [x] #7 styles.css table rule includes 'font-size: 10pt' plus 'border-top' and 'border-bottom' declarations; the 'border: 1px solid #999' previously on th/td is removed
+- [x] #8 styles.css th, td rule includes 'overflow-wrap: break-word' and has no per-cell border declaration
+- [x] #9 styles.css th rule has 'border-bottom' and 'font-weight: bold' and no 'background: #f0f0f0'
+- [x] #10 styles.css contains a nav.toc block including 'target-counter(attr(data-href, url), page)' for the page number and a dotted-leader pseudo-element (border-bottom: 1pt dotted)
+- [x] #11 plugins/reading/.claude-plugin/plugin.json version field is bumped by one minor level from its prior value
+- [x] #12 Rendering the verification sample described in the task body produces a PDF where: TOC heading reads 'Contents', H1 and H2 entries appear with dot leaders and page numbers, no literal 'table-of-contents' string is present, the wide table fits the page, paragraphs are justified, and every page has a centered footer page number
+- [x] #13 uv run ruff check . passes from repo root
+- [x] #14 uv run pytest passes from repo root
+- [x] #15 task-reviewer agent verdict on git diff master..HEAD is APPROVED
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: 1) Update md-to-pdf.py to strip table-of-contents fenced blocks, add toc extension, rewrite li with data-href, wrap in nav.toc. 2) Replace styles.css with new content (justified body, minimal table rules, footer page numbers, TOC styling). 3) Bump plugin.json version from 0.1.1 to 0.2.0 (minor). 4) Verify with sample MD.
+
+Commit: `06ee009` - task-10: restyle books PDF — justified text, minimal table borders, page numbers, auto TOC
+
+Implementation notes:
+
+- md-to-pdf.py: added a re.sub pass for fenced code blocks with language 'table-of-contents' (Obsidian community plugin placeholder); switched from markdown.markdown to markdown.Markdown instance with the toc extension at depth 1-2; rewrote li with data-href so CSS target-counter can resolve page numbers; injected <nav class="toc"><h2 class="toc-title">Contents</h2>...</nav> at the top of the body.
+- styles.css: replaced wholesale with the spec block (justified body, @bottom-center page counter, table top/header/bottom rules only, overflow-wrap break-word on cells, dotted leader + target-counter for the TOC). Added two extra rules beyond the verbatim spec: 'flex-wrap: wrap' on 'nav.toc li' and 'nav.toc li > ul { flex: 0 0 100%; order: 4; margin-top: 2pt; }'. Reason: the python-markdown toc extension nests <ul> as a direct child of <li>, so without flex-wrap the nested <ul> becomes a flex sibling of the parent anchor and renders on the same baseline as the H1 instead of indented below it. AC #12 explicitly requires 'indented H2s underneath' with their own dot leaders, which the verbatim CSS could not produce.
+- plugin.json: bumped 0.1.1 -> 0.2.0 (minor — new feature surface: auto TOC + restyle).
+- Verified against /tmp/books-render-check.md (3+ pages, wide table, Russian paragraph, table-of-contents fenced block): TOC at top labelled 'Contents' with H1 entries and indented H2s, dot leaders, page numbers; no literal 'table-of-contents' string in body; wide table fits within page width; paragraphs justified; centered page number on every page footer.
+- ruff: All checks passed. pytest: no tests (0 collected) — passes per project state.
+- task-reviewer verdict: APPROVED.
+<!-- SECTION:NOTES:END -->
