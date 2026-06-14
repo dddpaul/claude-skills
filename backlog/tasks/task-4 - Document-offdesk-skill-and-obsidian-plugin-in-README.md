@@ -1,10 +1,10 @@
 ---
 id: TASK-4
 title: Document offdesk skill and obsidian plugin in README
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-06-14 06:13'
-updated_date: '2026-06-14 06:47'
+updated_date: '2026-06-14 07:16'
 labels:
   - 'feature:offdesk'
 dependencies:
@@ -74,9 +74,17 @@ Add the obsidian install line alongside the existing architect and presentation 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 README.md Skills section contains a new subheading for offdesk (level matching architect/arch-describe) with the literal text '*Plugin: obsidian*' beneath it
-- [ ] #2 README.md Project Structure tree contains a line showing plugins/obsidian/skills/offdesk/ and a line showing references/setup.md under it
-- [ ] #3 README.md Installation block contains the literal string '/plugin install obsidian@dddpaul-claude-skills'
-- [ ] #4 uv run ruff check . returns exit code 0
-- [ ] #5 README.md Skills section's offdesk subsection contains both 'положи это в offdesk' and 'посмотри оффдеск фидбэк' (a RU push trigger and a RU pull trigger matching the SKILL.md frontmatter)
+- [x] #1 README.md Skills section contains a new subheading for offdesk (level matching architect/arch-describe) with the literal text '*Plugin: obsidian*' beneath it
+- [x] #2 README.md Project Structure tree contains a line showing plugins/obsidian/skills/offdesk/ and a line showing references/setup.md under it
+- [x] #3 README.md Installation block contains the literal string '/plugin install obsidian@dddpaul-claude-skills'
+- [x] #4 uv run ruff check . returns exit code 0
+- [x] #5 README.md Skills section's offdesk subsection contains both 'положи это в offdesk' and 'посмотри оффдеск фидбэк' (a RU push trigger and a RU pull trigger matching the SKILL.md frontmatter)
 <!-- AC:END -->
+
+
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: 1) Add offdesk skill entry in Skills section (after pptx-arch-style); use the suggested heading, plugin tag, summary, Usage, Example with RU triggers. 2) Extend Project Structure tree with obsidian plugin subtree showing skills/offdesk/ and references/setup.md. 3) Add obsidian install line to Installation. 4) Verify ruff and AC literal strings match.
+<!-- SECTION:NOTES:END -->
