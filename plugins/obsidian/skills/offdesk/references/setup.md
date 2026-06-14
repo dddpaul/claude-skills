@@ -16,15 +16,21 @@ brew services start syncthing
 Open the Syncthing WebUI at <http://127.0.0.1:8384>. Click **Add Folder** and
 set:
 
-- **Folder Label:** `offdesk-android`
-- **Folder ID:** `offdesk-android`
+- **Folder Label:** `offdesk-android` (legacy name; can stay or be renamed to
+  `offdesk` — the skill doesn't care).
+- **Folder ID:** `offdesk-android` (same — folder ID can stay or be renamed).
 - **Folder Path:** the laptop vault root
 
-Vault root on laptop:
+Vault root on laptop (default):
 
 ```text
-~/Obsidian/android
+~/Obsidian/offdesk
 ```
+
+If your Obsidian layout uses a different directory, override the default by
+setting `OFFDESK_OBSIDIAN_VAULT` in your shell profile (`~/.zshrc` or
+`~/.bashrc`) and point it at whichever directory Syncthing shares — the
+skill reads the env var at every push/pull.
 
 ## Android setup
 
@@ -41,6 +47,10 @@ Android-side vault path:
 ```text
 /storage/emulated/0/Obsidian/android/
 ```
+
+This Android path is the Syncthing folder mapping on the device, set
+independently of the laptop-side `OFFDESK_OBSIDIAN_VAULT` env var. Leave
+it as-is — do not try to rename it to match the laptop default.
 
 ## Obsidian Android — Templates plugin + toolbar
 
@@ -73,7 +83,7 @@ Bind both to the bottom toolbar so they're one tap away while reading:
 Place a `.stignore` file at the vault root on the laptop:
 
 ```text
-~/Obsidian/android/.stignore
+~/Obsidian/offdesk/.stignore
 ```
 
 Contents:
