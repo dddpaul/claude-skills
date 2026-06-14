@@ -92,9 +92,24 @@ Push markdown files from any project into a Syncthing-synced Obsidian vault on p
 посмотри оффдеск фидбэк
 ```
 
+### books
+
+*Plugin: reading*
+
+Push markdown files from any project to Apple Books on iPad as PDF for off-desk reading with Apple Pencil annotations. iCloud Drive → tap to open in Books. Push-only — pen marks stay with the human.
+
+**Usage**: Ask Claude to send a doc to books for review on iPad.
+
+**Example**:
+```
+send to books
+положи это в books
+почитаю на айпаде
+```
+
 ## Project Structure
 
-Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, and `plugins/obsidian/skills/`:
+Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, `plugins/obsidian/skills/`, and `plugins/reading/skills/`:
 
 ```
 claude-skills/
@@ -122,14 +137,24 @@ claude-skills/
     │       │   └── SKILL.md                      # Style guide for core architecture slides
     │       └── pptx-arch-style/
     │           └── SKILL.md                      # Style guide for architecture committee decks
-    └── obsidian/                                 # plugins/obsidian/skills/
+    ├── obsidian/                                 # plugins/obsidian/skills/
+    │   ├── .claude-plugin/
+    │   │   └── plugin.json                       # Plugin manifest
+    │   └── skills/
+    │       └── offdesk/
+    │           ├── SKILL.md                      # Skill definition and instructions
+    │           └── references/
+    │               └── setup.md                  # Syncthing + Obsidian Android manual setup
+    └── reading/                                  # plugins/reading/skills/
         ├── .claude-plugin/
         │   └── plugin.json                       # Plugin manifest
         └── skills/
-            └── offdesk/
+            └── books/
                 ├── SKILL.md                      # Skill definition and instructions
-                └── references/
-                    └── setup.md                  # Syncthing + Obsidian Android manual setup
+                ├── references/
+                │   └── styles.css                # PDF styling (typography, page breaks)
+                └── scripts/
+                    └── md-to-pdf.py              # Markdown → PDF converter
 ```
 
 ## Installation
@@ -148,6 +173,7 @@ These skills are distributed as Claude Code plugins via a marketplace.
 /plugin install architect@dddpaul-claude-skills      # arch-describe + arch-draw
 /plugin install presentation@dddpaul-claude-skills   # pptx-core-style + pptx-arch-style
 /plugin install obsidian@dddpaul-claude-skills       # offdesk
+/plugin install reading@dddpaul-claude-skills        # books
 ```
 
 ### Update later
