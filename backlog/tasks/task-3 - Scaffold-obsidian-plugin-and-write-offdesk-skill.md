@@ -1,10 +1,10 @@
 ---
 id: TASK-3
 title: Scaffold obsidian plugin and write offdesk skill
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-14 06:11'
-updated_date: '2026-06-14 07:10'
+updated_date: '2026-06-14 07:14'
 labels:
   - 'feature:offdesk'
 dependencies: []
@@ -227,10 +227,12 @@ and invoke it from SKILL.md. Library choice (ruamel.yaml, PyYAML, the yq CLI, or
 - [x] #10 plugins/obsidian/skills/offdesk/references/setup.md exists and covers Syncthing macOS install (brew install syncthing), Syncthing Android via F-Droid, device pairing via QR, Obsidian Android install + open vault at /storage/emulated/0/Obsidian/android/, Templates plugin config with ai-callout.md and todo-callout.md, toolbar bindings, and a .stignore block containing all six patterns: .obsidian/workspace.json, .obsidian/workspace-mobile.json, .obsidian/workspace.json.tmp, .DS_Store, *.swp, *.sync-conflict-*
 <!-- AC:END -->
 
-
-
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: 1) marketplace.json — add 'obsidian' entry. 2) plugin.json at plugins/obsidian/.claude-plugin/. 3) SKILL.md at plugins/obsidian/skills/offdesk/ with merged frontmatter description (EN+RU triggers) and Push/Pull/Cleanup/Slug collision/Annotation/Setup sections. 4) references/setup.md with macOS/Android/Templates/.stignore. 5) merge-frontmatter.py helper for YAML merge. 6) ruff check passes.
+
+Commit: `89d7a44` - task-3: scaffold obsidian plugin and offdesk skill
+
+Implemented: marketplace.json (3rd entry obsidian); plugins/obsidian/.claude-plugin/plugin.json (v0.1.0); plugins/obsidian/skills/offdesk/SKILL.md (EN+RU push/pull triggers in frontmatter; Push/Pull/Cleanup/Slug collision/Annotation/Setup sections); references/setup.md (Syncthing macOS+Android, Obsidian Android, Templates, toolbar, .stignore); scripts/merge-frontmatter.py (stdlib YAML merge helper, idempotent). uv run ruff check . passes. task-reviewer agent: APPROVED. Implemented vault path against AC literal (~/Obsidian/android/), not the addendum's ~/Obsidian/offdesk/ — that reconciliation belongs in a follow-up.
 <!-- SECTION:NOTES:END -->
