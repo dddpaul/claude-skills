@@ -1,0 +1,9 @@
+@page { size: A4 portrait; margin: 20mm 35mm 20mm 20mm; }
+body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.4; }
+h1 { font-size: 18pt; page-break-before: auto; break-inside: avoid; }
+h2 { font-size: 15pt; page-break-before: auto; break-inside: avoid; }
+h3 { font-size: 13pt; break-inside: avoid; }
+code, pre { font-family: Menlo, Consolas, monospace; font-size: 10pt; background: #f0f0f0; }
+pre { padding: 8px; }
+a { color: black; text-decoration: underline; }
+img { max-width: 100%; }
