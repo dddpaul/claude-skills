@@ -78,9 +78,23 @@ Architectural presentation style guide for architecture committee reviews. Defin
 Create an architecture review deck using pptx-arch-style with a title slide, status tracker table, and flow diagram
 ```
 
+### offdesk
+
+*Plugin: obsidian*
+
+Push markdown files from any project into a Syncthing-synced Obsidian vault on phone/tablet for off-desk reading, then pull annotated `>[!ai]` callouts back to the source file. P2P only — no cloud, no bot.
+
+**Usage**: Ask Claude to send a doc to offdesk for review, or to check feedback from your phone.
+
+**Example**:
+```
+положи это в offdesk
+посмотри оффдеск фидбэк
+```
+
 ## Project Structure
 
-Skills are grouped by domain under `plugins/architect/skills/` and `plugins/presentation/skills/`:
+Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, and `plugins/obsidian/skills/`:
 
 ```
 claude-skills/
@@ -100,14 +114,22 @@ claude-skills/
     │           └── references/
     │               ├── cheatsheet.md             # Quick reference for XML elements
     │               └── agent-prompt.md           # Prompt templates and validation
-    └── presentation/                             # plugins/presentation/skills/
+    ├── presentation/                             # plugins/presentation/skills/
+    │   ├── .claude-plugin/
+    │   │   └── plugin.json                       # Plugin manifest
+    │   └── skills/
+    │       ├── pptx-core-style/
+    │       │   └── SKILL.md                      # Style guide for core architecture slides
+    │       └── pptx-arch-style/
+    │           └── SKILL.md                      # Style guide for architecture committee decks
+    └── obsidian/                                 # plugins/obsidian/skills/
         ├── .claude-plugin/
         │   └── plugin.json                       # Plugin manifest
         └── skills/
-            ├── pptx-core-style/
-            │   └── SKILL.md                      # Style guide for core architecture slides
-            └── pptx-arch-style/
-                └── SKILL.md                      # Style guide for architecture committee decks
+            └── offdesk/
+                ├── SKILL.md                      # Skill definition and instructions
+                └── references/
+                    └── setup.md                  # Syncthing + Obsidian Android manual setup
 ```
 
 ## Installation
@@ -125,6 +147,7 @@ These skills are distributed as Claude Code plugins via a marketplace.
 ```
 /plugin install architect@dddpaul-claude-skills      # arch-describe + arch-draw
 /plugin install presentation@dddpaul-claude-skills   # pptx-core-style + pptx-arch-style
+/plugin install obsidian@dddpaul-claude-skills       # offdesk
 ```
 
 ### Update later
