@@ -4,7 +4,7 @@ title: Scaffold obsidian plugin and write offdesk skill
 status: To Do
 assignee: []
 created_date: '2026-06-14 06:11'
-updated_date: '2026-06-14 06:20'
+updated_date: '2026-06-14 06:31'
 labels:
   - 'feature:offdesk'
 dependencies: []
@@ -63,10 +63,10 @@ plugins/obsidian/skills/offdesk/SKILL.md
 
 Frontmatter: name=offdesk and a description field that includes all of these trigger phrases (so Claude's skill matcher fires on any of them):
 
-- Push triggers (EN): "send to offdesk", "send to phone for review", "review later"
-- Push triggers (RU): "положи это в offdesk", "обработай для phone"
-- Pull triggers (EN): "review my offdesk notes", "check feedback"
-- Pull triggers (RU): "посмотри фидбэк", "что я там накорябал"
+- Push triggers (EN): "send to offdesk", "send to phone for review", "review later", "check later"
+- Push triggers (RU): "положи это в offdesk", "положи это в оффдеск", "посмотрю позже", "проверю позже"
+- Pull triggers (EN): "review my offdesk notes", "check offdesk feedback"
+- Pull triggers (RU): "посмотри оффдеск фидбэк", "проверь оффдеск"
 
 Body sections in this order: Push, Pull, Cleanup, Slug collision, Annotation convention, Setup.
 
@@ -217,12 +217,12 @@ and invoke it from SKILL.md. Library choice (ruamel.yaml, PyYAML, the yq CLI, or
 <!-- AC:BEGIN -->
 - [ ] #1 .claude-plugin/marketplace.json plugins array length is 3 and contains an entry with name="obsidian", source="./plugins/obsidian", and the description string "Obsidian vault tooling — offdesk push/pull for off-desk markdown review on phone/tablet via Syncthing."
 - [ ] #2 plugins/obsidian/.claude-plugin/plugin.json exists, parses as valid JSON, has version="0.1.0", name="obsidian", license="Apache-2.0", author.name="Pavel Derendyaev", homepage=repository="https://github.com/dddpaul/claude-skills"
-- [ ] #3 plugins/obsidian/skills/offdesk/SKILL.md exists and starts with a --- frontmatter block whose name: field equals "offdesk" and whose description: field contains both English and Russian trigger phrases for push and pull (substrings 'положи это в offdesk', 'send to offdesk', 'посмотри фидбэк', 'review my offdesk notes' all present)
-- [ ] #4 SKILL.md body has a 'Push' section documenting: git rev-parse --show-toplevel project-root resolution with pwd fallback, slug=basename, mkdir -p ~/Obsidian/android/<slug>/, frontmatter merge of offdesk-source/offdesk-project-root/offdesk-copied-at keys, and an explicit statement to NOT prepend a second --- block (merge into existing)
-- [ ] #5 SKILL.md body has a 'Pull' section documenting: grep -nrE '^>\\s*\\[!ai\\]' over ~/Obsidian/android/<slug>/, frontmatter parse for offdesk-source/offdesk-project-root, report format <source-file>:<line>, and an explicit 'confirm before modifying source files' rule
-- [ ] #6 SKILL.md body has a 'Cleanup' section documenting that before pushing the source upstream (e.g., to Confluence via upmark), strip offdesk-* keys from frontmatter and >[!ai] callouts from the body
-- [ ] #7 SKILL.md body has a 'Slug collision' section stating that when two projects share basename, the slug is suffixed with a short hash of project_root
-- [ ] #8 plugins/obsidian/skills/offdesk/references/setup.md exists and covers Syncthing macOS install (brew install syncthing), Syncthing Android via F-Droid, device pairing via QR, Obsidian Android install + open vault at /storage/emulated/0/Obsidian/android/, Templates plugin config with ai-callout.md and todo-callout.md, toolbar bindings, and the .stignore contents from the brainstorm
-- [ ] #9 SKILL.md body has a 'Setup' section that links to references/setup.md (markdown link target resolves)
-- [ ] #10 uv run ruff check . returns exit code 0
+- [ ] #3 SKILL.md body has a 'Push' section documenting: git rev-parse --show-toplevel project-root resolution with pwd fallback, slug=basename, mkdir -p ~/Obsidian/android/<slug>/, frontmatter merge of offdesk-source/offdesk-project-root/offdesk-copied-at keys, and an explicit statement to NOT prepend a second --- block (merge into existing)
+- [ ] #4 SKILL.md body has a 'Pull' section documenting: grep -nrE '^>\\s*\\[!ai\\]' over ~/Obsidian/android/<slug>/, frontmatter parse for offdesk-source/offdesk-project-root, report format <source-file>:<line>, and an explicit 'confirm before modifying source files' rule
+- [ ] #5 SKILL.md body has a 'Cleanup' section documenting that before pushing the source upstream (e.g., to Confluence via upmark), strip offdesk-* keys from frontmatter and >[!ai] callouts from the body
+- [ ] #6 SKILL.md body has a 'Slug collision' section stating that when two projects share basename, the slug is suffixed with a short hash of project_root
+- [ ] #7 SKILL.md body has a 'Setup' section that links to references/setup.md (markdown link target resolves)
+- [ ] #8 uv run ruff check . returns exit code 0
+- [ ] #9 plugins/obsidian/skills/offdesk/SKILL.md exists and starts with a --- frontmatter block whose name: field equals "offdesk" and whose description: field contains both English and Russian trigger phrases for push and pull (substrings 'send to offdesk', 'положи это в offdesk', 'review my offdesk notes', 'посмотри оффдеск фидбэк' all present)
+- [ ] #10 plugins/obsidian/skills/offdesk/references/setup.md exists and covers Syncthing macOS install (brew install syncthing), Syncthing Android via F-Droid, device pairing via QR, Obsidian Android install + open vault at /storage/emulated/0/Obsidian/android/, Templates plugin config with ai-callout.md and todo-callout.md, toolbar bindings, and a .stignore block containing all six patterns: .obsidian/workspace.json, .obsidian/workspace-mobile.json, .obsidian/workspace.json.tmp, .DS_Store, *.swp, *.sync-conflict-*
 <!-- AC:END -->
