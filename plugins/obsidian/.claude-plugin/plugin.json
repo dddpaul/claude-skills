@@ -1,8 +1,8 @@
 {
   "name": "obsidian",
   "description": "Obsidian vault tooling",
-  "version": "0.2.0",
-  "author": { "name": "Pavel Derendyaev" },
+  "version": "0.2.1",
+  "author": { "name": "Pavel Derendyaev", "email": "dddpaul@gmail.com" },
   "homepage": "https://github.com/dddpaul/claude-skills",
   "repository": "https://github.com/dddpaul/claude-skills",
   "license": "Apache-2.0"
