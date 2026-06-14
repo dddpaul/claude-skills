@@ -305,3 +305,36 @@ After landing, the user-global brainstorm at
 `~/.claude/brainstorms/offdesk-brainstorm.md` can stay for historical
 context — this `design/offdesk-brainstorm.md` plus addendum is the
 authoritative source for implementation going forward.
+
+---
+
+## Addendum: trigger refinements (added 2026-06-14)
+
+### Why
+
+The trigger lists in the original Push/Pull sections were a first-pass set drafted during the initial brainstorm. Two problems surfaced once they were carried into TASK-3's frontmatter spec: several phrases were too generic and would collide with non-offdesk asks (bare "check feedback" or "посмотри фидбэк" could fire on any feedback discussion), and a few were too narrow or one-off ("обработай для phone", "что я там накорябал" — situational phrasings that wouldn't recur). A refined trigger set was applied. This addendum carries the change into the canonical design doc so `/ralph-review feature=offdesk` reads the same intent the implementer (TASK-3) reads.
+
+### What changed
+
+The original Push and Pull trigger lists in the brainstorm body above are superseded by these refined sets:
+
+- **Push (EN):** "send to offdesk", "send to phone for review", "review later", "check later"
+- **Push (RU):** "положи это в offdesk", "положи это в оффдеск", "посмотрю позже", "проверю позже"
+- **Pull (EN):** "review my offdesk notes", "check offdesk feedback"
+- **Pull (RU):** "посмотри оффдеск фидбэк", "проверь оффдеск"
+
+Notable deltas vs the original:
+
+- **Removed for being too generic:** "check feedback", "посмотри фидбэк".
+- **Removed for being too narrow/one-off:** "обработай для phone", "что я там накорябал".
+- **Added Cyrillic spelling of "оффдеск"** so RU triggers don't depend on remembering the Latin-spelled "offdesk".
+- **Added delayed-review phrasings** ("review later" / "check later" / "посмотрю позже" / "проверю позже") so the natural "I'll look at this from the couch later" intent reaches the skill.
+
+Everything else in the brainstorm body — vault layout (subject to the vault-path addendum above), push/pull procedural steps, annotation convention, cleanup flow, scope cuts, open questions — is unchanged.
+
+### Implementation checklist
+
+- TASK-3 description trigger lists already updated to match.
+- TASK-3 AC verifying frontmatter triggers already updated to substring set: 'send to offdesk', 'положи это в offdesk', 'review my offdesk notes', 'посмотри оффдеск фидбэк'.
+- TASK-4 description Example block and AC verifying README triggers already updated to: 'положи это в offdesk', 'посмотри оффдеск фидбэк'.
+- User-global brainstorm at `~/.claude/brainstorms/offdesk-brainstorm.md` is intentionally NOT updated — it stays as the historical pre-update snapshot. This in-repo design doc plus its addenda is the authoritative trigger set for implementation and review.

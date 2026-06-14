@@ -4,7 +4,7 @@ title: Document offdesk skill and obsidian plugin in README
 status: To Do
 assignee: []
 created_date: '2026-06-14 06:13'
-updated_date: '2026-06-14 06:20'
+updated_date: '2026-06-14 06:47'
 labels:
   - 'feature:offdesk'
 dependencies:
@@ -36,7 +36,7 @@ Push markdown files from any project into a Syncthing-synced Obsidian vault on p
 **Example**:
 \`\`\`
 положи это в offdesk
-посмотри фидбэк
+посмотри оффдеск фидбэк
 \`\`\`
 ```
 
@@ -75,8 +75,8 @@ Add the obsidian install line alongside the existing architect and presentation 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 README.md Skills section contains a new subheading for offdesk (level matching architect/arch-describe) with the literal text '*Plugin: obsidian*' beneath it
-- [ ] #2 README.md Skills section's offdesk subsection contains both 'положи это в offdesk' and 'посмотри фидбэк' (the EN+RU triggers from the brainstorm)
-- [ ] #3 README.md Project Structure tree contains a line showing plugins/obsidian/skills/offdesk/ and a line showing references/setup.md under it
-- [ ] #4 README.md Installation block contains the literal string '/plugin install obsidian@dddpaul-claude-skills'
-- [ ] #5 uv run ruff check . returns exit code 0
+- [ ] #2 README.md Project Structure tree contains a line showing plugins/obsidian/skills/offdesk/ and a line showing references/setup.md under it
+- [ ] #3 README.md Installation block contains the literal string '/plugin install obsidian@dddpaul-claude-skills'
+- [ ] #4 uv run ruff check . returns exit code 0
+- [ ] #5 README.md Skills section's offdesk subsection contains both 'положи это в offdesk' and 'посмотри оффдеск фидбэк' (a RU push trigger and a RU pull trigger matching the SKILL.md frontmatter)
 <!-- AC:END -->
