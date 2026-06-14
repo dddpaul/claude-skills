@@ -1,10 +1,10 @@
 ---
 id: TASK-4
 title: Document offdesk skill and obsidian plugin in README
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-14 06:13'
-updated_date: '2026-06-14 07:16'
+updated_date: '2026-06-14 07:18'
 labels:
   - 'feature:offdesk'
 dependencies:
@@ -81,10 +81,12 @@ Add the obsidian install line alongside the existing architect and presentation 
 - [x] #5 README.md Skills section's offdesk subsection contains both 'положи это в offdesk' and 'посмотри оффдеск фидбэк' (a RU push trigger and a RU pull trigger matching the SKILL.md frontmatter)
 <!-- AC:END -->
 
-
-
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: 1) Add offdesk skill entry in Skills section (after pptx-arch-style); use the suggested heading, plugin tag, summary, Usage, Example with RU triggers. 2) Extend Project Structure tree with obsidian plugin subtree showing skills/offdesk/ and references/setup.md. 3) Add obsidian install line to Installation. 4) Verify ruff and AC literal strings match.
+
+Commit: `cc8c72d` - task-4: document offdesk skill and obsidian plugin in README
+
+Implementation: README.md updated with offdesk Skills section entry, Project Structure tree extended with obsidian plugin subtree, and obsidian install line added to Installation block. Tree rebalanced so architect/presentation use ├── and obsidian uses └── as the last sibling. All 5 AC verified literally with grep. uv run ruff check . passes. Task-reviewer agent APPROVED.
 <!-- SECTION:NOTES:END -->
