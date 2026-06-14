@@ -11,6 +11,11 @@
       "name": "presentation",
       "source": "./plugins/presentation",
       "description": "Presentation style guides for the pptx skill — corporate core-style and architecture-committee arch-style."
+    },
+    {
+      "name": "obsidian",
+      "source": "./plugins/obsidian",
+      "description": "Obsidian vault tooling — offdesk push/pull for off-desk markdown review on phone/tablet via Syncthing."
     }
   ]
 }
