@@ -13,6 +13,25 @@ The skill performs file copy, frontmatter merge, and grep directly — no
 compiled CLI tool. Manual user-setup steps (Syncthing, Obsidian Android,
 templates, toolbar) are documented in [references/setup.md](references/setup.md).
 
+## Vault path
+
+Default vault root on the laptop:
+
+```text
+~/Obsidian/offdesk/
+```
+
+Override: set `OFFDESK_OBSIDIAN_VAULT` in your shell profile (`~/.zshrc`
+or `~/.bashrc`) to point at any directory. The skill reads it at every
+invocation; restart the shell after editing.
+
+Every push/pull step that touches the vault resolves the root with:
+
+```bash
+VAULT_ROOT="${OFFDESK_OBSIDIAN_VAULT:-$HOME/Obsidian/offdesk}"
+VAULT_ROOT="${VAULT_ROOT%/}"   # strip trailing slash for consistency
+```
+
 ## Push
 
 Trigger phrases (any of):
@@ -27,7 +46,9 @@ Procedure:
 2. **Project slug** = `basename "$PROJECT_ROOT"`.
 3. **Create the vault subdir** on the laptop:
    ```bash
-   mkdir -p ~/Obsidian/android/<slug>/
+   VAULT_ROOT="${OFFDESK_OBSIDIAN_VAULT:-$HOME/Obsidian/offdesk}"
+   VAULT_ROOT="${VAULT_ROOT%/}"   # strip trailing slash for consistency
+   mkdir -p "$VAULT_ROOT/<slug>/"
    ```
 4. **Read the source markdown** and parse any existing YAML frontmatter (the
    leading `---` block, if present).
@@ -41,13 +62,21 @@ Procedure:
    upmark, jekyll/hugo fields, anything else. Merge, do not replace.
 7. **Write** the merged document to:
    ```text
-   ~/Obsidian/android/<slug>/<filename>.md
+   $VAULT_ROOT/<slug>/<filename>.md
    ```
    Syncthing propagates to the phone/tablet automatically.
 
 For the YAML merge, the inline shell + python is acceptable when small;
 otherwise call the helper at
-[scripts/merge-frontmatter.py](scripts/merge-frontmatter.py).
+[scripts/merge-frontmatter.py](scripts/merge-frontmatter.py):
+
+```bash
+scripts/merge-frontmatter.py \
+    --src "<source.md>" \
+    --dst "$VAULT_ROOT/<slug>/<filename>.md" \
+    --offdesk-source "<rel-path>" \
+    --offdesk-project-root "$PROJECT_ROOT"
+```
 
 ## Pull
 
@@ -62,7 +91,9 @@ Procedure:
    push step 1+2).
 2. **Grep** for AI callouts over the per-project vault subdir:
    ```bash
-   grep -nrE '^>\s*\[!ai\]' ~/Obsidian/android/<slug>/
+   VAULT_ROOT="${OFFDESK_OBSIDIAN_VAULT:-$HOME/Obsidian/offdesk}"
+   VAULT_ROOT="${VAULT_ROOT%/}"
+   grep -nrE '^>\s*\[!ai\]' "$VAULT_ROOT/<slug>/"
    ```
    The regex `^>\s*\[!ai\]` matches both `>[!ai]` and `> [!ai]` (no-space
    and with-space) — both forms render correctly in Obsidian.
@@ -91,13 +122,13 @@ document **before** the upstream push:
 - Remove `>[!ai]` callouts from the body. Multi-line callouts are detected
   by leading `>` on each continuation line — strip the entire block.
 
-The vault copies under `~/Obsidian/android/<slug>/` keep their annotations
+The vault copies under `$VAULT_ROOT/<slug>/` keep their annotations
 as review history; only the upstream-bound copy is cleaned.
 
 ## Slug collision
 
 Two projects with identical basenames (e.g., `~/work/foo` and
-`~/play/foo`) would collide in `~/Obsidian/android/foo/`. Resolution:
+`~/play/foo`) would collide in `$VAULT_ROOT/foo/`. Resolution:
 suffix the slug with a short hash of the project root path when a
 collision is detected.
 
