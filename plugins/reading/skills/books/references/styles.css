@@ -7,3 +7,6 @@ code, pre { font-family: Menlo, Consolas, monospace; font-size: 10pt; background
 pre { padding: 8px; }
 a { color: black; text-decoration: underline; }
 img { max-width: 100%; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+th, td { border: 1px solid #999; padding: 4px 8px; text-align: left; vertical-align: top; }
+th { background: #f0f0f0; }
