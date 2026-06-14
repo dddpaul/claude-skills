@@ -10,6 +10,7 @@ a hidden `.<name>.tmp` file alongside the target and `os.replace`d into
 place so iCloud only ever sees a complete file.
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -21,8 +22,10 @@ def main() -> None:
     src = Path(sys.argv[1]).resolve()
     dst = Path(sys.argv[2]).resolve()
     css_path = Path(__file__).parent.parent / "references" / "styles.css"
+    raw = src.read_text(encoding="utf-8")
+    raw = re.sub(r"\A---\r?\n.*?\r?\n---\r?\n", "", raw, count=1, flags=re.DOTALL)
     html_body = markdown.markdown(
-        src.read_text(encoding="utf-8"),
+        raw,
         extensions=["fenced_code", "tables"],
     )
     html_doc = (
