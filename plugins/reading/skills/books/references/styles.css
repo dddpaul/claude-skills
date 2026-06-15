@@ -50,4 +50,4 @@ nav.toc li::after {
 nav.toc li.toc-h2 { padding-left: 16pt; }
 nav.toc li.toc-h3 { padding-left: 32pt; }
 
-.emoji { font-size: 0.8em; vertical-align: -0.75em; }
+.icon { height: 0.9em; width: 0.9em; vertical-align: -0.12em; }
