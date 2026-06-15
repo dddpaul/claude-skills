@@ -38,7 +38,7 @@ def main() -> None:
     )
     md = markdown.Markdown(
         extensions=["fenced_code", "tables", "toc"],
-        extension_configs={"toc": {"toc_depth": "1-2"}},
+        extension_configs={"toc": {"toc_depth": "1-3"}},
     )
     html_body = md.convert(raw)
     toc_html = md.toc or ""
