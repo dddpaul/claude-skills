@@ -76,17 +76,15 @@ Procedure:
 `references/styles.css` produces the default layout:
 
 - Page size: **A4 portrait**.
-- Margins: **20mm top/bottom/left, 35mm right** — wide gutter on the right
-  for marginalia. Right-handed bias by default; edit the CSS if you need a
-  left gutter.
+- Margins: **20mm symmetric** on all sides.
 - Line height: **1.4** — underlines fit between lines, notes go in the
   margin.
-- Font: `Georgia, "Times New Roman", serif`, 12pt body; 18/15/13 pt for
-  H1/H2/H3.
-- Code: `Menlo, Consolas, monospace`, 10pt, light-grey background. No syntax
-  highlighting in v0.1.
-- Links: underlined, black (Books does not follow them; blue is just
-  ink-noise).
+- Font: `'IBM Plex Serif', 'PT Serif', 'Apple Color Emoji', 'Times New Roman', serif`,
+  12pt body, with `font-variant-numeric: lining-nums` so digits sit on the
+  baseline; 18/15/13 pt for H1/H2/H3.
+- Code: `'IBM Plex Mono', Menlo, Consolas, monospace`, 10pt, light-grey
+  background. No syntax highlighting in v0.1.
+- Links: underlined, blue (`#0050b3`).
 - Images: `max-width: 100%`.
 - Page breaks: `h1, h2 { page-break-before: auto; break-inside: avoid; }` to
   prevent orphan headings.
@@ -110,9 +108,13 @@ or weasyprint will fail to render with a cryptic Cairo/Pango error:
 
 ```bash
 brew install cairo pango gdk-pixbuf
+brew install --cask font-ibm-plex
 ```
 
-These are runtime dependencies for weasyprint's PDF rendering pipeline.
+The cairo/pango/gdk-pixbuf trio are runtime dependencies for weasyprint's PDF
+rendering pipeline. `font-ibm-plex` installs the IBM Plex Serif / Mono families
+used by the default stylesheet; without them weasyprint falls back to PT Serif
+or Times New Roman.
 
 ## Slug collision
 
