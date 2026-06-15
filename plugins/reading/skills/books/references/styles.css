@@ -3,7 +3,7 @@
   margin: 20mm;
   @bottom-center { content: counter(page); font-family: Georgia, serif; font-size: 10pt; }
 }
-body { font-family: 'IBM Plex Serif', 'PT Serif', 'Apple Color Emoji', 'Times New Roman', serif; font-variant-numeric: lining-nums; font-size: 12pt; line-height: 1.4; text-align: justify; }
+body { font-family: 'IBM Plex Serif', 'PT Serif', 'Apple Color Emoji', 'Times New Roman', serif; font-variant-numeric: lining-nums; font-size: 11pt; line-height: 1.25; text-align: justify; }
 h1 { font-size: 18pt; page-break-before: auto; break-inside: avoid; }
 h2 { font-size: 15pt; page-break-before: auto; break-inside: avoid; }
 h3 { font-size: 13pt; break-inside: avoid; }
