@@ -1,6 +1,6 @@
 {
   "name": "reading",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "MD → PDF → iCloud Drive → Apple Books on iPad. Push-only; pen marks stay with the human.",
   "author": {
     "name": "Pavel Derendyaev",
