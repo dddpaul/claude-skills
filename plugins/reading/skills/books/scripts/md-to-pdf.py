@@ -22,6 +22,14 @@ import markdown
 from weasyprint import CSS, HTML
 
 EMOJI_RE = re.compile(r"([\U0001F300-\U0001FAFF\u2705\u274C\u2728])")
+EMOJI_SUB = r'<span class="emoji">\1</span>'
+
+
+def _flatten_toc(tokens: list, out: list) -> None:
+    for t in tokens:
+        out.append((t["level"], t["id"], t["name"]))
+        if t.get("children"):
+            _flatten_toc(t["children"], out)
 
 
 def main() -> None:
@@ -41,19 +49,21 @@ def main() -> None:
         extension_configs={"toc": {"toc_depth": "1-3"}},
     )
     html_body = md.convert(raw)
-    toc_html = md.toc or ""
-    html_body = EMOJI_RE.sub(r'<span class="emoji">\1</span>', html_body)
-    toc_html = EMOJI_RE.sub(r'<span class="emoji">\1</span>', toc_html)
-    toc_html = re.sub(
-        r'<li><a href="([^"]+)">',
-        r'<li data-href="\1"><a href="\1">',
-        toc_html,
-    )
-    toc_section = (
-        f'<nav class="toc"><h2 class="toc-title">Contents</h2>{toc_html}</nav>'
-        if toc_html
-        else ""
-    )
+    html_body = EMOJI_RE.sub(EMOJI_SUB, html_body)
+    flat: list = []
+    _flatten_toc(md.toc_tokens, flat)
+    if flat:
+        rows = "".join(
+            f'<li class="toc-h{level}" data-href="#{tid}">'
+            f'<a href="#{tid}">{EMOJI_RE.sub(EMOJI_SUB, name)}</a></li>'
+            for level, tid, name in flat
+        )
+        toc_section = (
+            f'<nav class="toc"><h2 class="toc-title">Contents</h2>'
+            f"<ul>{rows}</ul></nav>"
+        )
+    else:
+        toc_section = ""
     html_doc = (
         '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
         f"<body>{toc_section}{html_body}</body></html>"
