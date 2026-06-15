@@ -4,7 +4,7 @@ title: Restyle books PDF with IBM Plex Serif and 2cm symmetric margins
 status: Done
 assignee: []
 created_date: '2026-06-15 05:19'
-updated_date: '2026-06-15 06:00'
+updated_date: '2026-06-15 06:12'
 labels: []
 dependencies: []
 priority: medium
@@ -89,4 +89,6 @@ Visual checks:
 - Tables / TOC / page footer unchanged (out of scope)
 
 task-reviewer verdict: APPROVED. All 7 ACs satisfied, diff scoped to the three expected files, no out-of-scope drift, ruff passes. @bottom-center remains on Georgia per scope rule.
+
+Commit: `15ef479` - task-11: restyle books PDF with IBM Plex Serif and 2cm symmetric margins
 <!-- SECTION:NOTES:END -->
