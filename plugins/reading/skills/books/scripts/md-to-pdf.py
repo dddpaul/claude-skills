@@ -21,6 +21,8 @@ from pathlib import Path
 import markdown
 from weasyprint import CSS, HTML
 
+EMOJI_RE = re.compile(r"([\U0001F300-\U0001FAFF\u2705\u274C\u2728])")
+
 
 def main() -> None:
     src = Path(sys.argv[1]).resolve()
@@ -40,6 +42,8 @@ def main() -> None:
     )
     html_body = md.convert(raw)
     toc_html = md.toc or ""
+    html_body = EMOJI_RE.sub(r'<span class="emoji">\1</span>', html_body)
+    toc_html = EMOJI_RE.sub(r'<span class="emoji">\1</span>', toc_html)
     toc_html = re.sub(
         r'<li><a href="([^"]+)">',
         r'<li data-href="\1"><a href="\1">',
