@@ -51,3 +51,5 @@ nav.toc li::after {
   flex: 0 0 auto;
   order: 3;
 }
+
+.emoji { font-size: 0.85em; vertical-align: -0.1em; }
