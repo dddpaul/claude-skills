@@ -43,6 +43,28 @@ def _svg_emoji(html: str) -> str:
     return EMOJI_SVG_RE.sub(lambda m: EMOJI_SVG_MAP[m.group(0)], html)
 
 
+def obsidian_slugify(value: str, sep: str = "-") -> str:
+    """Slugify heading text to an Obsidian-compatible HTML5 id.
+
+    Case-insensitive; preserves Cyrillic, dots, em-dashes, and slashes;
+    collapses any run of HTML5-id-invalid whitespace to a single ``sep`` so
+    the result remains a valid ``id`` attribute. The same function is applied
+    to raw link fragments before markdown conversion, so a ``[text](#X)``
+    href and the rendered ``<h2 id="X">`` end up character-equal.
+    """
+    return re.sub(r"\s+", sep, value.strip().lower())
+
+
+_FRAG_RE = re.compile(r"(\[[^\]]+\])\(<?#([^>)]+)>?\)")
+
+
+def _normalize_fragments(raw: str) -> str:
+    def _sub(m: re.Match[str]) -> str:
+        return f"{m.group(1)}(<#{obsidian_slugify(m.group(2))}>)"
+
+    return _FRAG_RE.sub(_sub, raw)
+
+
 def _flatten_toc(tokens: list, out: list) -> None:
     for t in tokens:
         out.append((t["level"], t["id"], t["name"]))
@@ -50,11 +72,23 @@ def _flatten_toc(tokens: list, out: list) -> None:
             _flatten_toc(t["children"], out)
 
 
-def main() -> None:
-    src = Path(sys.argv[1]).resolve()
-    dst = Path(sys.argv[2]).resolve()
-    css_path = Path(__file__).parent.parent / "references" / "styles.css"
-    raw = src.read_text(encoding="utf-8")
+def _build_markdown() -> "markdown.Markdown":
+    return markdown.Markdown(
+        extensions=["fenced_code", "tables", "toc"],
+        extension_configs={
+            "toc": {"toc_depth": "1-3", "slugify": obsidian_slugify},
+        },
+    )
+
+
+def md_to_html(raw: str) -> tuple[str, "markdown.Markdown"]:
+    """Run the production raw-md → HTML pipeline (no PDF, no TOC injection).
+
+    Strips YAML frontmatter and Obsidian ``table-of-contents`` fences,
+    normalizes link fragments, then converts via the same ``Markdown``
+    configuration ``main()`` uses. Returned ``Markdown`` instance carries
+    ``toc_tokens`` for callers that need them.
+    """
     raw = re.sub(r"\A---\r?\n.*?\r?\n---\r?\n", "", raw, count=1, flags=re.DOTALL)
     raw = re.sub(
         r"^```table-of-contents\b.*?^```\s*\n?",
@@ -62,11 +96,17 @@ def main() -> None:
         raw,
         flags=re.DOTALL | re.MULTILINE,
     )
-    md = markdown.Markdown(
-        extensions=["fenced_code", "tables", "toc"],
-        extension_configs={"toc": {"toc_depth": "1-3"}},
-    )
-    html_body = md.convert(raw)
+    raw = _normalize_fragments(raw)
+    md = _build_markdown()
+    return md.convert(raw), md
+
+
+def main() -> None:
+    src = Path(sys.argv[1]).resolve()
+    dst = Path(sys.argv[2]).resolve()
+    css_path = Path(__file__).parent.parent / "references" / "styles.css"
+    raw = src.read_text(encoding="utf-8")
+    html_body, md = md_to_html(raw)
     html_body = _svg_emoji(html_body)
     flat: list = []
     _flatten_toc(md.toc_tokens, flat)
