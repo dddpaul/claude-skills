@@ -21,8 +21,26 @@ from pathlib import Path
 import markdown
 from weasyprint import CSS, HTML
 
-EMOJI_RE = re.compile(r"([\U0001F300-\U0001FAFF\u2705\u274C\u2728])")
-EMOJI_SUB = r'<span class="emoji">\1</span>'
+EMOJI_SVG_MAP = {
+    "\u2705": (
+        '<svg class="icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">'
+        '<circle cx="8" cy="8" r="7" fill="#2e8b57"/>'
+        '<path d="M4.5 8l2.5 2.5 4.5-5" stroke="white" stroke-width="1.8" '
+        'fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
+        "</svg>"
+    ),
+    "\u274C": (
+        '<svg class="icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">'
+        '<path d="M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5" '
+        'stroke="#c41e3a" stroke-width="2.5" stroke-linecap="round"/>'
+        "</svg>"
+    ),
+}
+EMOJI_SVG_RE = re.compile("|".join(re.escape(k) for k in EMOJI_SVG_MAP))
+
+
+def _svg_emoji(html: str) -> str:
+    return EMOJI_SVG_RE.sub(lambda m: EMOJI_SVG_MAP[m.group(0)], html)
 
 
 def _flatten_toc(tokens: list, out: list) -> None:
@@ -49,13 +67,13 @@ def main() -> None:
         extension_configs={"toc": {"toc_depth": "1-3"}},
     )
     html_body = md.convert(raw)
-    html_body = EMOJI_RE.sub(EMOJI_SUB, html_body)
+    html_body = _svg_emoji(html_body)
     flat: list = []
     _flatten_toc(md.toc_tokens, flat)
     if flat:
         rows = "".join(
             f'<li class="toc-h{level}" data-href="#{tid}">'
-            f'<a href="#{tid}">{EMOJI_RE.sub(EMOJI_SUB, name)}</a></li>'
+            f'<a href="#{tid}">{_svg_emoji(name)}</a></li>'
             for level, tid, name in flat
         )
         toc_section = (
