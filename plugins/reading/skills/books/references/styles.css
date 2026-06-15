@@ -20,17 +20,20 @@ nav.toc .toc-title { font-size: 15pt; margin: 0 0 8pt 0; font-weight: bold; }
 nav.toc ul { list-style: none; padding-left: 0; margin: 0; }
 nav.toc ul ul { padding-left: 16pt; }
 nav.toc li {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4pt;
   margin: 2pt 0;
+  padding-right: 24pt;
   page-break-inside: avoid;
 }
 nav.toc li > ul {
   flex: 0 0 100%;
   order: 4;
   margin-top: 2pt;
+  margin-right: -24pt;
 }
 nav.toc li a {
   text-decoration: none;
@@ -48,8 +51,9 @@ nav.toc li::before {
 }
 nav.toc li::after {
   content: target-counter(attr(data-href, url), page);
-  flex: 0 0 auto;
-  order: 3;
+  position: absolute;
+  right: 0;
+  top: 0;
 }
 
 .emoji { font-size: 0.8em; vertical-align: -0.75em; }

@@ -6,7 +6,7 @@ Usage:
 Reads the source markdown, strips YAML frontmatter and Obsidian
 `table-of-contents` fenced blocks, then converts to HTML via the `markdown`
 package with `fenced_code`, `tables`, and `toc` extensions. An auto-generated
-table of contents (H1 + H2) is injected at the top of the body with
+table of contents (H1 + H2 + H3) is injected at the top of the body with
 `target-counter`-compatible markup so the CSS can emit dot leaders and page
 numbers. The document is rendered to PDF via weasyprint with the sibling
 `references/styles.css` stylesheet, written to a hidden `.<name>.tmp` file
@@ -59,7 +59,7 @@ def main() -> None:
         f"<body>{toc_section}{html_body}</body></html>"
     )
     tmp = dst.with_name("." + dst.name + ".tmp")
-    HTML(string=html_doc).write_pdf(
+    HTML(string=html_doc, base_url=str(src.parent)).write_pdf(
         str(tmp), stylesheets=[CSS(filename=str(css_path))]
     )
     tmp.replace(dst)
