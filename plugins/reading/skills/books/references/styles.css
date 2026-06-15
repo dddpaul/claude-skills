@@ -11,8 +11,8 @@ code, pre { font-family: 'IBM Plex Mono', Menlo, Consolas, monospace; font-size:
 pre { padding: 8px; }
 a { color: #0050b3; text-decoration: underline; }
 img { max-width: 100%; }
-table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10pt; border-top: 1px solid #333; border-bottom: 1px solid #333; }
-th, td { padding: 6px 10px; text-align: left; vertical-align: top; overflow-wrap: break-word; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 9pt; border-top: 1px solid #333; border-bottom: 1px solid #333; }
+th, td { padding: 4px 8px; text-align: left; vertical-align: top; overflow-wrap: break-word; }
 th { border-bottom: 1px solid #333; font-weight: bold; }
 
 nav.toc { margin: 0 0 16pt 0; }
