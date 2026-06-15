@@ -4,7 +4,7 @@ title: Normalize emoji baseline in books PDF (wrap + scale)
 status: Done
 assignee: []
 created_date: '2026-06-15 07:00'
-updated_date: '2026-06-15 07:05'
+updated_date: '2026-06-15 07:06'
 labels: []
 dependencies: []
 ordinal: 12000
@@ -96,4 +96,6 @@ Manual verification: /tmp/books-render-check-12.pdf
 - pytest: 'collected 0 items' (no tests in repo — project has no test suite)
 
 task-reviewer verdict: APPROVED. All 8 testable ACs satisfied, regex class verified to exclude arrows U+2190-U+21FF, U+2713, U+2717.
+
+Commit: `32d40e6` - task-12: normalize emoji baseline in books PDF (wrap + scale)
 <!-- SECTION:NOTES:END -->
