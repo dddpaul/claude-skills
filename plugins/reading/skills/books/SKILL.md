@@ -92,6 +92,28 @@ Procedure:
 CSS lives in `references/` so the user can override without touching the
 script.
 
+## Anchors
+
+Heading anchors follow Obsidian's exact-text convention so a markdown doc that
+navigates correctly in Obsidian also navigates correctly in the rendered PDF.
+Both the heading `id` and the link fragment pass through a single
+`obsidian_slugify` (in `scripts/md-to-pdf.py`):
+
+- Case-folded (lowercase)
+- Whitespace runs collapsed to a single `-`
+- Cyrillic letters, dots, em-dashes, and slashes preserved verbatim
+
+Authors write the link in either CommonMark spelling — bare or
+angle-bracketed for fragments containing whitespace:
+
+```markdown
+[§3.2](#3.2 Camunda — соседняя ИС вне периметра ПФ)
+[§3.2](<#3.2 Camunda — соседняя ИС вне периметра ПФ>)
+```
+
+Both normalize to the same id. No `{#explicit-id}` annotations on the
+heading are required — the heading text alone is the anchor.
+
 ## Dependencies
 
 The skill needs both the `markdown` and `weasyprint` Python packages, plus
