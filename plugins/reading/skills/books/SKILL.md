@@ -77,10 +77,10 @@ Procedure:
 
 - Page size: **A4 portrait**.
 - Margins: **20mm symmetric** on all sides.
-- Line height: **1.4** — underlines fit between lines, notes go in the
-  margin.
+- Line height: **1.25** — tight academic rhythm, room for underlines but
+  not loose.
 - Font: `'IBM Plex Serif', 'PT Serif', 'Apple Color Emoji', 'Times New Roman', serif`,
-  12pt body, with `font-variant-numeric: lining-nums` so digits sit on the
+  11pt body, with `font-variant-numeric: lining-nums` so digits sit on the
   baseline; 18/15/13 pt for H1/H2/H3.
 - Code: `'IBM Plex Mono', Menlo, Consolas, monospace`, 10pt, light-grey
   background. No syntax highlighting in v0.1.
