@@ -4,7 +4,7 @@ title: Prevent fenced code blocks from splitting across PDF pages in books skill
 status: Done
 assignee: []
 created_date: '2026-06-15 18:41'
-updated_date: '2026-06-15 20:19'
+updated_date: '2026-06-16 03:42'
 labels: []
 dependencies: []
 priority: high
@@ -90,4 +90,6 @@ Plan: (1) Extend pre rule in plugins/reading/skills/books/references/styles.css 
 Plan: extend pre rule at styles.css:11 with break-inside: avoid and page-break-inside: avoid legacy alias, bump plugin.json 0.2.9 to 0.2.10, verify with stacks doc-6 render. Implementing inline because Ralph's output kept tripping the API content filter (two consecutive failures).
 
 Done. styles.css:11 pre rule extended with 'break-inside: avoid; page-break-inside: avoid;'. plugin.json 0.2.9 -> 0.2.10. Verified by rendering stacks doc-6 to /tmp/task-20-camunda.pdf — ASCII decision tree at section 2 fully contained on page 3 (10 box-drawing glyphs on p3, 0 on p2 and p4). ruff clean. task-reviewer APPROVED.
+
+Commit: `ed5be14` - task-20: keep fenced code blocks on a single PDF page. styles.css pre rule extended with break-inside: avoid plus page-break-inside: avoid legacy alias. plugin 0.2.9 -> 0.2.10.
 <!-- SECTION:NOTES:END -->
