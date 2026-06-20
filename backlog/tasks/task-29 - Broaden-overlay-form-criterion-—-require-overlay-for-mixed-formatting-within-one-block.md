@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-06-20 21:03'
-updated_date: '2026-06-20 21:47'
+updated_date: '2026-06-20 21:48'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -110,4 +110,6 @@ Commit: `d02352d` - task-29: broaden overlay-form criterion for mixed formatting
 Implemented per locked decisions. Rewrote Shape+Text Composition section to broaden overlay criterion: combined form = default ONLY for single-style text; overlay required for multi-position labels OR mixed formatting in one positional cluster. Added third canonical example (bold-title + regular-body card). Updated inline-justification comment template to name which criterion applies (multi-position vs mixed-format). Added anti-pattern note against pptxgenjs text:[...] array form for faking mixed formatting. Updated legacy-generator grandfathering paragraph to require single-style rule for combined-flip. Bumped presentation plugin 0.8.0 -> 0.8.1 (patch). AC#4/#5 (lint rule + fixtures) deliberately skipped — heuristic too fuzzy. task-reviewer: APPROVED.
 
 Commit: `df92cbd` - task-29: mark Done after reviewer APPROVED
+
+Commit: `f08d696` - task-29: append commit hash post-Done marker
 <!-- SECTION:NOTES:END -->
