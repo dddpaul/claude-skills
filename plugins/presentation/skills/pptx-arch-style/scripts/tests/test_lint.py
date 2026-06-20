@@ -161,6 +161,82 @@ def test_every_rule_has_spec_ref(rules):
     assert not missing, f"rules missing spec_ref: {missing}"
 
 
+def test_title_zone_smoke_test_v070_geometry(rules):
+    """TASK-27 (v0.7.0 path c): a deck with 1-line AND 2-line titles built per
+    the canonical recipe lints clean AND its geometry is internally
+    consistent:
+
+      * title text box bottom-y == red line top-y == 0.85 (top-anchored
+        24pt text cannot drop below 0.85 because valign=top pins the first
+        line baseline near y=0)
+      * subtitle bottom-y (0.90 + 0.18 = 1.08) sits above content top y=1.10
+        with a 0.02in gap — no overlap
+      * red line at y=0.85 with h=0.042 ends at y=0.892, subtitle top y=0.90
+        leaves an 0.008in gap below the red line — no overlap
+    """
+    from pptx import Presentation as _Pres
+
+    fixture = FIXTURES / "edge" / "title-zone-smoke-test.pptx"
+    report = lint_mod.lint(fixture, rules)
+    assert report.violations == [], f"v0.7.0 smoke deck must lint clean; got {report.violations}"
+    assert lint_mod.exit_code(report) == 0
+
+    deck = _Pres(str(fixture))
+    EMU = 914400
+
+    def _is_title(shape):
+        if not shape.has_text_frame:
+            return False
+        text = shape.text_frame.text
+        lowered = text.lower()
+        # Exclude subtitle (which also contains "title") and page-number badge.
+        if "subtitle" in lowered:
+            return False
+        return "title" in lowered or "Рекомендация" in text
+
+    for idx, slide in enumerate(deck.slides, start=1):
+        shapes = list(slide.shapes)
+        title_shapes = [s for s in shapes if _is_title(s)]
+        red_lines = [
+            s
+            for s in shapes
+            if (s.width or 0) / EMU >= 9.5 and (s.height or 0) / EMU <= 0.10
+        ]
+        assert red_lines, f"slide {idx}: red accent line not found"
+        red = red_lines[0]
+        red_y = (red.top or 0) / EMU
+        red_h = (red.height or 0) / EMU
+        assert abs(red_y - 0.85) < 0.005, (
+            f"slide {idx}: red line y={red_y} (expected 0.85)"
+        )
+        assert title_shapes, f"slide {idx}: title shape not found"
+        for t in title_shapes:
+            top = (t.top or 0) / EMU
+            h = (t.height or 0) / EMU
+            bottom = top + h
+            assert bottom <= red_y + 0.005, (
+                f"slide {idx}: title shape bottom y={bottom} crosses red line y={red_y}"
+            )
+
+        subtitle_shapes = [
+            s
+            for s in shapes
+            if s.has_text_frame
+            and "subtitle" in s.text_frame.text.lower()
+        ]
+        assert subtitle_shapes, f"slide {idx}: subtitle shape not found"
+        sub = subtitle_shapes[0]
+        sub_top = (sub.top or 0) / EMU
+        sub_h = (sub.height or 0) / EMU
+        sub_bottom = sub_top + sub_h
+        assert sub_top >= red_y + red_h - 0.005, (
+            f"slide {idx}: subtitle top y={sub_top} overlaps red line bottom y={red_y + red_h}"
+        )
+        assert sub_bottom <= 1.10 + 0.005, (
+            f"slide {idx}: subtitle bottom y={sub_bottom} crosses content top y=1.10"
+        )
+
+
 def test_main_cli_exit_codes(rules, capsys):
     """End-to-end smoke check via main()."""
     code = lint_mod.main(
