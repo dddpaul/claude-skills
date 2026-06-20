@@ -133,4 +133,6 @@ Implementation notes:
 - task-reviewer agent verdict: APPROVED with 4 non-blocking observations
   (jszip→direct dep addressed; set comprehension / ASCII glyph / font_spec
   comment left for follow-up).
+
+Commit: `04a020f` - task-22: add jszip as direct dep and mark Done
 <!-- SECTION:NOTES:END -->
