@@ -116,6 +116,46 @@ def test_decision_tree_orthogonal_clean_passes(rules):
         f"orthogonal LINE shapes (w=0 or h=0) should not fire the rule; "
         f"got {report.violations}"
     )
+    # NOTE: cleanly orthogonal LINEs without arrowheads still fail the new
+    # arrowhead-missing rule (TASK-28). The clean fixture predates that rule
+    # and is kept as a pure orthogonal-shape smoke test; the arrowhead rule
+    # has its own fixture pair below.
+    other_violations = [
+        v for v in report.violations
+        if v.rule_id != "decision-tree-connector-arrowhead-missing"
+    ]
+    assert other_violations == [], (
+        f"unexpected non-arrowhead violations: {other_violations}"
+    )
+
+
+def test_decision_tree_arrowhead_missing_warns(rules):
+    """AC#5 (TASK-28): a gray (#595959) LINE shape without beginArrowType /
+    endArrowType fires decision-tree-connector-arrowhead-missing at severity
+    warning; lint.py exits 2 (warnings only, no errors)."""
+    report = lint_mod.lint(
+        FIXTURES / "violators" / "decision-tree-connector-arrowhead-missing.pptx",
+        rules,
+    )
+    assert "decision-tree-connector-arrowhead-missing" in _violation_ids(report)
+    arrow_violations = [
+        v for v in report.violations
+        if v.rule_id == "decision-tree-connector-arrowhead-missing"
+    ]
+    assert all(v.severity == "warning" for v in arrow_violations)
+    assert lint_mod.exit_code(report) == 2
+
+
+def test_decision_tree_arrowhead_present_passes(rules):
+    """AC#5 (TASK-28): a gray LINE shape with endArrowType: 'triangle' does
+    NOT trigger the arrowhead-missing rule and lints clean — exit 0."""
+    report = lint_mod.lint(
+        FIXTURES / "edge" / "decision-tree-arrowhead-present.pptx", rules
+    )
+    assert "decision-tree-connector-arrowhead-missing" not in _violation_ids(report), (
+        f"a LINE with endArrowType: 'triangle' should not fire the rule; "
+        f"got {report.violations}"
+    )
     assert lint_mod.exit_code(report) == 0
 
 
