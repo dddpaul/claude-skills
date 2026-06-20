@@ -82,7 +82,7 @@ Intermediate grays not listed in the palette (`#404040`, `#B8B8B8`, `#BFBFBF`, `
 
 ### Size Scale
 
-Approved sizes (pt): **8, 9, 10, 10.5, 11, 12, 13, 14, 15, 16, 20, 24, 36, 40.5, 52**. Any size outside this set = violation. **5pt and smaller are forbidden** (unreadable on projection).
+Approved sizes (pt): **7, 8, 9, 10, 10.5, 11, 12, 13, 14, 15, 16, 20, 24, 28, 32, 36, 40.5, 52**. Any size outside this set = violation. **5pt and smaller are forbidden as body text** (unreadable on projection). The three smallest-and-largest carve-outs are role-specific: `7pt` is allowed for protocol labels above flow-arrows only (see Diagram Conventions); `28pt` and `32pt` are allowed for stat-callout big numbers only (see Stat Callout Boxes).
 
 | Element | Size | Weight | Color |
 |---------|------|--------|-------|
