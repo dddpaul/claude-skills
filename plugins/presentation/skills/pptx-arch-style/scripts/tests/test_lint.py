@@ -91,6 +91,34 @@ def test_untagged_slide_flags_classification_error(rules):
     assert lint_mod.exit_code(report) == 1
 
 
+def test_decision_tree_diagonal_connector_warns(rules):
+    """AC#3/AC#4 (TASK-25): a LINE shape with both w>0.05in AND h>0.05in is a
+    diagonal connector and must fire decision-tree-connector-orthogonal at
+    severity warning; lint.py exits 2 (warnings only, no errors)."""
+    report = lint_mod.lint(
+        FIXTURES / "violators" / "decision-tree-connector-orthogonal.pptx", rules
+    )
+    assert "decision-tree-connector-orthogonal" in _violation_ids(report)
+    diag_violations = [
+        v for v in report.violations if v.rule_id == "decision-tree-connector-orthogonal"
+    ]
+    assert all(v.severity == "warning" for v in diag_violations)
+    assert lint_mod.exit_code(report) == 2
+
+
+def test_decision_tree_orthogonal_clean_passes(rules):
+    """AC#4 (TASK-25): a canonical decision-tree built per the SKILL.md recipe
+    (vertical + horizontal LINE segments) lints clean — exit 0."""
+    report = lint_mod.lint(
+        FIXTURES / "edge" / "decision-tree-orthogonal-clean.pptx", rules
+    )
+    assert "decision-tree-connector-orthogonal" not in _violation_ids(report), (
+        f"orthogonal LINE shapes (w=0 or h=0) should not fire the rule; "
+        f"got {report.violations}"
+    )
+    assert lint_mod.exit_code(report) == 0
+
+
 def test_edge_within_tolerance_passes(rules):
     report = lint_mod.lint(FIXTURES / "edge" / "red-line-within-tolerance.pptx", rules)
     assert "red-accent-line-coords" not in _violation_ids(report), (
