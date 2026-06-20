@@ -526,3 +526,26 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 9. **Two-box layout** (green + amber side by side) for summary/takeaway slides. Layout: green x=0.60 w=4.20, amber x=5.00 w=4.40, same y, h=0.85. Use below a dashed separator line
 10. **Content area** starts at 0.787in from top, uses 0.600in left margin
 11. **No shadows** on any shapes or text — all elements are flat. The slide background MUST carry `<a:effectLst/>` inside `<p:bgPr>` to override theme-inherited shadows (this is sufficient — per-shape effectLst overrides are NOT required, since the theme used by this template defines no shape-level shadows that would propagate)
+
+## Validation
+
+After every generation or edit of an arch-style `.pptx`, gate the deck through the linter **before** any visual review:
+
+1. Run the linter:
+   ```
+   uv run plugins/presentation/skills/pptx-arch-style/scripts/lint.py <deck.pptx>
+   ```
+   Add `--json` for machine-readable output. Add `--rules <path>` to override the rules file.
+
+2. **Exit code ≠ 0 → fix violations, regenerate, repeat.** Each violation prints the failing rule id, the expected vs actual value, and the `spec_ref` line in this file that defines the rule. Exit codes: `0` clean, `1` at least one error (or untagged slide), `2` warnings only.
+
+3. **Only after a green linter → proceed to visual QA** (render → PDF → JPEG → subagent inspection). The linter catches mechanical violations (coordinates, colors, fonts, mandatory/forbidden elements, shadow overrides); visual QA catches everything else.
+
+4. **Every slide MUST carry a classification tag in speaker notes:**
+   - Title slide → `<!--arch-style:title-->`
+   - Section divider → `<!--arch-style:section-->`
+   - Content slide → `<!--arch-style:content-->`
+
+   Untagged slides are a hard error — the linter cannot pick rules without knowing the slide kind, and heuristic classification was rejected as fragile.
+
+Rule definitions live in `references/rules.yaml` (hand-editable, separate from code). Fixture decks under `scripts/tests/fixtures/` are regenerable via `node scripts/tests/gen_fixtures.js`.
