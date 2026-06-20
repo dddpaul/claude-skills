@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-06-20 21:02'
-updated_date: '2026-06-20 21:41'
+updated_date: '2026-06-20 21:42'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -99,4 +99,6 @@ Commit: `1baa613` - task-28: fix decision-tree connector direction semantics
 Commit: `a5ff580` - task-28: address reviewer nits — dead-code, comment accuracy, XPath
 
 Reviewer APPROVED (round 1 + nits). All 7 AC met. AC#5 detection-class rationale: chose missing-arrowhead class (vs reversed-direction) because (a) directly catches the user's primary defect class verbatim ("Из плана Б выходят просто линии, а не стрелки"), (b) detectable from OOXML alone via <a:headEnd>/<a:tailEnd>, (c) reversed-direction detection would require semantic-direction knowledge not present in the .pptx XML. Rule scope narrowed to vertical (w_max=0.05) gray LINEs at y_min=3.6 (terminal band) — avoids false positives on bus/bus-drop intermediates in the T-junction pattern; narrow scope is a known limitation but matches the canonical layout exactly. Helper file decision: shipped per task-notes direction; module exports drawDecisionTree(slide, spec) + building-block helpers; consumers can import once instead of replicating the recipe.
+
+Commit: `b6a4b3d` - task-28: mark Done after reviewer APPROVED + nit fixes
 <!-- SECTION:NOTES:END -->
