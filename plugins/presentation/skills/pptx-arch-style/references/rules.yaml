@@ -21,6 +21,7 @@
 #   has_text (bool)
 #   font_size_min_pt (pt; max-text-run size in shape >= value)
 #   line_color (hex)
+#   shape_type (case-insensitive prstGeom preset name, e.g. "line", "diamond")
 
 defaults:
   coord_tolerance_in: 0.005
@@ -223,3 +224,16 @@ rules:
     message: "Shape fill is not in approved palette (warn; generator should remap to closest spec color)"
     severity: warning
     spec_ref: "SKILL.md → Color Palette (Colors outside the palette → warn + remap)"
+
+  - id: decision-tree-connector-orthogonal
+    type: forbidden_element
+    applies_to:
+      slide_kinds: [content]
+    forbid:
+      shape_match:
+        shape_type: line
+        w_min: 0.05
+        h_min: 0.05
+    message: "Diagonal LINE shape (both w and h > 0.05in). Decision-tree connectors must be orthogonal — split into 2-3 LINE segments (each purely vertical with w=0, or purely horizontal with h=0) per the Decision Tree Diagrams section."
+    severity: warning
+    spec_ref: "SKILL.md → Diagram Conventions → Decision Tree Diagrams (orthogonal connectors only — no diagonals)"

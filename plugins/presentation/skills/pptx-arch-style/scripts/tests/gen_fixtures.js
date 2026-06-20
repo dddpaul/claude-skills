@@ -353,6 +353,66 @@ async function buildViolatorUntaggedSlide() {
   await buildPres(pres, path.join(VIOLATORS, "untagged-slide.pptx"));
 }
 
+async function buildViolatorDiagonalConnector() {
+  // Reproduces stacks defect class #1: drawArrow(x1,y1,x2,y2) renders ONE
+  // LINE shape with both w and h non-zero — a diagonal. Decision-tree
+  // connectors must be orthogonal (each segment purely vertical OR
+  // horizontal). Linter should fire decision-tree-connector-orthogonal at
+  // severity warning → exit code 2.
+  const pres = makePres();
+  addTitleSlide(pres);
+  addSectionSlide(pres);
+  addContentSlide(pres, {
+    extraShapes: [
+      (s) =>
+        s.addShape("line", {
+          x: 3.0,
+          y: 1.5,
+          w: 2.5,
+          h: 1.2, // both > 0.05 → diagonal
+          line: { color: "595959", width: 1 },
+        }),
+    ],
+  });
+  await buildPres(
+    pres,
+    path.join(VIOLATORS, "decision-tree-connector-orthogonal.pptx")
+  );
+}
+
+async function buildEdgeOrthogonalConnectorClean() {
+  // Canonical clean decision-tree fixture: a vertical LINE (h>0, w=0) and a
+  // horizontal LINE (w>0, h=0) building an L-bend. Both pass the
+  // orthogonality rule. Exit code 0.
+  const pres = makePres();
+  addTitleSlide(pres);
+  addSectionSlide(pres);
+  addContentSlide(pres, {
+    extraShapes: [
+      (s) =>
+        s.addShape("line", {
+          x: 3.0,
+          y: 1.5,
+          w: 0,
+          h: 1.0, // vertical
+          line: { color: "595959", width: 1 },
+        }),
+      (s) =>
+        s.addShape("line", {
+          x: 3.0,
+          y: 2.5,
+          w: 2.5,
+          h: 0, // horizontal
+          line: { color: "595959", width: 1 },
+        }),
+    ],
+  });
+  await buildPres(
+    pres,
+    path.join(EDGE, "decision-tree-orthogonal-clean.pptx")
+  );
+}
+
 async function buildViolatorOffPaletteFill() {
   // Content slide that's structurally valid (badge, red line, fonts ok) but
   // contains a shape with a Material Design #2196F3 fill — not in the palette.
@@ -426,8 +486,16 @@ async function main() {
     ],
     ["violators/untagged-slide.pptx", buildViolatorUntaggedSlide],
     ["violators/palette-fill-warning.pptx", buildViolatorOffPaletteFill],
+    [
+      "violators/decision-tree-connector-orthogonal.pptx",
+      buildViolatorDiagonalConnector,
+    ],
     ["edge/red-line-within-tolerance.pptx", buildEdgeWithinTolerance],
     ["edge/red-line-outside-tolerance.pptx", buildEdgeOutsideTolerance],
+    [
+      "edge/decision-tree-orthogonal-clean.pptx",
+      buildEdgeOrthogonalConnectorClean,
+    ],
   ];
 
   for (const [label, fn] of tasks) {

@@ -397,23 +397,97 @@ Labels below each box: component name (9pt Arial Bold) + function description (8
 
 ### Decision Tree Diagrams
 
+Decision-tree diagrams compose three node kinds (decision diamond → branch terminals / further decisions) wired with strictly orthogonal connectors. Diagonal lines, floating decision text, and lucky-stars fanouts all read as "broken graph" on a projector — this section pins the conventions so consumers can copy the snippet below verbatim.
+
 ```
-Question diamonds:
-  Shape: triangle/diamond (use prstGeom "diamond" or two-triangle composition)
+Question diamonds (decision nodes):
+  Shape: pptxgenjs "diamond" (prstGeom "diamond"); fallback: two-triangle composition
   Fill: #FFF2CC (light yellow — matches Optional offload)
   Border: 1pt solid #D6B656 (matches Optional offload)
-  Text: 9pt Arial Bold #000000, centered
+  Text: 9pt Arial Bold #000000, centered (anchor ctr, align ctr)
+  Typical size: w=2.20, h=0.90 (fits a short question without text overflow)
+  Decision-text rule: every question MUST live INSIDE a diamond — never as a floating italic addText with no anchor shape. The diamond is the anchor; the text is its label.
 
-Terminal rectangles:
+Terminal rectangles (branch leaves):
   Shape: roundRect rectRadius: 0.06 (matches flow boxes)
-  Fill: #DAEAF5 (blue terminal) or #D9EAD3 (green terminal)
-  Border: 1pt solid #9CC3E5 (blue) or #82B366 (green)
+  Fill: #DAEAF5 (blue terminal — neutral outcome) or #D9EAD3 (green terminal — positive outcome) or #FFE0E0 (red terminal — negative outcome, optional)
+  Border: 1pt solid #9CC3E5 (blue) or #82B366 (green) or #C0392B (red, optional)
   Text: 9pt Arial Bold #000000, centered
 
-Connectors:
-  Line: 1.0pt solid #595959 (parity with flow arrows)
-  Branch labels ("Yes"/"No"): 9pt Arial Regular #666666, near the branch midpoint
+Connectors (orthogonal L-bends only — no diagonals):
+  Build every edge from 2-3 LINE shapes (pptxgenjs addShape("line", ...)) — each segment is either purely vertical (w=0, h>0) or purely horizontal (w>0, h=0). A single LINE with BOTH w>0 AND h>0 is a diagonal and is forbidden — the linter rule `decision-tree-connector-orthogonal` (warning) fires on it.
+  Style: 1.0pt solid #595959, headEnd { type: "triangle", w: "sm", len: "sm" } on the final segment only.
+  Two-segment L-bend (vertical then horizontal, or vice-versa) covers parent→child edges where the child is offset to a side.
+  Three-segment Z (vertical-down → horizontal → vertical-down) covers parent→child where the child is below AND offset.
+
+Branch labels ("ДА" / "НЕТ" / "Yes" / "No"):
+  Style: 9pt Arial Regular #666666, no fill.
+  Position rule: anchor to the connector BEND, not the segment midpoint. For a two-segment L (down + right) the label sits just outside the corner: x ≈ corner_x + 0.05, y ≈ corner_y - 0.18 (above) or corner_y + 0.05 (below). Labels MUST NOT float in whitespace away from a bend.
+
+T-junction pattern (fanout 1→N):
+  When a decision/parent feeds N>2 children, do NOT draw N rays from a single point. Instead build a "shower head":
+    1. vertical drop from parent bottom → shared bus_y
+    2. horizontal bus from leftmost_child_x → rightmost_child_x at bus_y (single LINE)
+    3. N vertical drops from bus_y → each child top
+  The bus carries N-1 visible T-junctions; the rendering is unambiguous and reads as a parallel fanout. Anti-pattern: 3+ LINE shapes sharing one endpoint.
 ```
+
+**Canonical pptxgenjs snippet** (copy-paste; ~45 LOC). Renders a root decision with a two-branch outcome (NO → terminal) and a sub-decision (YES → another diamond → 3-way fanout via T-junction).
+
+```javascript
+// Decision tree: root → (NO: terminal) / (YES: sub-decision → 3 outcomes)
+// Palette: yellow diamond, blue/green terminals, gray L-bends (#595959).
+const GRAY = "595959", YF = "FFF2CC", YB = "D6B656";
+const BF = "DAEAF5", BB = "9CC3E5", GF = "D9EAD3", GB = "82B366";
+const D = { w: 2.20, h: 0.90 }, T = { w: 1.80, h: 0.55 };
+
+function diamond(s, x, y, text) {
+  s.addShape("diamond", { x, y, w: D.w, h: D.h, fill: { color: YF }, line: { color: YB, width: 1 } });
+  s.addText(text, { x, y, w: D.w, h: D.h, fontFace: "Arial", fontSize: 9,
+    bold: true, color: "000000", align: "center", valign: "middle" });
+}
+function terminal(s, x, y, text, fill, border) {
+  s.addShape("roundRect", { x, y, w: T.w, h: T.h, rectRadius: 0.06,
+    fill: { color: fill }, line: { color: border, width: 1 } });
+  s.addText(text, { x, y, w: T.w, h: T.h, fontFace: "Arial", fontSize: 9,
+    bold: true, color: "000000", align: "center", valign: "middle" });
+}
+function vline(s, x, y1, y2) {
+  s.addShape("line", { x, y: Math.min(y1, y2), w: 0, h: Math.abs(y2 - y1),
+    line: { color: GRAY, width: 1 } });
+}
+function hline(s, x1, x2, y, withArrow) {
+  const head = withArrow ? { type: "triangle", w: "sm", len: "sm" } : undefined;
+  s.addShape("line", { x: Math.min(x1, x2), y, w: Math.abs(x2 - x1), h: 0,
+    line: { color: GRAY, width: 1, endArrowType: head ? "triangle" : undefined } });
+}
+function label(s, x, y, text) {
+  s.addText(text, { x, y, w: 0.40, h: 0.20, fontFace: "Arial", fontSize: 9,
+    color: "666666", align: "left", valign: "middle" });
+}
+
+// Layout (root row 1 with NO terminal beside it, sub row 2, fanout row 3)
+diamond(slide, 3.90, 1.00, "Условие А?");                                 // root spans x=[3.90,6.10]
+// NO branch — straight horizontal arrow (coplanar shapes need no L-bend; rule forbids diagonals, not straight runs)
+terminal(slide, 7.20, 1.20, "Terminal NO", BF, BB);
+hline(slide, 6.10, 7.20, 1.45, true);  label(slide, 6.30, 1.20, "НЕТ");
+// YES branch — straight vertical drop to sub-decision
+vline(slide, 5.00, 1.90, 2.20);        label(slide, 5.05, 1.95, "ДА");
+diamond(slide, 3.90, 2.20, "Условие Б?");
+// 3-way fanout from sub-diamond via T-junction (drop → bus → 3 drops)
+vline(slide, 5.00, 3.10, 3.50); hline(slide, 2.30, 7.70, 3.50, false);
+vline(slide, 2.50, 3.50, 3.90); vline(slide, 5.00, 3.50, 3.90); vline(slide, 7.50, 3.50, 3.90);
+terminal(slide, 1.60, 3.90, "Outcome 1", GF, GB);
+terminal(slide, 4.10, 3.90, "Outcome 2", BF, BB);
+terminal(slide, 6.60, 3.90, "Outcome 3", GF, GB);
+```
+
+**Common defect classes** (linter `decision-tree-connector-orthogonal` warning catches class 1; classes 2-4 are caught by visual review):
+
+1. **Diagonal connector** — one LINE shape with `w=x2-x1, h=y2-y1` (both ≠ 0) drawn from a parent to an offset child. Fix: split into two LINE shapes (vertical + horizontal). Linter rule fires at severity `warning`.
+2. **Fanout-as-rays** — N>2 separate LINE shapes diverging from one parent point. Fix: rewrite as T-junction (drop + bus + N drops).
+3. **Decision text without shape** — italic `addText` "Условие?" with no diamond/roundRect anchor underneath. Fix: wrap in a `diamond` shape.
+4. **Floating branch labels** — `addText("НЕТ")` positioned in whitespace away from any connector bend. Fix: re-anchor to the corner (`x = corner_x + 0.05`).
 
 ## Dynamic Layout Formulas
 
