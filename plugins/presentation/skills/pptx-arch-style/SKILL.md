@@ -185,7 +185,7 @@ For any block carrying a SINGLE text label (the overwhelming majority of compone
 // Combined form (DEFAULT for one-label-per-block)
 slide.addText("Layer A", {
   shape: pptxgen.ShapeType.roundRect,
-  x: 0.60, y: 0.87, w: 2.80, h: 0.65,
+  x: 0.60, y: 1.10, w: 2.80, h: 0.65,
   fill: { color: "DAEAF5" }, line: { color: "9CC3E5", width: 1 },
   rectRadius: 0.06,
   fontFace: "Arial", fontSize: 11, bold: true, color: "000000",
