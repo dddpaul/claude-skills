@@ -1,10 +1,10 @@
 ---
 id: TASK-21
 title: 'pptx-arch-style: spec audit'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-06-20 10:05'
-updated_date: '2026-06-20 10:57'
+updated_date: '2026-06-20 12:42'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -62,12 +62,20 @@ rm -rf /tmp/unpacked
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 design/pptx-arch-style-audit.md exists with every spec gap classified into one of three buckets (auto-fill / from-deck / ask-user)
-- [ ] #2 plugins/presentation/skills/pptx-arch-style/SKILL.md no longer contains '~', 'approximately', 'depending on', or numeric ranges (e.g. '0.65-0.70') for visual attributes
-- [ ] #3 Every shape/text spec in SKILL.md has explicit values for: coords, fill, border, font face, font size, weight, color, alignment, effect override
-- [ ] #4 ask-user batch was presented to user once via AskUserQuestion; decisions captured verbatim in audit doc
-- [ ] #5 Cross-reference check (B) completed against at least 1 real Alfa deck; per-deck findings documented in audit doc
-- [ ] #6 plugins/presentation/plugin.json version bumped (minor) per CLAUDE.md SemVer rules
-- [ ] #7 uv run ruff check . and uv run pytest both pass
+- [x] #1 design/pptx-arch-style-audit.md exists with every spec gap classified into one of three buckets (auto-fill / from-deck / ask-user)
+- [x] #2 plugins/presentation/skills/pptx-arch-style/SKILL.md no longer contains '~', 'approximately', 'depending on', or numeric ranges (e.g. '0.65-0.70') for visual attributes
+- [x] #3 Every shape/text spec in SKILL.md has explicit values for: coords, fill, border, font face, font size, weight, color, alignment, effect override
+- [x] #4 ask-user batch was presented to user once via AskUserQuestion; decisions captured verbatim in audit doc
+- [x] #5 Cross-reference check (B) completed against at least 1 real Alfa deck; per-deck findings documented in audit doc
+- [x] #6 plugins/presentation/plugin.json version bumped (minor) per CLAUDE.md SemVer rules
+- [x] #7 uv run ruff check . and uv run pytest both pass
 - [ ] #8 task-reviewer agent returns APPROVED before merging
 <!-- AC:END -->
+
+
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: (1) read SKILL.md fully; (2) Pass A — structural read-through, log every gap to design/pptx-arch-style-audit.md with attribute checklist (shapes: x/y/w/h, fill, border, shadow, corner radius; text: face, size, weight, color, alignment, line spacing); (3) Pass B — cross-reference curated 7-deck set newest-to-oldest, start with channels-definition-arch.pptx, stop on saturation, add findings to audit doc; (4) bucket each gap (auto-fill / from-deck / ask-user); (5) present ask-user batch to user in one message; (6) apply all resolutions to SKILL.md in single commit; (7) bump plugins/presentation/plugin.json minor; (8) ruff + pytest green; (9) task-reviewer APPROVED before Done.
+<!-- SECTION:NOTES:END -->
