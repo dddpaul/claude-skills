@@ -3,10 +3,10 @@ id: TASK-27
 title: >-
   Fix title-zone regression — title sinks below red line, subtitle overlaps
   content
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-20 20:54'
-updated_date: '2026-06-20 21:10'
+updated_date: '2026-06-20 21:23'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -83,12 +83,12 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 SKILL.md «Content Slide Anatomy» section внутренне согласован: title text (1-line И 2-line wraps) не выходит за вертикальную границу red line; subtitle Y-range не пересекается с content area Y-range — проверяется арифметически по цифрам в строках секции и визуально на fixture
-- [ ] #2 Один из 3 path'ов (a/b/c) выбран и реализован, decision и обоснование выбора зафиксированы в task notes
-- [ ] #3 ASCII диаграмма на строках ~140-149 обновлена чтобы Y-координаты в диаграмме (title zone, red line position, content area) совпадали с числовыми спецификациями в строках ~152-156
-- [ ] #4 Visual smoke-test fixture: deck с 1-line И 2-line титлами создан под новым recipe, rendered через soffice → pdftoppm → JPEG; проверено что bottom y координата title text не пересекает red line position И top y subtitle не пересекает top y content area
-- [ ] #5 plugins/presentation/.claude-plugin/plugin.json version bumped per SemVer (patch если (a) или (b); minor если (c) потому что breaking-change для consumer-генераторов мигрировавших на y=0.78 subtitle)
-- [ ] #6 task-reviewer agent на git diff master..HEAD возвращает APPROVED перед merge
+- [x] #1 SKILL.md «Content Slide Anatomy» section внутренне согласован: title text (1-line И 2-line wraps) не выходит за вертикальную границу red line; subtitle Y-range не пересекается с content area Y-range — проверяется арифметически по цифрам в строках секции и визуально на fixture
+- [x] #2 Один из 3 path'ов (a/b/c) выбран и реализован, decision и обоснование выбора зафиксированы в task notes
+- [x] #3 ASCII диаграмма на строках ~140-149 обновлена чтобы Y-координаты в диаграмме (title zone, red line position, content area) совпадали с числовыми спецификациями в строках ~152-156
+- [x] #4 Visual smoke-test fixture: deck с 1-line И 2-line титлами создан под новым recipe, rendered через soffice → pdftoppm → JPEG; проверено что bottom y координата title text не пересекает red line position И top y subtitle не пересекает top y content area
+- [x] #5 plugins/presentation/.claude-plugin/plugin.json version bumped per SemVer (patch если (a) или (b); minor если (c) потому что breaking-change для consumer-генераторов мигрировавших на y=0.78 subtitle)
+- [x] #6 task-reviewer agent на git diff master..HEAD возвращает APPROVED перед merge
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -100,4 +100,14 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - **SemVer:** minor bump 0.6.1 → 0.7.0 (breaking change for consumers already on y=0.78 subtitle).
 - **ASCII diagram (line ~140-149):** must show new red line position at y=0.85, content area starting y=1.10.
 - **Smoke-test fixture (AC#4):** verify bottom-y of title text (1-line AND 2-line cases) does not cross red line y=0.85; top-y of subtitle text not above red line; top-y of content area not above y=1.10.
+
+Plan (per locked decisions): path (c) Hybrid — title h=0.85 valign=top, red line y=0.85, subtitle y=0.87 h=0.20, content y=1.10..5.10. Minor bump 0.6.1→0.7.0 (breaking). Update SKILL.md Anatomy section (ASCII + numeric specs), Y0 constant in formulas, EMU reference. Build smoke-test fixture deck via python-pptx (1-line + 2-line titles); render to PDF/PNG and assert bottom-y of title < red line y=0.85 and top-y of content > subtitle bottom-y. Skip optional AC#6 rule add (task body marks it опц.; AC list's #6 is task-reviewer approval gate).
+
+Commit: `fb3e169` - task-27: shift title zone for 2-line wraps (path c, v0.7.0)
+
+Commit: `7ebb132` - task-27: fix combined-form snippet y-coord to new content top
+
+Implemented path (c) Hybrid per locked decisions. SKILL.md Anatomy now: title h=0.85 valign=top (y=0..0.85), red line y=0.85 h=0.042 (ends 0.892), subtitle y=0.90 h=0.18 (ends 1.08), content y=1.10..5.10. Y0 constant in formulas bumped 0.87→1.10. Decision-tree and combined-form snippets shifted to fit new Y0. Updated rules.yaml: red-accent-line-coords y=0.85, mandatory/forbid red-line y-band [0.80, 0.90]. Regenerated all fixtures from updated gen_fixtures.js (addRedLine default y=0.85, addContentTitle h=0.85 valign=top, addContentBody y=1.10). Added edge/title-zone-smoke-test.pptx with 1-line+2-line Cyrillic titles. Added test_title_zone_smoke_test_v070_geometry pytest that asserts title bottom ≤ red top, subtitle top ≥ red bottom, subtitle bottom ≤ content top. plugin.json 0.6.1→0.7.0. Reviewer flagged y=0.87 stale in Combined-form snippet line 188; fixed to y=1.10 in commit 7ebb132. APPROVED. uv run pytest → 29 passed. uv run ruff check . → clean.
+
+Commit: `37568b5` - task-27: mark Done after reviewer APPROVED
 <!-- SECTION:NOTES:END -->
