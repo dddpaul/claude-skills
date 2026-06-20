@@ -9,7 +9,7 @@ description: Architectural presentation style guide. Apply this style when creat
 
 - **Size:** 10.000in x 5.625in (16:9 widescreen)
 - **PptxGenJS:** `pres.layout = "LAYOUT_16x9"`
-- **Corner radius:** in OOXML, `<a:gd name="adj" fmla="val N"/>` where `N` is in 1/100000 of the shape's shorter side. In pptxgenjs, the equivalent is `rectRadius: N / 100000`. Common values used in real decks span ~6000–23000 (i.e., 6%–23% of shorter side). Two named references: `adj=5000 → rectRadius: 0.05` (subtle), `adj=9595 → rectRadius: 0.096` (~10%, used for red highlight markers). For any target radius in inches, compute `adj = round((radius_in / min(w_in, h_in)) × 100000)`, capped at 50000.
+- **Corner radius:** in OOXML, `<a:gd name="adj" fmla="val N"/>` where `N` is in 1/100000 of the shape's shorter side. In pptxgenjs, the equivalent is `rectRadius: N / 100000`. Real decks have been observed using values from 6000 to 23000 (6% to 23% of shorter side). Two named references: `adj=5000 → rectRadius: 0.05` (subtle), `adj=9595 → rectRadius: 0.096` (equals about 10%, used for red highlight markers). For any target radius in inches, compute `adj = round((radius_in / min(w_in, h_in)) × 100000)`, capped at 50000.
 - **Origin:** Google Slides template "Modern Business", adapted
 
 ## Color Palette
@@ -479,7 +479,7 @@ totalW  = sum(w)
 colW[i] = W * w[i] / totalW
 ```
 
-Row heights: header 0.28, data rows 0.28–0.36 depending on content density.
+Row heights: header **0.28** (all styles); data rows **0.28** for Style A / Style B (dense), **0.36** for Style C (sparse).
 
 ### Vertical Stacking
 

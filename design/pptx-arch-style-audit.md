@@ -198,10 +198,18 @@ Pass A row #6 (Cyrillic fallback verification) confirmed by Pass B — pin `east
 
 ---
 
-## Bucket summary (Pass A + Pass B)
+## Bucket summary (Pass A + Pass B + reviewer follow-up)
 
-- **auto-fill**: 36 (Pass A #1-5, #7-32 + Pass B #35, #37, #41; Pass A #6 promoted from from-deck via Pass B confirmation)
-- **from-deck**: 3 (Pass B #39, #40; Pass A #15 superseded by Pass B #40 → moved to from-deck)
-- **ask-user**: 4 (Pass A #33; Pass B #34, #36, #38)
+Pass A produced 33 findings (#1-#33). Pass B produced 8 findings (#34-#41). Reviewer follow-up added #42 (row heights gap missed by both passes).
 
-Total: 41 findings (33 Pass A + 8 Pass B).
+- **auto-fill**: 35 — Pass A #1-#5, #7-#14, #16-#32 (31 items); Pass B #35, #37, #41 (3); reviewer #42 (1)
+- **from-deck**: 3 — Pass A #6 (confirmed by Pass B); Pass B #39, #40 (Pass A #15 superseded by #40)
+- **ask-user**: 4 — Pass A #33; Pass B #34, #36, #38
+
+Total: 42 findings, all resolved and applied to SKILL.md.
+
+### Reviewer-added gap
+
+| # | Where | Gap | Resolution |
+|---|---|---|---|
+| 42 | Dynamic Layout Formulas → Table Column Widths | "Row heights: header 0.28, data rows 0.28-0.36 depending on content density" — range + "depending on" violates AC #2. | Pinned per-style: header 0.28 (all); data rows 0.28 for Style A / Style B (dense), 0.36 for Style C (sparse). Follows same density-split logic as #7-#9. Bucket: auto-fill. |

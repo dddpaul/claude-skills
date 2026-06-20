@@ -4,7 +4,7 @@ title: 'pptx-arch-style: spec audit'
 status: In Progress
 assignee: []
 created_date: '2026-06-20 10:05'
-updated_date: '2026-06-20 12:42'
+updated_date: '2026-06-20 12:50'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -72,10 +72,10 @@ rm -rf /tmp/unpacked
 - [ ] #8 task-reviewer agent returns APPROVED before merging
 <!-- AC:END -->
 
-
-
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: (1) read SKILL.md fully; (2) Pass A — structural read-through, log every gap to design/pptx-arch-style-audit.md with attribute checklist (shapes: x/y/w/h, fill, border, shadow, corner radius; text: face, size, weight, color, alignment, line spacing); (3) Pass B — cross-reference curated 7-deck set newest-to-oldest, start with channels-definition-arch.pptx, stop on saturation, add findings to audit doc; (4) bucket each gap (auto-fill / from-deck / ask-user); (5) present ask-user batch to user in one message; (6) apply all resolutions to SKILL.md in single commit; (7) bump plugins/presentation/plugin.json minor; (8) ruff + pytest green; (9) task-reviewer APPROVED before Done.
+
+Commit: `a8f83f2` - task-21: spec audit closes 41 gaps in pptx-arch-style SKILL.md
 <!-- SECTION:NOTES:END -->
