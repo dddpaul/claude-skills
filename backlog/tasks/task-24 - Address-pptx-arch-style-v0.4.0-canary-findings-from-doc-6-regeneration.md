@@ -1,10 +1,10 @@
 ---
 id: TASK-24
 title: Address pptx-arch-style v0.4.0 canary findings from doc-6 regeneration
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-20 15:59'
-updated_date: '2026-06-20 16:39'
+updated_date: '2026-06-20 16:43'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -92,10 +92,8 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - [x] #3 Finding #3 resolved: EITHER rules.yaml font_spec.sizes_pt list includes 22 AND SKILL.md Size Scale row mentions 22pt, OR SKILL.md Typography section contains explicit migration note: 'Content slide titles must be 24pt, not legacy 22pt; long titles must be split title+subtitle to avoid 2-line wrap' (choice documented in task notes)
 - [x] #4 plugins/presentation/.claude-plugin/plugin.json version bumped per SemVer (0.4.0 → 0.4.1 if SKILL.md clarifications only; → 0.5.0 if ship'нутый script or new rule type added); decision documented in task notes
 - [x] #5 uv run pytest plugins/presentation/skills/pptx-arch-style/scripts/tests/ passes; uv run ruff check . passes
-- [ ] #6 task-reviewer agent run on git diff master..HEAD returns APPROVED before merge
+- [x] #6 task-reviewer agent run on git diff master..HEAD returns APPROVED before merge
 <!-- AC:END -->
-
-
 
 ## Implementation Notes
 
@@ -105,4 +103,17 @@ Plan:
 - Finding #2 → option (a): ship plugins/presentation/skills/pptx-arch-style/scripts/postprocess-effectlst.py (PEP 723 inline-deps python-pptx+lxml). Update SKILL.md Rule #11 and Validation to reference it as the canonical post-process step. Rationale: directly removes consumer copy-paste burden; upstream PR (b) ships value only after pptxgenjs release.
 - Finding #3 → option (b): add migration note to SKILL.md Typography Size Scale. Rationale: re-adding 22pt would conflict with the 24pt content-title row and re-open the wrap problem that finding #1 addresses; explicit guidance is safer.
 - Version: 0.4.0 → 0.5.0 (minor) — new shipped script counts as a feature.
+
+Commit: `d61bcff` - task-24: pptx-arch-style v0.4.0 canary follow-ups
+
+task-reviewer verdict: APPROVED (review session a00d1c48c540e8a86).
+- Confirmed AC#1-5 satisfied via diff.
+- Two non-blocking nits flagged and fixed in follow-up commit:
+  (a) docstring usage example mentioned a non-implemented --in-place flag — line removed
+  (b) redundant bg_pr.append(effect) after etree.SubElement already appends — extra call dropped
+- Final tests: 22/22 pass; ruff clean.
+
+Implementation complete. Final state:
+- Files: plugins/presentation/skills/pptx-arch-style/SKILL.md (3 finding doc edits), plugins/presentation/skills/pptx-arch-style/scripts/postprocess-effectlst.py (new, ships canonical post-process), plugins/presentation/skills/pptx-arch-style/scripts/tests/test_postprocess_effectlst.py (new, 4 tests), plugins/presentation/.claude-plugin/plugin.json (0.4.0 → 0.5.0).
+- Verification: pytest 22/22 passed; ruff check clean; task-reviewer APPROVED.
 <!-- SECTION:NOTES:END -->
