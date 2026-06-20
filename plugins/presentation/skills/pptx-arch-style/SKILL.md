@@ -84,6 +84,8 @@ Intermediate grays not listed in the palette (`#404040`, `#B8B8B8`, `#BFBFBF`, `
 
 Approved sizes (pt): **7, 8, 9, 10, 10.5, 11, 12, 13, 14, 15, 16, 20, 24, 28, 32, 36, 40.5, 52**. Any size outside this set = violation. **5pt and smaller are forbidden as body text** (unreadable on projection). The three smallest-and-largest carve-outs are role-specific: `7pt` is allowed for protocol labels above flow-arrows only (see Diagram Conventions); `28pt` and `32pt` are allowed for stat-callout big numbers only (see Stat Callout Boxes).
 
+**Legacy 22pt migration.** Content slide titles MUST be 24pt, not the legacy 22pt that pre-canary decks used. The linter's `text-runs-use-approved-font-and-size` rule will fire on any 22pt run — re-emit the title at 24pt rather than re-adding 22pt to the scale. Long titles must be split into title + subtitle to avoid a 2-line wrap (see [[#Content Slide Anatomy]] for the wider title zone that handles a wrap when the split is not possible).
+
 | Element | Size | Weight | Color |
 |---------|------|--------|-------|
 | Title slide main title | 52pt | Bold | `#F3F3F3` |
@@ -136,7 +138,7 @@ Every content slide has these fixed elements:
 
 ```
 ┌─────────────────────────────────────────────────┐
-│[##]  Slide Title (24pt bold Arial)              │ <- title zone (0-0.626in)
+│[##]  Slide Title (24pt bold Arial)              │ <- title zone (0-0.85in, fits 2-line wraps)
 │═══════════════════════════════════════════════════│ <- red line at y=0.500in
 │                                                 │
 │  Content area                                   │ <- from 0.787in to 5.10in
@@ -149,8 +151,8 @@ Every content slide has these fixed elements:
 
 - **Page number badge:** top-left corner (0, 0), 0.496in x 0.518in, `#595959` fill, white 15pt centered text
 - **Red accent line:** x=0, y=0.500, w=10.00, h=0.042 (full width, no margin), color `#F12D16`
-- **Title text box:** x=0.750, y=0, w=9.234, h=0.626
-- **Subtitle line** (optional): x=0.750, y=0.55, w=9.00, h=0.22, 10pt regular `#666666`
+- **Title text box:** x=0.750, y=0, w=9.234, h=0.85 (the older recipe used h=0.626; the taller box accommodates 2-line wraps from 24pt Cyrillic/Russian titles such as "Рекомендация: Путь 1 — Camunda 8 как отдельная ИС" without overrunning the subtitle line)
+- **Subtitle line** (optional): x=0.750, y=0.78, w=9.00, h=0.22, 10pt regular `#666666` (legacy recipes positioned this at y=0.55 under the shorter title zone)
 - **Content area:** x=0.600, y=0.787, ends at y≈5.10
 - **Footer zone:** y=5.15–5.40, x=0.600, w=8.80, 8pt `#666666`
 
@@ -505,7 +507,8 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 - 0.500" = 457200 EMU (red accent line y-position)
 - 0.518" = 473659 EMU (page number badge height)
 - 0.600" = 548640 EMU (content area left margin)
-- 0.626" ≈ 572414 EMU (title text box height)
+- 0.626" ≈ 572414 EMU (title text box height — legacy)
+- 0.850" = 777240 EMU (title text box height — current; fits 2-line wraps)
 - 0.700" = 640080 EMU (category card / accent height)
 - 0.750" = 685800 EMU (title text box x-start)
 - 0.787" ≈ 719633 EMU (content area top)
@@ -525,23 +528,29 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 8. **Use semantic colors** for status — green=done, amber=planned, gray=unverified — never arbitrary colors
 9. **Two-box layout** (green + amber side by side) for summary/takeaway slides. Layout: green x=0.60 w=4.20, amber x=5.00 w=4.40, same y, h=0.85. Use below a dashed separator line
 10. **Content area** starts at 0.787in from top, uses 0.600in left margin
-11. **No shadows** on any shapes or text — all elements are flat. The slide background MUST carry `<a:effectLst/>` inside `<p:bgPr>` to override theme-inherited shadows (this is sufficient — per-shape effectLst overrides are NOT required, since the theme used by this template defines no shape-level shadows that would propagate)
+11. **No shadows** on any shapes or text — all elements are flat. The slide background MUST carry `<a:effectLst/>` inside `<p:bgPr>` to override theme-inherited shadows (this is sufficient — per-shape effectLst overrides are NOT required, since the theme used by this template defines no shape-level shadows that would propagate). **pptxgenjs (v4.0.1) does not emit `<a:effectLst/>` for `slide.background = { color: ... }`** — run `scripts/postprocess-effectlst.py` after generation to inject it (see [[#Validation]] for the full pipeline)
 
 ## Validation
 
 After every generation or edit of an arch-style `.pptx`, gate the deck through the linter **before** any visual review:
 
-1. Run the linter:
+1. **Inject `<a:effectLst/>` overrides** (only required when the generator is pptxgenjs):
+   ```
+   uv run plugins/presentation/skills/pptx-arch-style/scripts/postprocess-effectlst.py <deck.pptx>
+   ```
+   The script rewrites the deck in place, adding an empty `<a:effectLst/>` sibling to every `<p:bgPr>` that is missing one. Skip this step for python-pptx or hand-authored decks that already emit the override. See Rule #11 above for the upstream gap that makes this step necessary.
+
+2. Run the linter:
    ```
    uv run plugins/presentation/skills/pptx-arch-style/scripts/lint.py <deck.pptx>
    ```
    Add `--json` for machine-readable output. Add `--rules <path>` to override the rules file.
 
-2. **Exit code ≠ 0 → fix violations, regenerate, repeat.** Each violation prints the failing rule id, the expected vs actual value, and the `spec_ref` line in this file that defines the rule. Exit codes: `0` clean, `1` at least one error (or untagged slide), `2` warnings only.
+3. **Exit code ≠ 0 → fix violations, regenerate, repeat.** Each violation prints the failing rule id, the expected vs actual value, and the `spec_ref` line in this file that defines the rule. Exit codes: `0` clean, `1` at least one error (or untagged slide), `2` warnings only.
 
-3. **Only after a green linter → proceed to visual QA** (render → PDF → JPEG → subagent inspection). The linter catches mechanical violations (coordinates, colors, fonts, mandatory/forbidden elements, shadow overrides); visual QA catches everything else.
+4. **Only after a green linter → proceed to visual QA** (render → PDF → JPEG → subagent inspection). The linter catches mechanical violations (coordinates, colors, fonts, mandatory/forbidden elements, shadow overrides); visual QA catches everything else.
 
-4. **Every slide MUST carry a classification tag in speaker notes:**
+5. **Every slide MUST carry a classification tag in speaker notes:**
    - Title slide → `<!--arch-style:title-->`
    - Section divider → `<!--arch-style:section-->`
    - Content slide → `<!--arch-style:content-->`
