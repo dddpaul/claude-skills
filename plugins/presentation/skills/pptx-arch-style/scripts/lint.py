@@ -134,6 +134,10 @@ def shape_matches(shape, match: dict | None) -> bool:
         allowed = {c.upper() for c in match["fill_in"]}
         if fill is None or fill.upper() not in allowed:
             return False
+    if "fill_not_in" in match:
+        palette = {c.upper() for c in match["fill_not_in"]}
+        if fill is None or fill.upper() in palette:
+            return False
 
     x_in = _emu_to_in(shape.left)
     y_in = _emu_to_in(shape.top)
