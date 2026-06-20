@@ -3,7 +3,7 @@ __pycache__/
 .idea/
 .vscode/
 .venv/
-node_modules/
+plugins/presentation/skills/pptx-arch-style/scripts/tests/node_modules/
 
 # Ralph working files (generated during runs)
 backlog/.ralph-status.json

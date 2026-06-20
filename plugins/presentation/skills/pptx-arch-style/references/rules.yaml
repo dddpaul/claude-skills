@@ -16,7 +16,7 @@
 #   effect_override    - slide background must carry <a:effectLst/> override
 #
 # Match keys for shape_match:
-#   fill, fill_in (hex string or list)
+#   fill, fill_in, fill_not_in (hex string or list)
 #   x_min/x_max, y_min/y_max, w_min/w_max, h_min/h_max (inches)
 #   has_text (bool)
 #   font_size_min_pt (pt; max-text-run size in shape >= value)
@@ -160,3 +160,66 @@ rules:
       background_has_effectLst: true
     severity: error
     spec_ref: "SKILL.md → Rule #11 (slide bg MUST carry <a:effectLst/> override)"
+
+  - id: palette-fill-warning
+    type: fill_color
+    applies_to:
+      slide_kinds: [content, title, section]
+      shape_match:
+        fill_not_in:
+          # Primary
+          - F12D16
+          - "595959"
+          - "000000"
+          - FFFFFF
+          # Accent (theme)
+          - "176451"
+          - D3EAC9
+          - B6D7A8
+          - 93C47D
+          # Semantic status (fills, borders, text — text shapes have no fill but
+          # included for safety if used as a fill anywhere)
+          - E8F5E9
+          - "82B366"
+          - 2E7D32
+          - FFF8E1
+          - D6B656
+          - 8D6E00
+          - F5F7FA
+          - "999999"
+          - FF0000
+          # Content boxes
+          - D9EAD3
+          - D9D9D9
+          - "065A82"
+          - F3F3F3
+          # Numbered circle gradients
+          - C0392B
+          - D44B3D
+          - E06B5E
+          - 7A7A7A
+          # Diagram boxes
+          - DAEAF5
+          - 9CC3E5
+          - FFF2CC
+          # Footnote box
+          - F0F0F0
+          # Dashed separator
+          - "21295C"
+          # Listed grays (snap targets per SKILL.md)
+          - "333333"
+          - "666666"
+          - CCCCCC
+          - EFEFEF
+          - E0E0E0
+          - E8E8E8
+          # Stat callout subtitle colors (rare as fills but documented)
+          - B0D0E8
+          - F0C0BC
+          - B0B0B0
+          # Speaker info / misc
+          - "434343"
+          - "888888"
+    message: "Shape fill is not in approved palette (warn; generator should remap to closest spec color)"
+    severity: warning
+    spec_ref: "SKILL.md → Color Palette (Colors outside the palette → warn + remap)"

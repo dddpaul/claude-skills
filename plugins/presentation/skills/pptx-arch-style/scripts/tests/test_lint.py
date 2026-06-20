@@ -75,6 +75,16 @@ def test_violator_reports_expected_rule(rules, fixture, expected_rule):
     assert lint_mod.exit_code(report) == 1
 
 
+def test_off_palette_fill_warns(rules):
+    """AC#2: off-palette shape fill emits the palette-fill-warning rule at
+    severity warning; lint.py exits 2 (warnings only, no errors)."""
+    report = lint_mod.lint(FIXTURES / "violators" / "palette-fill-warning.pptx", rules)
+    assert "palette-fill-warning" in _violation_ids(report)
+    palette_violations = [v for v in report.violations if v.rule_id == "palette-fill-warning"]
+    assert all(v.severity == "warning" for v in palette_violations)
+    assert lint_mod.exit_code(report) == 2
+
+
 def test_untagged_slide_flags_classification_error(rules):
     report = lint_mod.lint(FIXTURES / "violators" / "untagged-slide.pptx", rules)
     assert report.untagged_slides, "untagged slide should be detected"
