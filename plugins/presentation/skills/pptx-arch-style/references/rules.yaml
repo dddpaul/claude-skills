@@ -1,0 +1,162 @@
+# pptx-arch-style linter rules
+#
+# All coordinates and sizes are inches.
+# Colors are RGB hex without leading "#" (case insensitive).
+# Every rule has spec_ref pointing at the canonical SKILL.md clause so a failed
+# check points at the exact line to fix.
+#
+# Rule types (must cover all 8 to satisfy AC#2):
+#   mandatory_element  - slide kind X must contain a shape matching M
+#   forbidden_element  - slide kind X must NOT contain a shape matching M
+#   shape_coordinates  - shapes matching M must have given x/y/w/h within tolerance
+#   fill_color         - shapes matching M must (not) use given fills
+#   border_spec        - shapes matching M must have given line color + width range
+#   font_spec          - text runs must use approved face + size
+#   text_alignment     - text shapes matching M must have given alignment
+#   effect_override    - slide background must carry <a:effectLst/> override
+#
+# Match keys for shape_match:
+#   fill, fill_in (hex string or list)
+#   x_min/x_max, y_min/y_max, w_min/w_max, h_min/h_max (inches)
+#   has_text (bool)
+#   font_size_min_pt (pt; max-text-run size in shape >= value)
+#   line_color (hex)
+
+defaults:
+  coord_tolerance_in: 0.005
+
+rules:
+  - id: content-must-have-page-badge
+    type: mandatory_element
+    applies_to:
+      slide_kinds: [content]
+    expect:
+      shape_match:
+        fill: "595959"
+        x_max: 0.05
+        y_max: 0.05
+        w_min: 0.40
+        w_max: 0.60
+        h_min: 0.40
+        h_max: 0.60
+    severity: error
+    spec_ref: "SKILL.md → Rule #1 (page number badge mandatory on content slides)"
+
+  - id: content-must-have-red-line
+    type: mandatory_element
+    applies_to:
+      slide_kinds: [content]
+    expect:
+      shape_match:
+        fill: "F12D16"
+        y_min: 0.40
+        y_max: 0.60
+        h_max: 0.10
+        w_min: 9.50
+    severity: error
+    spec_ref: "SKILL.md → Rule #1 (red accent line mandatory on content slides)"
+
+  - id: title-no-page-badge
+    type: forbidden_element
+    applies_to:
+      slide_kinds: [title, section]
+    forbid:
+      shape_match:
+        fill: "595959"
+        x_max: 0.05
+        y_max: 0.05
+        w_max: 0.60
+    severity: error
+    spec_ref: "SKILL.md → Rule #2 (no page badge on title/section slides)"
+
+  - id: section-no-red-line
+    type: forbidden_element
+    applies_to:
+      slide_kinds: [title, section]
+    forbid:
+      shape_match:
+        fill: "F12D16"
+        y_min: 0.40
+        y_max: 0.60
+        h_max: 0.10
+        w_min: 9.50
+    severity: error
+    spec_ref: "SKILL.md → Rule #2 (no red accent line on title/section slides)"
+
+  - id: red-accent-line-coords
+    type: shape_coordinates
+    applies_to:
+      slide_kinds: [content]
+      shape_match:
+        fill: "F12D16"
+        h_max: 0.10
+        w_min: 9.50
+    expect:
+      x: 0.000
+      y: 0.500
+      w: 10.000
+      h: 0.042
+    tolerance:
+      coord: 0.005
+    severity: error
+    spec_ref: "SKILL.md → Rule #3 (red accent line geometry)"
+
+  - id: brand-red-must-use-F12D16
+    type: fill_color
+    applies_to:
+      slide_kinds: [content]
+      shape_match:
+        fill_in: ["FF0000", "EE0000", "F00000", "FF1A1A"]
+        h_max: 0.10
+        w_min: 9.50
+    message: "Red accent line uses non-brand red — must be #F12D16"
+    severity: error
+    spec_ref: "SKILL.md → Color Palette (Red brand #F12D16)"
+
+  - id: red-highlight-marker-border
+    type: border_spec
+    applies_to:
+      slide_kinds: [content]
+      shape_match:
+        line_color: "FF0000"
+    expect:
+      line_color: "FF0000"
+      line_width_pt_min: 2.0
+      line_width_pt_max: 2.5
+    severity: error
+    spec_ref: "SKILL.md → Red Highlight Markers (2.25pt #FF0000)"
+
+  - id: text-runs-use-approved-font-and-size
+    type: font_spec
+    applies_to:
+      slide_kinds: [content, title, section]
+    expect:
+      faces:
+        - Arial
+        - Roboto Condensed
+        - Arial Narrow
+        - Helvetica
+      sizes_pt: [7, 8, 9, 10, 10.5, 11, 12, 13, 14, 15, 16, 20, 24, 28, 32, 36, 40.5, 52]
+    severity: error
+    spec_ref: "SKILL.md → Typography (Font Pairing & Size Scale)"
+
+  - id: section-text-centered
+    type: text_alignment
+    applies_to:
+      slide_kinds: [section]
+      shape_match:
+        has_text: true
+        font_size_min_pt: 30
+    expect:
+      align: center
+    severity: error
+    spec_ref: "SKILL.md → Section Divider Slide (centered text)"
+
+  - id: background-effectLst-override
+    type: effect_override
+    applies_to:
+      slide_kinds: [content, title, section]
+    expect:
+      background_has_effectLst: true
+    severity: error
+    spec_ref: "SKILL.md → Rule #11 (slide bg MUST carry <a:effectLst/> override)"
