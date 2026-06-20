@@ -383,6 +383,57 @@ async function buildViolatorDiagonalConnector() {
   );
 }
 
+async function buildViolatorArrowheadMissing() {
+  // Reproduces TASK-28 defect class #5: a vertical gray (#595959) LINE in the
+  // terminal band (y >= 3.6) emitted without endArrowType / beginArrowType.
+  // Manifests as a plain stick instead of an arrow on a T-junction final drop.
+  // Linter should fire decision-tree-connector-arrowhead-missing at severity
+  // warning → exit code 2.
+  const pres = makePres();
+  addTitleSlide(pres);
+  addSectionSlide(pres);
+  addContentSlide(pres, {
+    extraShapes: [
+      (s) =>
+        s.addShape("line", {
+          x: 5.0,
+          y: 3.7,
+          w: 0,
+          h: 0.4, // vertical, gray, in terminal band (y_top=3.70), NO arrow
+          line: { color: "595959", width: 1 },
+        }),
+    ],
+  });
+  await buildPres(
+    pres,
+    path.join(VIOLATORS, "decision-tree-connector-arrowhead-missing.pptx")
+  );
+}
+
+async function buildEdgeArrowheadPresent() {
+  // Companion clean fixture: same vertical LINE in the terminal band but with
+  // endArrowType: "triangle" at the child end. Passes the new rule. Exit 0.
+  const pres = makePres();
+  addTitleSlide(pres);
+  addSectionSlide(pres);
+  addContentSlide(pres, {
+    extraShapes: [
+      (s) =>
+        s.addShape("line", {
+          x: 5.0,
+          y: 3.7,
+          w: 0,
+          h: 0.4,
+          line: { color: "595959", width: 1, endArrowType: "triangle" },
+        }),
+    ],
+  });
+  await buildPres(
+    pres,
+    path.join(EDGE, "decision-tree-arrowhead-present.pptx")
+  );
+}
+
 async function buildEdgeOrthogonalConnectorClean() {
   // Canonical clean decision-tree fixture: a vertical LINE (h>0, w=0) and a
   // horizontal LINE (w>0, h=0) building an L-bend. Both pass the
@@ -543,6 +594,14 @@ async function main() {
     [
       "violators/decision-tree-connector-orthogonal.pptx",
       buildViolatorDiagonalConnector,
+    ],
+    [
+      "violators/decision-tree-connector-arrowhead-missing.pptx",
+      buildViolatorArrowheadMissing,
+    ],
+    [
+      "edge/decision-tree-arrowhead-present.pptx",
+      buildEdgeArrowheadPresent,
     ],
     ["edge/red-line-within-tolerance.pptx", buildEdgeWithinTolerance],
     ["edge/red-line-outside-tolerance.pptx", buildEdgeOutsideTolerance],

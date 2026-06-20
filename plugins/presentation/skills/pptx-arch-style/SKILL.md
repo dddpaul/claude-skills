@@ -449,9 +449,15 @@ Terminal rectangles (branch leaves):
 
 Connectors (orthogonal L-bends only — no diagonals):
   Build every edge from 2-3 LINE shapes (pptxgenjs addShape("line", ...)) — each segment is either purely vertical (w=0, h>0) or purely horizontal (w>0, h=0). A single LINE with BOTH w>0 AND h>0 is a diagonal and is forbidden — the linter rule `decision-tree-connector-orthogonal` (warning) fires on it.
-  Style: 1.0pt solid #595959, headEnd { type: "triangle", w: "sm", len: "sm" } on the final segment only.
+  Style: 1.0pt solid #595959, triangle arrowhead { type: "triangle", w: "sm", len: "sm" } on the final segment only.
   Two-segment L-bend (vertical then horizontal, or vice-versa) covers parent→child edges where the child is offset to a side.
   Three-segment Z (vertical-down → horizontal → vertical-down) covers parent→child where the child is below AND offset.
+
+Direction semantics (mandatory — applies to every connector helper):
+  Every connector carries an explicit semantic direction parent→child (or from→to). The arrowhead lives at the `to` end regardless of coordinate order — never at the higher-numbered coordinate by default.
+  Helpers MUST take parameters as `(from, to)` or `(fromX/Y, toX/Y, withArrow)` — NEVER normalize via Math.min/Math.abs and then attach `endArrowType` blindly. With normalized x = min(from, to) and w = abs(to - from), the line's geometric "end" sits at (x + w) which is max(from, to); if semantic `to` is the smaller coordinate, attaching `endArrowType: "triangle"` puts the arrow on the wrong side.
+  Correct pattern: detect `flip = to < from`; place the arrowhead on the appropriate end of the LINE shape — `beginArrowType: "triangle"` when flipped, `endArrowType: "triangle"` otherwise. Equivalent fallback: `flipH: true` (horizontal) or `flipV: true` (vertical) with `endArrowType` left as-is.
+  Final-segment rule for L-bends / Z-bends: the arrowhead belongs on the segment whose `to` coincides with the child's anchor point — typically the last vertical drop into a child top, or the last horizontal run into a child side. Intermediate segments (bus, elbow) carry NO arrowhead.
 
 Branch labels ("ДА" / "НЕТ" / "Yes" / "No"):
   Style: 9pt Arial Regular #666666, no fill.
@@ -459,13 +465,13 @@ Branch labels ("ДА" / "НЕТ" / "Yes" / "No"):
 
 T-junction pattern (fanout 1→N):
   When a decision/parent feeds N>2 children, do NOT draw N rays from a single point. Instead build a "shower head":
-    1. vertical drop from parent bottom → shared bus_y
-    2. horizontal bus from leftmost_child_x → rightmost_child_x at bus_y (single LINE)
-    3. N vertical drops from bus_y → each child top
-  The bus carries N-1 visible T-junctions; the rendering is unambiguous and reads as a parallel fanout. Anti-pattern: 3+ LINE shapes sharing one endpoint.
+    1. vertical drop from parent bottom → shared bus_y (NO arrowhead — intermediate segment)
+    2. horizontal bus from leftmost_child_x → rightmost_child_x at bus_y (single LINE, NO arrowhead — intermediate segment)
+    3. N vertical drops from bus_y → each child top — EACH drop MUST carry an arrowhead at the child end (`endArrowType: "triangle"`, or `beginArrowType` if the drop direction is bottom→top)
+  The bus carries N-1 visible T-junctions; the rendering is unambiguous and reads as a parallel fanout. Anti-pattern: 3+ LINE shapes sharing one endpoint, OR a fanout where the N child-drops are plain LINE shapes without arrowheads (the linter rule `decision-tree-connector-arrowhead-missing` (warning) fires on the latter).
 ```
 
-**Canonical pptxgenjs snippet** (copy-paste; ~45 LOC). Renders a root decision with a two-branch outcome (NO → terminal) and a sub-decision (YES → another diamond → 3-way fanout via T-junction). Uses combined `addText({shape, fill, line, ...})` form per [[#Shape+Text Composition]] — diamonds and terminals each carry a single centered label, so the shape and text live in one node.
+**Canonical pptxgenjs snippet** (copy-paste; ~50 LOC). Renders a root decision with a two-branch outcome (NO → terminal) and a sub-decision (YES → another diamond → 3-way fanout via T-junction). Uses combined `addText({shape, fill, line, ...})` form per [[#Shape+Text Composition]] — diamonds and terminals each carry a single centered label, so the shape and text live in one node. Connector helpers take `(fromX, toX, ...)` / `(fromY, toY, ...)` — direction-aware so the arrowhead always lands at the semantic `to`.
 
 ```javascript
 // Decision tree: root → (NO: terminal) / (YES: sub-decision → 3 outcomes)
@@ -486,14 +492,23 @@ function terminal(s, x, y, text, fill, border) {
     fontFace: "Arial", fontSize: 9, bold: true, color: "000000",
     align: "center", valign: "middle", margin: 0 });
 }
-function vline(s, x, y1, y2) {
-  s.addShape("line", { x, y: Math.min(y1, y2), w: 0, h: Math.abs(y2 - y1),
-    line: { color: GRAY, width: 1 } });
+// Direction-aware connectors. (from, to) are SEMANTIC endpoints — arrowhead
+// lands at `to` regardless of which is the smaller coordinate.
+function vline(s, x, fromY, toY, withArrow) {
+  const flip = toY < fromY;
+  const arrowKey = withArrow ? (flip ? "beginArrowType" : "endArrowType") : null;
+  const lineOpts = { color: GRAY, width: 1 };
+  if (arrowKey) lineOpts[arrowKey] = "triangle";
+  s.addShape("line", { x, y: Math.min(fromY, toY), w: 0, h: Math.abs(toY - fromY),
+    line: lineOpts });
 }
-function hline(s, x1, x2, y, withArrow) {
-  const head = withArrow ? { type: "triangle", w: "sm", len: "sm" } : undefined;
-  s.addShape("line", { x: Math.min(x1, x2), y, w: Math.abs(x2 - x1), h: 0,
-    line: { color: GRAY, width: 1, endArrowType: head ? "triangle" : undefined } });
+function hline(s, fromX, toX, y, withArrow) {
+  const flip = toX < fromX;
+  const arrowKey = withArrow ? (flip ? "beginArrowType" : "endArrowType") : null;
+  const lineOpts = { color: GRAY, width: 1 };
+  if (arrowKey) lineOpts[arrowKey] = "triangle";
+  s.addShape("line", { x: Math.min(fromX, toX), y, w: Math.abs(toX - fromX), h: 0,
+    line: lineOpts });
 }
 function label(s, x, y, text) {
   s.addText(text, { x, y, w: 0.40, h: 0.20, fontFace: "Arial", fontSize: 9,
@@ -503,26 +518,63 @@ function label(s, x, y, text) {
 // Layout (root row 1 with NO terminal beside it, sub row 2, fanout row 3).
 // All y values are inside content area (Y0=1.10, YE=5.10) per v0.7.0 anatomy.
 diamond(slide, 3.90, 1.20, "Условие А?");                                 // root spans x=[3.90,6.10]
-// NO branch — straight horizontal arrow (coplanar shapes need no L-bend; rule forbids diagonals, not straight runs)
+// NO branch — straight horizontal arrow from diamond right edge → terminal left edge.
 terminal(slide, 7.20, 1.38, "Terminal NO", BF, BB);
 hline(slide, 6.10, 7.20, 1.65, true);  label(slide, 6.30, 1.40, "НЕТ");
-// YES branch — straight vertical drop to sub-decision
-vline(slide, 5.00, 2.10, 2.40);        label(slide, 5.05, 2.15, "ДА");
+// YES branch — straight vertical drop from diamond bottom → sub-decision top.
+vline(slide, 5.00, 2.10, 2.40, true);  label(slide, 5.05, 2.15, "ДА");
 diamond(slide, 3.90, 2.40, "Условие Б?");
-// 3-way fanout from sub-diamond via T-junction (drop → bus → 3 drops)
-vline(slide, 5.00, 3.30, 3.70); hline(slide, 2.30, 7.70, 3.70, false);
-vline(slide, 2.50, 3.70, 4.10); vline(slide, 5.00, 3.70, 4.10); vline(slide, 7.50, 3.70, 4.10);
+// 3-way fanout from sub-diamond via T-junction (drop → bus → 3 drops with arrowheads).
+vline(slide, 5.00, 3.30, 3.70, false);                   // bus drop, intermediate
+hline(slide, 2.50, 7.50, 3.70, false);                   // bus, intermediate
+vline(slide, 2.50, 3.70, 4.10, true);                    // final drop → child 1 (arrow)
+vline(slide, 5.00, 3.70, 4.10, true);                    // final drop → child 2 (arrow)
+vline(slide, 7.50, 3.70, 4.10, true);                    // final drop → child 3 (arrow)
 terminal(slide, 1.60, 4.10, "Outcome 1", GF, GB);
 terminal(slide, 4.10, 4.10, "Outcome 2", BF, BB);
 terminal(slide, 6.60, 4.10, "Outcome 3", GF, GB);
 ```
 
-**Common defect classes** (linter `decision-tree-connector-orthogonal` warning catches class 1; classes 2-4 are caught by visual review):
+**Optional helper file** (Path B). Consumers who want to skip the recipe-translation step can `require` the bundled helper instead of inlining the snippet above. The helper exposes a single function and takes the same direction-aware (from, to) semantics:
+
+```javascript
+const { drawDecisionTree } = require(
+  '<plugin-root>/plugins/presentation/skills/pptx-arch-style/scripts/decision-tree.js'
+);
+
+drawDecisionTree(slide, {
+  diamonds: [
+    { x: 3.90, y: 1.20, text: "Условие А?" },
+    { x: 3.90, y: 2.40, text: "Условие Б?" },
+  ],
+  terminals: [
+    { x: 7.20, y: 1.38, text: "Terminal NO", color: "blue" },
+    { x: 1.60, y: 4.10, text: "Outcome 1",   color: "green" },
+    { x: 4.10, y: 4.10, text: "Outcome 2",   color: "blue" },
+    { x: 6.60, y: 4.10, text: "Outcome 3",   color: "green" },
+  ],
+  connectors: [
+    { kind: "h", fromX: 6.10, toX: 7.20, y: 1.65, withArrow: true,  label: { text: "НЕТ", x: 6.30, y: 1.40 } },
+    { kind: "v", x: 5.00, fromY: 2.10, toY: 2.40, withArrow: true,  label: { text: "ДА",  x: 5.05, y: 2.15 } },
+    { kind: "v", x: 5.00, fromY: 3.30, toY: 3.70, withArrow: false },   // bus drop
+    { kind: "h", fromX: 2.50, toX: 7.50, y: 3.70, withArrow: false },   // bus
+    { kind: "v", x: 2.50, fromY: 3.70, toY: 4.10, withArrow: true  },   // final drop → child 1
+    { kind: "v", x: 5.00, fromY: 3.70, toY: 4.10, withArrow: true  },   // final drop → child 2
+    { kind: "v", x: 7.50, fromY: 3.70, toY: 4.10, withArrow: true  },   // final drop → child 3
+  ],
+});
+```
+
+The helper is self-contained (no pptxgenjs dependency at require-time — it calls `slide.addText` / `slide.addShape` on the passed `slide` object). Use it if you want a single import; use the recipe inline if you need to tweak palette/sizes per slide.
+
+**Common defect classes** (linter `decision-tree-connector-orthogonal` (warning) catches class 1; `decision-tree-connector-arrowhead-missing` (warning) catches class 5; classes 2-4 and 6 are caught by visual review):
 
 1. **Diagonal connector** — one LINE shape with `w=x2-x1, h=y2-y1` (both ≠ 0) drawn from a parent to an offset child. Fix: split into two LINE shapes (vertical + horizontal). Linter rule fires at severity `warning`.
 2. **Fanout-as-rays** — N>2 separate LINE shapes diverging from one parent point. Fix: rewrite as T-junction (drop + bus + N drops).
 3. **Decision text without shape** — italic `addText` "Условие?" with no diamond/roundRect anchor underneath. Fix: wrap in a `diamond` shape.
 4. **Floating branch labels** — `addText("НЕТ")` positioned in whitespace away from any connector bend. Fix: re-anchor to the corner (`x = corner_x + 0.05`).
+5. **Arrowhead-missing terminal connector** — a gray (#595959) LINE shape that targets a child anchor but carries neither `beginArrowType` nor `endArrowType`. Manifests as plain sticks instead of arrows on T-junction final drops. Fix: add `endArrowType: "triangle"` (or `beginArrowType` when the drop is bottom-up). Linter rule fires at severity `warning`.
+6. **Reversed connector direction** — a connector helper normalizes coordinates with `Math.min`/`Math.abs` and pins `endArrowType` to the geometric end; when semantic `to` is the smaller coordinate the arrowhead points back at the parent instead of forward at the child. Fix: use the direction-aware `(from, to)` helpers above, OR `flipH`/`flipV` to swap visual direction.
 
 ## Dynamic Layout Formulas
 
