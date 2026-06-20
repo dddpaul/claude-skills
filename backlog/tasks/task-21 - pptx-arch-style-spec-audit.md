@@ -1,10 +1,10 @@
 ---
 id: TASK-21
 title: 'pptx-arch-style: spec audit'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-20 10:05'
-updated_date: '2026-06-20 12:50'
+updated_date: '2026-06-20 13:27'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -69,7 +69,7 @@ rm -rf /tmp/unpacked
 - [x] #5 Cross-reference check (B) completed against at least 1 real Alfa deck; per-deck findings documented in audit doc
 - [x] #6 plugins/presentation/plugin.json version bumped (minor) per CLAUDE.md SemVer rules
 - [x] #7 uv run ruff check . and uv run pytest both pass
-- [ ] #8 task-reviewer agent returns APPROVED before merging
+- [x] #8 task-reviewer agent returns APPROVED before merging
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -78,4 +78,8 @@ rm -rf /tmp/unpacked
 Plan: (1) read SKILL.md fully; (2) Pass A — structural read-through, log every gap to design/pptx-arch-style-audit.md with attribute checklist (shapes: x/y/w/h, fill, border, shadow, corner radius; text: face, size, weight, color, alignment, line spacing); (3) Pass B — cross-reference curated 7-deck set newest-to-oldest, start with channels-definition-arch.pptx, stop on saturation, add findings to audit doc; (4) bucket each gap (auto-fill / from-deck / ask-user); (5) present ask-user batch to user in one message; (6) apply all resolutions to SKILL.md in single commit; (7) bump plugins/presentation/plugin.json minor; (8) ruff + pytest green; (9) task-reviewer APPROVED before Done.
 
 Commit: `a8f83f2` - task-21: spec audit closes 41 gaps in pptx-arch-style SKILL.md
+
+Commit: `9208751` - task-21: address reviewer findings — fix row-heights gap and bucket math
+
+Reviewer APPROVED on second pass after fixing row-heights gap (#42), corner-radius observational tildes, and audit bucket math. Final: 42 audit findings closed (35 auto-fill, 3 from-deck, 4 ask-user). 2 decks cross-referenced (channels-definition-arch, equation/core/doc-3). SKILL.md grew from 465 to 530 lines. plugin.json 0.1.1 → 0.2.0.
 <!-- SECTION:NOTES:END -->
