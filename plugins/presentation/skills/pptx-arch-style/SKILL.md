@@ -138,22 +138,22 @@ Every content slide has these fixed elements:
 
 ```
 ┌─────────────────────────────────────────────────┐
-│[##]  Slide Title (24pt bold Arial)              │ <- title zone (0-0.85in, fits 2-line wraps)
-│═══════════════════════════════════════════════════│ <- red line at y=0.500in
+│[##]  Slide Title (24pt bold Arial)              │ <- title zone (0-0.85in, top-aligned)
 │                                                 │
-│  Content area                                   │ <- from 0.787in to 5.10in
+│═══════════════════════════════════════════════════│ <- red line at y=0.850in
+│      Subtitle (10pt, #666666)                   │ <- subtitle (y=0.90, h=0.18)
+│  Content area                                   │ <- from 1.100in to 5.10in
 │  (body, tables, diagrams, images)               │
-│                                                 │
 │                                                 │
 │  Source: ... (8pt, #666666)                     │ <- footer, near bottom
 └─────────────────────────────────────────────────┘
 ```
 
 - **Page number badge:** top-left corner (0, 0), 0.496in x 0.518in, `#595959` fill, white 15pt centered text
-- **Red accent line:** x=0, y=0.500, w=10.00, h=0.042 (full width, no margin), color `#F12D16`
-- **Title text box:** x=0.750, y=0, w=9.234, h=0.85 (the older recipe used h=0.626; the taller box accommodates 2-line wraps from 24pt Cyrillic/Russian titles such as "Рекомендация: Путь 1 — Camunda 8 как отдельная ИС" without overrunning the subtitle line)
-- **Subtitle line** (optional): x=0.750, y=0.78, w=9.00, h=0.22, 10pt regular `#666666` (legacy recipes positioned this at y=0.55 under the shorter title zone)
-- **Content area:** x=0.600, y=0.787, ends at y≈5.10
+- **Red accent line:** x=0, y=0.850, w=10.00, h=0.042 (full width, no margin), color `#F12D16`. Pre-v0.7.0 decks anchored the line at y=0.500 above a shorter title box (h=0.626); the line moved down so the wider title zone (h=0.85) can host 2-line wraps without crossing it.
+- **Title text box:** x=0.750, y=0, w=9.234, h=0.85, `valign: 'top'` (anchor `t`). Top-alignment is load-bearing: with `valign: 'middle'` a 24pt single-line title centers at y≈0.42 and a 2-line wrap drops its bottom baseline below the red line. Top-anchored, both fit above y=0.85. Pre-v0.7.0 used h=0.626 with the red line at y=0.500; the v0.7.0 layout pushes everything below the title down by 0.35in to make room for 2-line wraps.
+- **Subtitle line** (optional): x=0.750, y=0.90, w=9.00, h=0.18, 10pt regular `#666666`. Sits immediately below the red line (which ends at y=0.892); ends at y=1.08 leaving a 0.02in gap above content. Pre-v0.7.0 recipes positioned this at y=0.55 (under the shorter title zone) or y=0.78 (broken intermediate from v0.6.x — overlapped content).
+- **Content area:** x=0.600, y=1.100, ends at y≈5.10 (4.00in usable, down from 4.31in pre-v0.7.0 — the 0.31in is the cost of supporting 2-line title wraps)
 - **Footer zone:** y=5.15–5.40, x=0.600, w=8.80, 8pt `#666666`
 
 ### Title Slide
@@ -185,7 +185,7 @@ For any block carrying a SINGLE text label (the overwhelming majority of compone
 // Combined form (DEFAULT for one-label-per-block)
 slide.addText("Layer A", {
   shape: pptxgen.ShapeType.roundRect,
-  x: 0.60, y: 0.87, w: 2.80, h: 0.65,
+  x: 0.60, y: 1.10, w: 2.80, h: 0.65,
   fill: { color: "DAEAF5" }, line: { color: "9CC3E5", width: 1 },
   rectRadius: 0.06,
   fontFace: "Arial", fontSize: 11, bold: true, color: "000000",
@@ -296,7 +296,7 @@ Card subtitle: 11pt Regular Arial #666666
 - 3-across: w=2.80, gap=0.20, starting x=0.60 → cards at x=0.60, 3.60, 6.60
 - 2-across: w=4.30, gap=0.20, starting x=0.60 → cards at x=0.60, 5.10
 - Card height: **0.65** without subtitle, **0.70** with subtitle (binary by presence, not by length)
-- y: first row at content area top (y=0.87), subsequent rows spaced by card height + 0.15
+- y: first row at content area top (y=Y0=1.10), subsequent rows spaced by card height + 0.15
 
 ### Stat Callout Boxes (Funnel)
 
@@ -500,20 +500,21 @@ function label(s, x, y, text) {
     color: "666666", align: "left", valign: "middle" });
 }
 
-// Layout (root row 1 with NO terminal beside it, sub row 2, fanout row 3)
-diamond(slide, 3.90, 1.00, "Условие А?");                                 // root spans x=[3.90,6.10]
+// Layout (root row 1 with NO terminal beside it, sub row 2, fanout row 3).
+// All y values are inside content area (Y0=1.10, YE=5.10) per v0.7.0 anatomy.
+diamond(slide, 3.90, 1.20, "Условие А?");                                 // root spans x=[3.90,6.10]
 // NO branch — straight horizontal arrow (coplanar shapes need no L-bend; rule forbids diagonals, not straight runs)
-terminal(slide, 7.20, 1.20, "Terminal NO", BF, BB);
-hline(slide, 6.10, 7.20, 1.45, true);  label(slide, 6.30, 1.20, "НЕТ");
+terminal(slide, 7.20, 1.38, "Terminal NO", BF, BB);
+hline(slide, 6.10, 7.20, 1.65, true);  label(slide, 6.30, 1.40, "НЕТ");
 // YES branch — straight vertical drop to sub-decision
-vline(slide, 5.00, 1.90, 2.20);        label(slide, 5.05, 1.95, "ДА");
-diamond(slide, 3.90, 2.20, "Условие Б?");
+vline(slide, 5.00, 2.10, 2.40);        label(slide, 5.05, 2.15, "ДА");
+diamond(slide, 3.90, 2.40, "Условие Б?");
 // 3-way fanout from sub-diamond via T-junction (drop → bus → 3 drops)
-vline(slide, 5.00, 3.10, 3.50); hline(slide, 2.30, 7.70, 3.50, false);
-vline(slide, 2.50, 3.50, 3.90); vline(slide, 5.00, 3.50, 3.90); vline(slide, 7.50, 3.50, 3.90);
-terminal(slide, 1.60, 3.90, "Outcome 1", GF, GB);
-terminal(slide, 4.10, 3.90, "Outcome 2", BF, BB);
-terminal(slide, 6.60, 3.90, "Outcome 3", GF, GB);
+vline(slide, 5.00, 3.30, 3.70); hline(slide, 2.30, 7.70, 3.70, false);
+vline(slide, 2.50, 3.70, 4.10); vline(slide, 5.00, 3.70, 4.10); vline(slide, 7.50, 3.70, 4.10);
+terminal(slide, 1.60, 4.10, "Outcome 1", GF, GB);
+terminal(slide, 4.10, 4.10, "Outcome 2", BF, BB);
+terminal(slide, 6.60, 4.10, "Outcome 3", GF, GB);
 ```
 
 **Common defect classes** (linter `decision-tree-connector-orthogonal` warning catches class 1; classes 2-4 are caught by visual review):
@@ -533,7 +534,7 @@ All component positions are computed from the content area bounds. Hardcoded exa
 X0     = 0.60        // left margin
 XE     = 9.40        // right edge (10.00 - 0.60)
 W      = 8.80        // content width (XE - X0)
-Y0     = 0.87        // content top (below subtitle line)
+Y0     = 1.10        // content top (below subtitle line; pre-v0.7.0 was 0.87)
 YE     = 5.10        // content bottom (above footer zone)
 GAP    = 0.20        // standard horizontal gap
 VGAP   = 0.15        // standard vertical gap between rows
@@ -612,14 +613,16 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 - 0.400" = 365760 EMU (group header bar height)
 - 0.450" = 411480 EMU (numbered circle diameter)
 - 0.496" = 453542 EMU (page number badge width)
-- 0.500" = 457200 EMU (red accent line y-position)
+- 0.500" = 457200 EMU (red accent line y-position — pre-v0.7.0)
 - 0.518" = 473659 EMU (page number badge height)
 - 0.600" = 548640 EMU (content area left margin)
-- 0.626" ≈ 572414 EMU (title text box height — legacy)
-- 0.850" = 777240 EMU (title text box height — current; fits 2-line wraps)
+- 0.626" ≈ 572414 EMU (title text box height — legacy pre-v0.7.0)
+- 0.850" = 777240 EMU (title text box height — current; fits 2-line wraps; also red accent line y-position from v0.7.0)
 - 0.700" = 640080 EMU (category card / accent height)
 - 0.750" = 685800 EMU (title text box x-start)
-- 0.787" ≈ 719633 EMU (content area top)
+- 0.787" ≈ 719633 EMU (content area top — pre-v0.7.0)
+- 0.900" = 823560 EMU (subtitle y-position from v0.7.0)
+- 1.100" = 1005840 EMU (content area top — current, from v0.7.0)
 - 5.625" = 5143500 EMU (slide height)
 - 9.234" ≈ 8443570 EMU (title text box width)
 - 10.000" = 9144000 EMU (slide width)
@@ -628,14 +631,14 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 
 1. **Always** use the page number badge + red accent line on content slides
 2. **Never** use the page number badge on title or section divider slides
-3. **Red accent line** is always at x=0, y=0.500, w=10.00 (full slide width, no side margins)
+3. **Red accent line** is always at x=0, y=0.850, w=10.00 (full slide width, no side margins). Pre-v0.7.0 decks used y=0.500 above a 0.626in title box; the v0.7.0 geometry moves the line down to accommodate a 0.85in title zone that fits 2-line wraps.
 4. **Left-align** all body text; center only slide titles on title/section slides
 5. **No underlines** under titles — use the red accent line as the separator
 6. **Footer/source** text goes near the bottom in 8pt `#666666`
 7. **Numbered circles** (red) for standalone items outside boxes; text "1. 2. 3." for lists inside a content box
 8. **Use semantic colors** for status — green=done, amber=planned, gray=unverified — never arbitrary colors
 9. **Two-box layout** (green + amber side by side) for summary/takeaway slides. Layout: green x=0.60 w=4.20, amber x=5.00 w=4.40, same y, h=0.85. Use below a dashed separator line
-10. **Content area** starts at 0.787in from top, uses 0.600in left margin
+10. **Content area** starts at 1.100in from top (pre-v0.7.0: 0.787in), uses 0.600in left margin
 11. **No shadows** on any shapes or text — all elements are flat. The slide background MUST carry `<a:effectLst/>` inside `<p:bgPr>` to override theme-inherited shadows (this is sufficient — per-shape effectLst overrides are NOT required, since the theme used by this template defines no shape-level shadows that would propagate). **pptxgenjs (v4.0.1) does not emit `<a:effectLst/>` for `slide.background = { color: ... }`** — run `scripts/postprocess-effectlst.py` after generation to inject it (see [[#Validation]] for the full pipeline)
 
 ## Validation
