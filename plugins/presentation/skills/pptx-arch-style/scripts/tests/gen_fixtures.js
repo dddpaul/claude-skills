@@ -353,6 +353,30 @@ async function buildViolatorUntaggedSlide() {
   await buildPres(pres, path.join(VIOLATORS, "untagged-slide.pptx"));
 }
 
+async function buildViolatorOffPaletteFill() {
+  // Content slide that's structurally valid (badge, red line, fonts ok) but
+  // contains a shape with a Material Design #2196F3 fill — not in the palette.
+  // Linter should emit the palette-fill-warning rule at severity warning and
+  // exit with code 2 (warnings only, no errors).
+  const pres = makePres();
+  addTitleSlide(pres);
+  addSectionSlide(pres);
+  addContentSlide(pres, {
+    extraShapes: [
+      (s) =>
+        s.addShape("rect", {
+          x: 3,
+          y: 2,
+          w: 1.5,
+          h: 0.8,
+          fill: { color: "2196F3" }, // MD blue — outside spec palette
+          line: { type: "none" },
+        }),
+    ],
+  });
+  await buildPres(pres, path.join(VIOLATORS, "palette-fill-warning.pptx"));
+}
+
 async function buildEdgeWithinTolerance() {
   const pres = makePres();
   addTitleSlide(pres);
@@ -401,6 +425,7 @@ async function main() {
       buildViolatorMissingEffectOverride,
     ],
     ["violators/untagged-slide.pptx", buildViolatorUntaggedSlide],
+    ["violators/palette-fill-warning.pptx", buildViolatorOffPaletteFill],
     ["edge/red-line-within-tolerance.pptx", buildEdgeWithinTolerance],
     ["edge/red-line-outside-tolerance.pptx", buildEdgeOutsideTolerance],
   ];
