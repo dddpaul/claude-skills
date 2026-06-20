@@ -108,7 +108,7 @@ function addPageBadge(s, num) {
   });
 }
 
-function addRedLine(s, { x = 0, y = 0.5, w = 10.0, h = 0.042, color = BRAND_RED } = {}) {
+function addRedLine(s, { x = 0, y = 0.85, w = 10.0, h = 0.042, color = BRAND_RED } = {}) {
   // line: { type: "none" } emits <a:ln><a:noFill/></a:ln> so the red line does
   // not accidentally match the red-highlight-marker-border rule (which keys on
   // shape.line.color == FF0000).
@@ -122,24 +122,25 @@ function addRedLine(s, { x = 0, y = 0.5, w = 10.0, h = 0.042, color = BRAND_RED 
   });
 }
 
-function addContentTitle(s) {
-  s.addText("Content Slide Title", {
+function addContentTitle(s, { text = "Content Slide Title" } = {}) {
+  s.addText(text, {
     x: 0.75,
     y: 0.0,
     w: 9.234,
-    h: 0.626,
+    h: 0.85,
     fontFace: "Arial",
     fontSize: 24,
     bold: true,
     color: "000000",
     align: "left",
+    valign: "top",
   });
 }
 
 function addContentBody(s) {
   s.addText("Body text in approved font and size.", {
     x: 0.6,
-    y: 0.9,
+    y: 1.1,
     w: 8.8,
     h: 0.5,
     fontFace: "Roboto Condensed",
@@ -155,9 +156,10 @@ function addContentSlide(pres, opts = {}) {
     pageNum = "2",
     badge = true,
     redLine = true,
-    redLineCoords = { x: 0.0, y: 0.5, w: 10.0, h: 0.042 },
+    redLineCoords = { x: 0.0, y: 0.85, w: 10.0, h: 0.042 },
     redLineColor = BRAND_RED,
     bodyFontSize = 10.5,
+    titleText = "Content Slide Title",
     extraShapes = [],
   } = opts;
   const s = pres.addSlide();
@@ -165,10 +167,10 @@ function addContentSlide(pres, opts = {}) {
   s.addNotes(`<!--arch-style:${tag}-->`);
   if (badge) addPageBadge(s, pageNum);
   if (redLine) addRedLine(s, { ...redLineCoords, color: redLineColor });
-  addContentTitle(s);
+  addContentTitle(s, { text: titleText });
   s.addText("Body text in approved font and size.", {
     x: 0.6,
-    y: 0.9,
+    y: 1.1,
     w: 8.8,
     h: 0.5,
     fontFace: "Roboto Condensed",
@@ -261,9 +263,10 @@ async function buildViolatorWrongRedLineCoords() {
   addTitleSlide(pres);
   addSectionSlide(pres);
   // Coords drift by 0.1in on x — well past the 0.005 tolerance — but width
-  // stays >= 9.5 so the mandatory-element check still finds the line. This
-  // isolates the failure to red-accent-line-coords only.
-  addContentSlide(pres, { redLineCoords: { x: 0.1, y: 0.5, w: 9.8, h: 0.042 } });
+  // stays >= 9.5 and y stays in the mandatory-match band [0.80, 0.90] so the
+  // mandatory-element check still finds the line. This isolates the failure
+  // to red-accent-line-coords only.
+  addContentSlide(pres, { redLineCoords: { x: 0.1, y: 0.85, w: 9.8, h: 0.042 } });
   await buildPres(pres, path.join(VIOLATORS, "red-accent-line-coords.pptx"));
 }
 
@@ -443,7 +446,7 @@ async function buildEdgeWithinTolerance() {
   addSectionSlide(pres);
   addContentSlide(pres, {
     // 0.003 drift on every axis — under 0.005 tolerance, should pass.
-    redLineCoords: { x: 0.003, y: 0.503, w: 9.997, h: 0.042 },
+    redLineCoords: { x: 0.003, y: 0.853, w: 9.997, h: 0.042 },
   });
   await buildPres(pres, path.join(EDGE, "red-line-within-tolerance.pptx"));
 }
@@ -454,9 +457,60 @@ async function buildEdgeOutsideTolerance() {
   addSectionSlide(pres);
   addContentSlide(pres, {
     // 0.010 drift on x — over 0.005 tolerance, should fail.
-    redLineCoords: { x: 0.01, y: 0.5, w: 10.0, h: 0.042 },
+    redLineCoords: { x: 0.01, y: 0.85, w: 10.0, h: 0.042 },
   });
   await buildPres(pres, path.join(EDGE, "red-line-outside-tolerance.pptx"));
+}
+
+async function buildEdgeTitleZoneSmokeTest() {
+  // TASK-27 (v0.7.0 path c) smoke-test fixture. Builds two content slides —
+  // one with a 1-line title and one with a long Cyrillic title that wraps to
+  // 2 lines — using the canonical v0.7.0 recipe:
+  //   title h=0.85 valign=top, red line y=0.85, content top y=1.10
+  // The companion test in test_lint.py asserts:
+  //   1. golden ruleset still passes (no violations)
+  //   2. title shape bottom-y (y + h = 0.85) does not cross the red line top
+  //      (also y=0.85), AND with valign=top a 24pt Arial 1-line or 2-line
+  //      title cannot drop below y=0.85 (geometric guarantee, since text
+  //      anchors at the top of a 0.85in tall box)
+  //   3. subtitle bottom-y (0.87 + 0.20 = 1.07) does not cross content top y=1.10
+  const pres = makePres();
+  addContentSlide(pres, {
+    pageNum: "1",
+    titleText: "Short title — 1 line",
+    extraShapes: [
+      (s) =>
+        s.addText("Subtitle line — sits under the red line", {
+          x: 0.75,
+          y: 0.9,
+          w: 9.0,
+          h: 0.18,
+          fontFace: "Roboto Condensed",
+          fontSize: 10,
+          color: "666666",
+          align: "left",
+        }),
+    ],
+  });
+  addContentSlide(pres, {
+    pageNum: "2",
+    titleText:
+      "Рекомендация: Путь 1 — Camunda 8 как отдельная информационная система",
+    extraShapes: [
+      (s) =>
+        s.addText("Subtitle line — under wrapped 2-line title", {
+          x: 0.75,
+          y: 0.9,
+          w: 9.0,
+          h: 0.18,
+          fontFace: "Roboto Condensed",
+          fontSize: 10,
+          color: "666666",
+          align: "left",
+        }),
+    ],
+  });
+  await buildPres(pres, path.join(EDGE, "title-zone-smoke-test.pptx"));
 }
 
 // ----------------------------- main -----------------------------
@@ -496,6 +550,7 @@ async function main() {
       "edge/decision-tree-orthogonal-clean.pptx",
       buildEdgeOrthogonalConnectorClean,
     ],
+    ["edge/title-zone-smoke-test.pptx", buildEdgeTitleZoneSmokeTest],
   ];
 
   for (const [label, fn] of tasks) {
