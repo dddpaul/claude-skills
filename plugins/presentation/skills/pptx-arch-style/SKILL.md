@@ -179,10 +179,10 @@ Every content slide has these fixed elements:
 
 ## Shape+Text Composition
 
-For any block carrying a SINGLE text label (the overwhelming majority of components below — layer-block, distribution bar, badge, card, table-cell, decision-tree diamond, terminal, flow box, content box), use the **combined form**: one pptxgenjs call that emits a shape AND its text in the same `<p:sp>`.
+The **combined form** — one pptxgenjs call that emits a shape AND its text in the same `<p:sp>` — is the default **only** when the block carries text in a **single typographic style**: one `fontFace`, one `fontSize`, one `bold`/weight, one `color`. A single label or a multi-line run in a uniform style both qualify. The overwhelming majority of components below (layer-block, distribution bar, badge, simple card, table-cell, decision-tree diamond, terminal, flow box, plain content box) fit this rule.
 
 ```javascript
-// Combined form (DEFAULT for one-label-per-block)
+// (i) Combined form OK — single-style label (one font/size/weight/color)
 slide.addText("Layer A", {
   shape: pptxgen.ShapeType.roundRect,
   x: 0.60, y: 1.10, w: 2.80, h: 0.65,
@@ -194,21 +194,36 @@ slide.addText("Layer A", {
 });
 ```
 
-The legacy **overlay form** — `slide.addShape(roundRect, {x,y,w,h,fill,line})` immediately followed by `slide.addText(label, {x,y,w,h,...})` at the same coordinates — is permitted **only** when one block carries TWO OR MORE labels at distinct positions (e.g., card with a title in top-left AND a footer-tag in bottom-right, or a layer-block with a status badge overlaid in a corner). When you use the overlay form, leave a one-line code comment justifying it:
+The **overlay form** — `slide.addShape(roundRect, {x,y,w,h,fill,line})` immediately followed by one or more `slide.addText(label, {x,y,w,h,...})` calls layered on top — is **required** in either of these cases:
+
+1. **Multi-position labels.** The block carries 2+ labels at distinct positions (e.g., title top-left + footer-tag bottom-right, or a layer-block with a status badge overlaid in a corner).
+2. **Mixed formatting in one positional cluster.** The block contains parts with different typographic styles even if they sit visually in sequence (heading + body, big-number + caption, header + footer-note, bold title + regular description). Combined form would collapse them into one text run with no typographic differentiation — the visual hierarchy would be lost.
+
+When you use the overlay form, leave a one-line code comment naming **which** criterion justifies it:
 
 ```javascript
-// Overlay justified: card carries title (top-left) + footer-tag (bottom-right)
+// (ii) Overlay justified: multi-position labels (title top-left + footer-tag bottom-right)
 slide.addShape("rect", { x, y, w, h, fill: { color: "FFFFFF" }, line: { color: "E0E0E0", width: 0.75 } });
 slide.addText("Card Title",    { x: x + 0.10, y: y + 0.05, w: w - 0.20, h: 0.30, fontFace: "Arial", fontSize: 13, bold: true });
 slide.addText("status: active", { x: x + 0.10, y: y + h - 0.25, w: w - 0.20, h: 0.20, fontFace: "Arial", fontSize: 9, color: "666666", align: "right" });
 ```
 
-Why combined form is the default:
+```javascript
+// (iii) Overlay justified: mixed formatting title+body in one positional cluster
+slide.addShape("roundRect", { x, y, w, h, fill: { color: "FFF8E1" }, line: { color: "D6B656", width: 1 }, rectRadius: 0.06 });
+slide.addText("Path B — fallback strategy", { x: x + 0.10, y: y + 0.08, w: w - 0.20, h: 0.32, fontFace: "Arial", fontSize: 13, bold: true,   color: "000000" });
+slide.addText("Activate when primary route degrades below SLA. Owners: SRE + on-call.",
+                                              { x: x + 0.10, y: y + 0.44, w: w - 0.20, h: h - 0.54, fontFace: "Arial", fontSize: 10, bold: false, color: "333333" });
+```
+
+Why combined form is the default for the single-style case:
 - Half the shape count in the output `.pptx` — smaller file, faster open in PowerPoint / Keynote / LibreOffice, snappier in-editor edits.
 - Text and container are a single node — coordinates cannot drift apart when the generator is later edited.
 - `margin: 0` plus `align` / `valign` are properties of the same shape, so layout is enforced by the renderer, not by hand-synced sibling coordinates.
 
-**Legacy generators (consumer side)** that already use the overlay pattern everywhere are grandfathered — refactor recommended, not required. When touching a legacy generator, prefer flipping the touched components to combined form rather than mass-rewriting.
+**Anti-pattern — do not use the pptxgenjs `text: [{text, options}, ...]` array form to fake mixed formatting inside a combined shape.** It bypasses overlay but (i) is cryptic to read, (ii) does not enforce title-vs-body layout (everything flows in one block), and (iii) is harder to maintain. If the content needs distinct title and body styles, use overlay.
+
+**Legacy generators (consumer side)** that already use the overlay pattern everywhere are grandfathered — refactor recommended, not required. When touching a legacy generator, prefer flipping the touched components to combined form **only if they meet the single-style rule**; otherwise leave them as overlay.
 
 ## Component Styles
 
