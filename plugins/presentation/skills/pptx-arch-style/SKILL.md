@@ -177,6 +177,39 @@ Every content slide has these fixed elements:
 - No red accent line
 - No subtitle, no speaker info
 
+## Shape+Text Composition
+
+For any block carrying a SINGLE text label (the overwhelming majority of components below — layer-block, distribution bar, badge, card, table-cell, decision-tree diamond, terminal, flow box, content box), use the **combined form**: one pptxgenjs call that emits a shape AND its text in the same `<p:sp>`.
+
+```javascript
+// Combined form (DEFAULT for one-label-per-block)
+slide.addText("Layer A", {
+  shape: pptxgen.ShapeType.roundRect,
+  x: 0.60, y: 0.87, w: 2.80, h: 0.65,
+  fill: { color: "DAEAF5" }, line: { color: "9CC3E5", width: 1 },
+  rectRadius: 0.06,
+  fontFace: "Arial", fontSize: 11, bold: true, color: "000000",
+  align: "center", valign: "middle",
+  margin: 0,
+});
+```
+
+The legacy **overlay form** — `slide.addShape(roundRect, {x,y,w,h,fill,line})` immediately followed by `slide.addText(label, {x,y,w,h,...})` at the same coordinates — is permitted **only** when one block carries TWO OR MORE labels at distinct positions (e.g., card with a title in top-left AND a footer-tag in bottom-right, or a layer-block with a status badge overlaid in a corner). When you use the overlay form, leave a one-line code comment justifying it:
+
+```javascript
+// Overlay justified: card carries title (top-left) + footer-tag (bottom-right)
+slide.addShape("rect", { x, y, w, h, fill: { color: "FFFFFF" }, line: { color: "E0E0E0", width: 0.75 } });
+slide.addText("Card Title",    { x: x + 0.10, y: y + 0.05, w: w - 0.20, h: 0.30, fontFace: "Arial", fontSize: 13, bold: true });
+slide.addText("status: active", { x: x + 0.10, y: y + h - 0.25, w: w - 0.20, h: 0.20, fontFace: "Arial", fontSize: 9, color: "666666", align: "right" });
+```
+
+Why combined form is the default:
+- Half the shape count in the output `.pptx` — smaller file, faster open in PowerPoint / Keynote / LibreOffice, snappier in-editor edits.
+- Text and container are a single node — coordinates cannot drift apart when the generator is later edited.
+- `margin: 0` plus `align` / `valign` are properties of the same shape, so layout is enforced by the renderer, not by hand-synced sibling coordinates.
+
+**Legacy generators (consumer side)** that already use the overlay pattern everywhere are grandfathered — refactor recommended, not required. When touching a legacy generator, prefer flipping the touched components to combined form rather than mass-rewriting.
+
 ## Component Styles
 
 ### Content Boxes (Rounded Rectangles)
@@ -432,7 +465,7 @@ T-junction pattern (fanout 1→N):
   The bus carries N-1 visible T-junctions; the rendering is unambiguous and reads as a parallel fanout. Anti-pattern: 3+ LINE shapes sharing one endpoint.
 ```
 
-**Canonical pptxgenjs snippet** (copy-paste; ~45 LOC). Renders a root decision with a two-branch outcome (NO → terminal) and a sub-decision (YES → another diamond → 3-way fanout via T-junction).
+**Canonical pptxgenjs snippet** (copy-paste; ~45 LOC). Renders a root decision with a two-branch outcome (NO → terminal) and a sub-decision (YES → another diamond → 3-way fanout via T-junction). Uses combined `addText({shape, fill, line, ...})` form per [[#Shape+Text Composition]] — diamonds and terminals each carry a single centered label, so the shape and text live in one node.
 
 ```javascript
 // Decision tree: root → (NO: terminal) / (YES: sub-decision → 3 outcomes)
@@ -442,15 +475,16 @@ const BF = "DAEAF5", BB = "9CC3E5", GF = "D9EAD3", GB = "82B366";
 const D = { w: 2.20, h: 0.90 }, T = { w: 1.80, h: 0.55 };
 
 function diamond(s, x, y, text) {
-  s.addShape("diamond", { x, y, w: D.w, h: D.h, fill: { color: YF }, line: { color: YB, width: 1 } });
-  s.addText(text, { x, y, w: D.w, h: D.h, fontFace: "Arial", fontSize: 9,
-    bold: true, color: "000000", align: "center", valign: "middle" });
+  s.addText(text, { shape: "diamond", x, y, w: D.w, h: D.h,
+    fill: { color: YF }, line: { color: YB, width: 1 },
+    fontFace: "Arial", fontSize: 9, bold: true, color: "000000",
+    align: "center", valign: "middle", margin: 0 });
 }
 function terminal(s, x, y, text, fill, border) {
-  s.addShape("roundRect", { x, y, w: T.w, h: T.h, rectRadius: 0.06,
-    fill: { color: fill }, line: { color: border, width: 1 } });
-  s.addText(text, { x, y, w: T.w, h: T.h, fontFace: "Arial", fontSize: 9,
-    bold: true, color: "000000", align: "center", valign: "middle" });
+  s.addText(text, { shape: "roundRect", x, y, w: T.w, h: T.h, rectRadius: 0.06,
+    fill: { color: fill }, line: { color: border, width: 1 },
+    fontFace: "Arial", fontSize: 9, bold: true, color: "000000",
+    align: "center", valign: "middle", margin: 0 });
 }
 function vline(s, x, y1, y2) {
   s.addShape("line", { x, y: Math.min(y1, y2), w: 0, h: Math.abs(y2 - y1),
