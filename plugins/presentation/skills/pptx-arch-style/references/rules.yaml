@@ -50,8 +50,8 @@ rules:
     expect:
       shape_match:
         fill: "F12D16"
-        y_min: 0.40
-        y_max: 0.60
+        y_min: 0.80
+        y_max: 0.90
         h_max: 0.10
         w_min: 9.50
     severity: error
@@ -77,8 +77,8 @@ rules:
     forbid:
       shape_match:
         fill: "F12D16"
-        y_min: 0.40
-        y_max: 0.60
+        y_min: 0.80
+        y_max: 0.90
         h_max: 0.10
         w_min: 9.50
     severity: error
@@ -94,7 +94,7 @@ rules:
         w_min: 9.50
     expect:
       x: 0.000
-      y: 0.500
+      y: 0.850
       w: 10.000
       h: 0.042
     tolerance:
