@@ -116,4 +116,6 @@ task-reviewer verdict: APPROVED (review session a00d1c48c540e8a86).
 Implementation complete. Final state:
 - Files: plugins/presentation/skills/pptx-arch-style/SKILL.md (3 finding doc edits), plugins/presentation/skills/pptx-arch-style/scripts/postprocess-effectlst.py (new, ships canonical post-process), plugins/presentation/skills/pptx-arch-style/scripts/tests/test_postprocess_effectlst.py (new, 4 tests), plugins/presentation/.claude-plugin/plugin.json (0.4.0 → 0.5.0).
 - Verification: pytest 22/22 passed; ruff check clean; task-reviewer APPROVED.
+
+Commit: `36ca491` - task-24: address task-reviewer nits and mark Done
 <!-- SECTION:NOTES:END -->
