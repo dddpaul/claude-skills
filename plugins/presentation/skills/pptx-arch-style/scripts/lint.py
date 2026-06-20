@@ -122,6 +122,28 @@ def shape_text(shape) -> str:
     return shape.text_frame.text if shape.has_text_frame else ""
 
 
+def shape_arrowheads(shape) -> set[str]:
+    """Return the set of arrowhead ends present on a shape's line.
+
+    Looks at <a:ln><a:headEnd type=".../> and <a:tailEnd type=".../> inside the
+    shape's <p:spPr>. Returns a subset of {"begin", "end"}. An end is considered
+    present iff its element exists AND its ``type`` attribute is anything other
+    than ``none`` (default in OOXML is ``none``).
+    """
+    ends: set[str] = set()
+    try:
+        ln = shape._element.find("./p:spPr/a:ln", NS)
+    except (AttributeError, ValueError, TypeError):
+        return ends
+    if ln is None:
+        return ends
+    for tag, key in (("a:headEnd", "begin"), ("a:tailEnd", "end")):
+        el = ln.find(tag, NS)
+        if el is not None and el.get("type", "none") != "none":
+            ends.add(key)
+    return ends
+
+
 def shape_preset_geom(shape) -> str | None:
     """Return the prstGeom preset name for a shape, or None if absent.
 
@@ -205,6 +227,18 @@ def shape_matches(shape, match: dict | None) -> bool:
         expected = match["shape_type"].upper()
         actual = shape_preset_geom(shape)
         if actual != expected:
+            return False
+
+    if "arrowheads" in match:
+        wanted = match["arrowheads"]
+        ends = shape_arrowheads(shape)
+        if wanted == "none" and ends:
+            return False
+        if wanted == "any" and not ends:
+            return False
+        if wanted == "begin" and "begin" not in ends:
+            return False
+        if wanted == "end" and "end" not in ends:
             return False
 
     return True

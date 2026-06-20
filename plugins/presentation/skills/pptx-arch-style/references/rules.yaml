@@ -22,6 +22,10 @@
 #   font_size_min_pt (pt; max-text-run size in shape >= value)
 #   line_color (hex)
 #   shape_type (case-insensitive prstGeom preset name, e.g. "line", "diamond")
+#   arrowheads (string: "none", "any", "begin", "end") — checks for
+#     <a:headEnd>/<a:tailEnd> elements on the LINE shape's spPr line. "none"
+#     matches LINEs with NO arrowhead at either end. "any" matches LINEs that
+#     have at least one. "begin"/"end" match a specific end.
 
 defaults:
   coord_tolerance_in: 0.005
@@ -237,3 +241,23 @@ rules:
     message: "Diagonal LINE shape (both w and h > 0.05in). Decision-tree connectors must be orthogonal — split into 2-3 LINE segments (each purely vertical with w=0, or purely horizontal with h=0) per the Decision Tree Diagrams section."
     severity: warning
     spec_ref: "SKILL.md → Diagram Conventions → Decision Tree Diagrams (orthogonal connectors only — no diagonals)"
+
+  - id: decision-tree-connector-arrowhead-missing
+    type: forbidden_element
+    applies_to:
+      slide_kinds: [content]
+    forbid:
+      shape_match:
+        shape_type: line
+        line_color: "595959"
+        # Vertical only (w=0 ⇒ w_max=0.05) — horizontal bus segments in a
+        # T-junction are legitimately arrow-less.
+        w_max: 0.05
+        # Lower band of the content area only (y >= 3.6) — catches T-junction
+        # final drops to terminals (typically Y=3.70→4.10) while excluding
+        # higher bus drops and inter-row L-bend verticals.
+        y_min: 3.6
+        arrowheads: none
+    message: "Vertical gray (#595959) LINE in the terminal band (y >= 3.6) without arrowhead. T-junction final drops into terminals MUST declare endArrowType (or beginArrowType for bottom→top direction): 'triangle'. Bus / bus-drop intermediate segments are exempt as long as they fall outside this band; horizontal bus segments are exempt regardless. See SKILL.md defect class #5."
+    severity: warning
+    spec_ref: "SKILL.md → Diagram Conventions → Decision Tree Diagrams → T-junction pattern (arrowhead at every final drop)"
