@@ -1,7 +1,7 @@
 {
   "name": "presentation",
   "description": "Presentation style guides for architectural decks",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": { "name": "Pavel Derendyaev", "email": "dddpaul@gmail.com" },
   "homepage": "https://github.com/dddpaul/claude-skills",
   "repository": "https://github.com/dddpaul/claude-skills",
