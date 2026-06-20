@@ -3,10 +3,10 @@ id: TASK-23
 title: >-
   pptx-arch-style-validation follow-ups: off-palette warn rule, size scale
   reconciliation, scripts/tests Node placement
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-20 14:42'
-updated_date: '2026-06-20 14:48'
+updated_date: '2026-06-20 14:51'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -62,10 +62,8 @@ Source brainstorm: design/pptx-arch-style-validation-brainstorm.md (original loc
 - [x] #5 uv run pytest plugins/presentation/skills/pptx-arch-style/scripts/tests/ passes; uv run ruff check . passes
 - [x] #6 node gen_fixtures.js runs from the new tests/ path and regenerates every fixture deterministically
 - [x] #7 plugin.json version bumped per SemVer: patch if Size Scale unchanged, minor if Size Scale extended
-- [ ] #8 task-reviewer agent run on git diff master..HEAD returns APPROVED before merge
+- [x] #8 task-reviewer agent run on git diff master..HEAD returns APPROVED before merge
 <!-- AC:END -->
-
-
 
 ## Implementation Notes
 
@@ -77,4 +75,8 @@ Plan:
 - Move package.json files; scope .gitignore node_modules to plugins/.../scripts/tests/.
 - Add violator fixture with off-palette MD blue fill 2196F3 → lint should exit 2.
 - Bump presentation plugin version 0.3.0 → 0.4.0 (minor).
+
+Commit: `6d3130b` - task-23: pptx-arch-style validation follow-ups
+
+task-reviewer APPROVED: all 8 checklist items pass, 18/18 pytest, ruff clean, golden exits 0, palette-fill-warning fixture exits 2. Size Scale extended in SKILL.md (7/28/32pt for protocol labels and stat-callout big numbers). Plugin version 0.3.0 → 0.4.0 (minor, Size Scale extended per AC#7).
 <!-- SECTION:NOTES:END -->
