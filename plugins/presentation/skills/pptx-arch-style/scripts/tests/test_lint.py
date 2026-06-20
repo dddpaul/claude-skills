@@ -116,17 +116,12 @@ def test_decision_tree_orthogonal_clean_passes(rules):
         f"orthogonal LINE shapes (w=0 or h=0) should not fire the rule; "
         f"got {report.violations}"
     )
-    # NOTE: cleanly orthogonal LINEs without arrowheads still fail the new
-    # arrowhead-missing rule (TASK-28). The clean fixture predates that rule
-    # and is kept as a pure orthogonal-shape smoke test; the arrowhead rule
-    # has its own fixture pair below.
-    other_violations = [
-        v for v in report.violations
-        if v.rule_id != "decision-tree-connector-arrowhead-missing"
-    ]
-    assert other_violations == [], (
-        f"unexpected non-arrowhead violations: {other_violations}"
-    )
+    # Both LINEs in the clean fixture sit at y=1.5 and y=2.5, above the
+    # decision-tree-connector-arrowhead-missing rule's y_min: 3.6 terminal-band
+    # filter — so that rule does NOT fire here. The fixture's purpose is to
+    # smoke-test pure orthogonality; the arrowhead-missing rule (TASK-28) has
+    # its own dedicated fixture pair (decision-tree-arrowhead-{missing,present}).
+    assert lint_mod.exit_code(report) == 0
 
 
 def test_decision_tree_arrowhead_missing_warns(rules):
