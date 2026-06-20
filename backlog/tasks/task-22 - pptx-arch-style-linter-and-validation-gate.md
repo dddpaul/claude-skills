@@ -1,9 +1,10 @@
 ---
 id: TASK-22
 title: 'pptx-arch-style: linter and validation gate'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-20 10:06'
+updated_date: '2026-06-20 14:16'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies:
@@ -103,12 +104,33 @@ Exit code: 1
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 scripts/lint.py exists and runs as uv run plugins/presentation/skills/pptx-arch-style/scripts/lint.py <deck.pptx>
-- [ ] #2 references/rules.yaml covers all 8 rule types with at least one instance each; every rule has spec_ref field
-- [ ] #3 Linter exits 0 on fixtures/golden.pptx; exits 1 on each fixtures/violators/*.pptx with the expected rule id reported as failed
-- [ ] #4 scripts/tests/gen_fixtures.js regenerates all fixtures deterministically from source (committed; node + pptxgenjs)
-- [ ] #5 scripts/tests/test_lint.py passes under uv run pytest covering golden, violators, and edge tolerance cases
-- [ ] #6 SKILL.md has a new final 'Validation' section with the 4-step gate protocol and speaker-notes tagging requirement
-- [ ] #7 plugins/presentation/plugin.json version bumped (minor)
-- [ ] #8 uv run ruff check . and uv run pytest both pass; task-reviewer agent returns APPROVED before merging
+- [x] #1 scripts/lint.py exists and runs as uv run plugins/presentation/skills/pptx-arch-style/scripts/lint.py <deck.pptx>
+- [x] #2 references/rules.yaml covers all 8 rule types with at least one instance each; every rule has spec_ref field
+- [x] #3 Linter exits 0 on fixtures/golden.pptx; exits 1 on each fixtures/violators/*.pptx with the expected rule id reported as failed
+- [x] #4 scripts/tests/gen_fixtures.js regenerates all fixtures deterministically from source (committed; node + pptxgenjs)
+- [x] #5 scripts/tests/test_lint.py passes under uv run pytest covering golden, violators, and edge tolerance cases
+- [x] #6 SKILL.md has a new final 'Validation' section with the 4-step gate protocol and speaker-notes tagging requirement
+- [x] #7 plugins/presentation/plugin.json version bumped (minor)
+- [x] #8 uv run ruff check . and uv run pytest both pass; task-reviewer agent returns APPROVED before merging
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Commit: `3c0882e` - task-22: pptx-arch-style linter and validation gate
+
+Implementation notes:
+- 10 rules in rules.yaml cover all 8 rule types (2x mandatory_element,
+  2x forbidden_element, 1x each of the other 6). Every rule has spec_ref.
+- Slide kind via explicit `<!--arch-style:content|title|section-->` tag in
+  speaker notes; heuristic classification rejected.
+- Fixture generation uses pptxgenjs + jszip (post-processes <a:effectLst/>
+  into <p:bgPr> since pptxgenjs does not expose this; the missing-effect
+  violator skips the injection).
+- 14 fixtures: golden + 11 violators (one per rule + untagged-slide) + 2
+  edge tolerance (0.003in passes, 0.010in fails under 0.005 tolerance).
+- 17 pytest cases including 3 meta-tests for rule coverage and spec_ref.
+- task-reviewer agent verdict: APPROVED with 4 non-blocking observations
+  (jszip→direct dep addressed; set comprehension / ASCII glyph / font_spec
+  comment left for follow-up).
+<!-- SECTION:NOTES:END -->
