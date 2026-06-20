@@ -132,7 +132,7 @@ def shape_arrowheads(shape) -> set[str]:
     """
     ends: set[str] = set()
     try:
-        ln = shape._element.find(".//p:spPr/a:ln", NS)
+        ln = shape._element.find("./p:spPr/a:ln", NS)
     except (AttributeError, ValueError, TypeError):
         return ends
     if ln is None:

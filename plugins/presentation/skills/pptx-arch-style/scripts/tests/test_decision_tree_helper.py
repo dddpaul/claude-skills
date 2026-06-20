@@ -97,8 +97,10 @@ drawDecisionTree(slide, {
   ],
 });
 
-// Force <a:effectLst/> override on the slide background per Rule #11.
-const sldNode = slide._slideObjects ? null : null;  // pptxgenjs internal; skip.
+// NOTE: this smoke test does NOT apply the Rule #11 <a:effectLst/>
+// background override — it filters the lint report to decision-tree
+// connector rules only, so background-effectLst-override violations
+// (if any) are ignored.
 
 pres.writeFile({ fileName: process.env.OUTPUT_PATH })
   .then(() => process.exit(0))
