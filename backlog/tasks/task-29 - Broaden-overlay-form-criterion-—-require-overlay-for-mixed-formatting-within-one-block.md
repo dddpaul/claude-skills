@@ -94,8 +94,6 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - [x] #5 task-reviewer agent на git diff master..HEAD возвращает APPROVED перед merge
 <!-- AC:END -->
 
-
-
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
@@ -110,4 +108,6 @@ Plan: rewrite Shape+Text Composition section to broaden overlay criterion (combi
 Commit: `d02352d` - task-29: broaden overlay-form criterion for mixed formatting
 
 Implemented per locked decisions. Rewrote Shape+Text Composition section to broaden overlay criterion: combined form = default ONLY for single-style text; overlay required for multi-position labels OR mixed formatting in one positional cluster. Added third canonical example (bold-title + regular-body card). Updated inline-justification comment template to name which criterion applies (multi-position vs mixed-format). Added anti-pattern note against pptxgenjs text:[...] array form for faking mixed formatting. Updated legacy-generator grandfathering paragraph to require single-style rule for combined-flip. Bumped presentation plugin 0.8.0 -> 0.8.1 (patch). AC#4/#5 (lint rule + fixtures) deliberately skipped — heuristic too fuzzy. task-reviewer: APPROVED.
+
+Commit: `df92cbd` - task-29: mark Done after reviewer APPROVED
 <!-- SECTION:NOTES:END -->
