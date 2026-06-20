@@ -17,9 +17,8 @@ before linting.
 
 Usage:
     uv run plugins/presentation/skills/pptx-arch-style/scripts/postprocess-effectlst.py deck.pptx
-    uv run plugins/presentation/skills/pptx-arch-style/scripts/postprocess-effectlst.py deck.pptx --in-place
 
-The script rewrites the file in place by default (the input deck is replaced).
+The script rewrites the file in place (the input deck is replaced).
 Exit codes:
     0 — every slide background now carries ``<a:effectLst/>`` (added or already present)
     1 — at least one slide background has no ``<p:bgPr>`` to patch (caller must add one)
@@ -55,8 +54,7 @@ def ensure_effectlst(slide) -> tuple[bool, bool]:
     existing = bg_pr.find("a:effectLst", NS)
     if existing is not None:
         return True, False
-    effect = etree.SubElement(bg_pr, EFFECT_LST_TAG)
-    bg_pr.append(effect)
+    etree.SubElement(bg_pr, EFFECT_LST_TAG)
     return True, True
 
 
