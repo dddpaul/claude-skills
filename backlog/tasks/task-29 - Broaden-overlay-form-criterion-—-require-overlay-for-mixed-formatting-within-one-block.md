@@ -3,10 +3,10 @@ id: TASK-29
 title: >-
   Broaden overlay-form criterion — require overlay for mixed formatting within
   one block
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-20 21:03'
-updated_date: '2026-06-20 21:45'
+updated_date: '2026-06-20 21:47'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -90,10 +90,8 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - [x] #1 SKILL.md «Shape+Text Composition» section переписан: combined form is default ТОЛЬКО когда блок содержит single-style text (один font/size/weight/color, без heading+body разделения). Overlay form required в ДВУХ случаях: (i) 2+ labels at distinct positions (как сейчас), ИЛИ (ii) mixed formatting в одном positional cluster (heading+body, big-number+caption, header+footer)
 - [x] #2 SKILL.md содержит минимум 3 canonical examples с code-блоками: (i) combined-OK для simple single-style label, (ii) overlay для multi-position (текущий title+footer-tag пример), (iii) НОВЫЙ overlay-пример для mixed-format-в-одном-position (например card с bold title + regular body снизу)
 - [x] #3 Inline-justification comment template обновлён: пример комментария указывает который критерий применён ('// Overlay justified: multi-position labels' ИЛИ '// Overlay justified: mixed formatting title+body')
-- [ ] #4 Опц.: lint rule (severity: info) в rules.yaml детектирующий combined-form-в-блоке с признаками mixed-format (например text содержит \n И блок широкий И font-size>threshold). Implementer уточняет детекцию, обоснование в task notes
-- [ ] #5 Если AC #4 ship'нут: fixture pair (mixed-format-as-combined violator vs mixed-format-as-overlay clean) в scripts/tests/fixtures/
-- [x] #6 plugins/presentation/.claude-plugin/plugin.json version bumped per SemVer (patch для clarification; minor если ship'нут lint rule)
-- [ ] #7 task-reviewer agent на git diff master..HEAD возвращает APPROVED перед merge
+- [x] #4 plugins/presentation/.claude-plugin/plugin.json version bumped per SemVer (patch для clarification; minor если ship'нут lint rule)
+- [x] #5 task-reviewer agent на git diff master..HEAD возвращает APPROVED перед merge
 <!-- AC:END -->
 
 
@@ -108,4 +106,8 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - **Examples to include in SKILL.md (AC#2):** (i) combined-OK simple label, (ii) overlay multi-position (keep existing title+footer-tag), (iii) NEW overlay-for-mixed-format (card with bold title addText + regular body addText on shared roundRect — Farzoom/Cinimex card pattern from stacks doc-6 slide 8 reference).
 
 Plan: rewrite Shape+Text Composition section to broaden overlay criterion (combined ONLY for single-style text; overlay required for multi-position OR mixed-format-in-one-position). Add 3rd canonical example (Farzoom/Cinimex bold-title + regular-body card). Update inline-justification comment template to name which criterion applies. Skip AC#4/#5 (lint rule) per locked decisions. Bump plugin.json 0.8.0→0.8.1 (patch — spec clarification).
+
+Commit: `d02352d` - task-29: broaden overlay-form criterion for mixed formatting
+
+Implemented per locked decisions. Rewrote Shape+Text Composition section to broaden overlay criterion: combined form = default ONLY for single-style text; overlay required for multi-position labels OR mixed formatting in one positional cluster. Added third canonical example (bold-title + regular-body card). Updated inline-justification comment template to name which criterion applies (multi-position vs mixed-format). Added anti-pattern note against pptxgenjs text:[...] array form for faking mixed formatting. Updated legacy-generator grandfathering paragraph to require single-style rule for combined-flip. Bumped presentation plugin 0.8.0 -> 0.8.1 (patch). AC#4/#5 (lint rule + fixtures) deliberately skipped — heuristic too fuzzy. task-reviewer: APPROVED.
 <!-- SECTION:NOTES:END -->
