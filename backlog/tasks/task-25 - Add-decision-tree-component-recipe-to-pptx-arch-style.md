@@ -117,4 +117,6 @@ Validation: 28 tests pass (20 lint + 3 postprocess + 4 books, prior suite intact
 task-reviewer (Round 1) returned APPROVED with one non-blocking nit: in the canonical snippet, the NO-branch had a degenerate vline (y1==y2) and the hline started at x=5.00 which is inside the root diamond (spans x=[3.90,6.10]). Fixed: dropped the dead vline, made NO branch a straight horizontal arrow from root's right edge (6.10) to NO terminal's left edge (7.20) at y=1.45, with comment clarifying that coplanar shapes need no L-bend (rule forbids diagonals, not straight runs). Also relabeled YES/NO sides for clarity and tightened consts (YELLOW_FILL→YF etc) — snippet went 47→45 LOC, still within 30-50 range. Tests + ruff still green (28 passed).
 
 All AC met; tests green (28 passed); ruff clean; version 0.6.0; task-reviewer APPROVED Round 1 with non-blocking snippet-geometry nit which was fixed in follow-up edit (degenerate vline removed, NO branch simplified to coplanar horizontal arrow).
+
+Commit: `7507bbd` - task-25: add decision-tree component recipe to pptx-arch-style
 <!-- SECTION:NOTES:END -->
