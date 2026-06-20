@@ -122,6 +122,35 @@ def shape_text(shape) -> str:
     return shape.text_frame.text if shape.has_text_frame else ""
 
 
+def shape_preset_geom(shape) -> str | None:
+    """Return the prstGeom preset name for a shape, or None if absent.
+
+    Handles auto-shapes (via ``auto_shape_type``), connector shapes
+    (``shape_type``), and falls back to a direct XML lookup of
+    ``a:prstGeom/@prst`` for shapes that python-pptx wraps as Shape/Picture
+    without exposing a typed accessor.
+    """
+    try:
+        ast = shape.auto_shape_type
+        if ast is not None:
+            return ast.name.upper()
+    except (AttributeError, ValueError, TypeError):
+        pass
+    try:
+        st = shape.shape_type
+        if st is not None and st.name == "LINE":
+            return "LINE"
+    except (AttributeError, ValueError, TypeError):
+        pass
+    try:
+        prst = shape._element.find(".//a:prstGeom", NS)
+        if prst is not None:
+            return prst.get("prst", "").upper() or None
+    except (AttributeError, ValueError, TypeError):
+        pass
+    return None
+
+
 def shape_matches(shape, match: dict | None) -> bool:
     if not match:
         return True
@@ -170,6 +199,12 @@ def shape_matches(shape, match: dict | None) -> bool:
     if "line_color" in match:
         lc = shape_line_color_hex(shape)
         if lc is None or lc.upper() != match["line_color"].upper():
+            return False
+
+    if "shape_type" in match:
+        expected = match["shape_type"].upper()
+        actual = shape_preset_geom(shape)
+        if actual != expected:
             return False
 
     return True
