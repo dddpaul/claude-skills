@@ -3,10 +3,10 @@ id: TASK-28
 title: >-
   Fix decision-tree connector direction semantics — arrows reversed, fanout
   drops missing arrowheads
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-20 21:02'
-updated_date: '2026-06-20 21:10'
+updated_date: '2026-06-20 21:41'
 labels:
   - 'feature:pptx-arch-style-validation'
 dependencies: []
@@ -73,13 +73,13 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 SKILL.md Connectors / Decision tree section содержит явную direction-semantics convention: connector принимает (from, to) или (parent, child), а НЕ симметричные (x1, x2). Arrowhead ставится на конце near child/to независимо от Math.min/Math.max нормализации координат
-- [ ] #2 Canonical snippet hline/vline helpers в SKILL.md переписаны: принимают from/to (или явный withArrow direction), корректно эмитят OOXML flipH/flipV когда target < source, и endArrowType ставится на семантически правильной стороне
-- [ ] #3 T-junction fanout pattern в SKILL.md явно требует endArrowType triangle на каждой вертикальной drop к терминалу; bus-перекладина без arrowhead. Spec-text присутствует в Decision tree section подсекции T-junction
-- [ ] #4 Опц.: ship scripts/decision-tree.js helper с правильной direction-semantics API. Если ship'нут — задокументирован в SKILL.md с примером usage; если НЕ ship'нут — decision и обоснование (recipe достаточен) в task notes
-- [ ] #5 Опц.: lint rule (severity: warning) детектирующий минимум один defect-класс — connector без endArrowType ИЛИ connector с координатной direction обратной semantic. Implementer выбирает класс детекции, обоснование в task notes. Если rule ship'нут — fixture pair в scripts/tests/fixtures/
-- [ ] #6 plugins/presentation/.claude-plugin/plugin.json version bumped per SemVer (patch если recipe-fix only; minor если ship'нут decision-tree.js helper или новое lint rule)
-- [ ] #7 task-reviewer agent на git diff master..HEAD возвращает APPROVED перед merge
+- [x] #1 SKILL.md Connectors / Decision tree section содержит явную direction-semantics convention: connector принимает (from, to) или (parent, child), а НЕ симметричные (x1, x2). Arrowhead ставится на конце near child/to независимо от Math.min/Math.max нормализации координат
+- [x] #2 Canonical snippet hline/vline helpers в SKILL.md переписаны: принимают from/to (или явный withArrow direction), корректно эмитят OOXML flipH/flipV когда target < source, и endArrowType ставится на семантически правильной стороне
+- [x] #3 T-junction fanout pattern в SKILL.md явно требует endArrowType triangle на каждой вертикальной drop к терминалу; bus-перекладина без arrowhead. Spec-text присутствует в Decision tree section подсекции T-junction
+- [x] #4 Опц.: ship scripts/decision-tree.js helper с правильной direction-semantics API. Если ship'нут — задокументирован в SKILL.md с примером usage; если НЕ ship'нут — decision и обоснование (recipe достаточен) в task notes
+- [x] #5 Опц.: lint rule (severity: warning) детектирующий минимум один defect-класс — connector без endArrowType ИЛИ connector с координатной direction обратной semantic. Implementer выбирает класс детекции, обоснование в task notes. Если rule ship'нут — fixture pair в scripts/tests/fixtures/
+- [x] #6 plugins/presentation/.claude-plugin/plugin.json version bumped per SemVer (patch если recipe-fix only; minor если ship'нут decision-tree.js helper или новое lint rule)
+- [x] #7 task-reviewer agent на git diff master..HEAD возвращает APPROVED перед merge
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -91,4 +91,12 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - **Ship lint rule (AC#5):** YES. Detect connector LINE without endArrowType among decision-tree-tagged connectors (simpler class, easier to implement than reversed-direction detection). Fixture pair required.
 - **SemVer:** minor bump 0.6.1 → 0.7.0 (helper file is new public surface; if TASK-27 also runs first and bumps to 0.7.0, this stays at 0.7.0 with both changes accumulated; if TASK-28 runs first, then 0.6.1 → 0.7.0 and TASK-27 then 0.7.0 → 0.8.0 because TASK-27 is also breaking).
 - **API shape for helper:** drawDecisionTree(slide, spec) where spec.connectors carries explicit (from, to) coordinates and optional withArrow direction; never symmetric (x1, x2). Document in SKILL.md with at least one usage example.
+
+Plan: (1) Update SKILL.md Connectors section + canonical snippet to use (from,to) direction-semantics + arrowheads on every T-junction drop. (2) Ship scripts/decision-tree.js helper with drawDecisionTree(slide, spec) API. (3) Add lint rule for connector LINE without endArrowType in decision-tree context + fixture pair. (4) Bump plugin.json 0.7.0→0.8.0 (minor).
+
+Commit: `1baa613` - task-28: fix decision-tree connector direction semantics
+
+Commit: `a5ff580` - task-28: address reviewer nits — dead-code, comment accuracy, XPath
+
+Reviewer APPROVED (round 1 + nits). All 7 AC met. AC#5 detection-class rationale: chose missing-arrowhead class (vs reversed-direction) because (a) directly catches the user's primary defect class verbatim ("Из плана Б выходят просто линии, а не стрелки"), (b) detectable from OOXML alone via <a:headEnd>/<a:tailEnd>, (c) reversed-direction detection would require semantic-direction knowledge not present in the .pptx XML. Rule scope narrowed to vertical (w_max=0.05) gray LINEs at y_min=3.6 (terminal band) — avoids false positives on bus/bus-drop intermediates in the T-junction pattern; narrow scope is a known limitation but matches the canonical layout exactly. Helper file decision: shipped per task-notes direction; module exports drawDecisionTree(slide, spec) + building-block helpers; consumers can import once instead of replicating the recipe.
 <!-- SECTION:NOTES:END -->
