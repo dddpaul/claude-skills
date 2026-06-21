@@ -30,7 +30,7 @@ that is a separate backlog task — not in v1.
 The default root is a glob, not a literal path:
 
 ```text
-~/Library/CloudStorage/GoogleDrive-*/My Drive/Reading
+~/Library/CloudStorage/GoogleDrive-*/My Drive
 ```
 
 The `*` matches the account-suffixed directory that Google Drive for
@@ -46,12 +46,12 @@ The multi-account hard-fail is **intentional**: silently picking the first
 match would route documents to the wrong account half the time on shared
 laptops. The skill refuses and asks the user to set
 `PUBLISH_GOOGLE_DRIVE_DIR` to the absolute path of the desired account's
-`My Drive/Reading` directory.
+`My Drive` directory.
 
 ## Default root
 
 ```text
-~/Library/CloudStorage/GoogleDrive-*/My Drive/Reading
+~/Library/CloudStorage/GoogleDrive-*/My Drive
 ```
 
 Override with `PUBLISH_GOOGLE_DRIVE_DIR` in your shell profile. The env var
@@ -76,9 +76,9 @@ maps to the same slug.
 ## macOS prerequisites
 
 Install [Google Drive for desktop](https://support.google.com/drive/answer/10838124)
-and sign in to the account whose `My Drive/Reading` should receive the
-PDF. On a multi-account install, you must set `PUBLISH_GOOGLE_DRIVE_DIR`
-explicitly — the skill will not auto-pick.
+and sign in to the account whose `My Drive` should receive the PDF. On a
+multi-account install, you must set `PUBLISH_GOOGLE_DRIVE_DIR` explicitly
+— the skill will not auto-pick.
 
 The skill also assumes the [[pdf]] skill is already runnable (weasyprint +
 IBM Plex fonts).

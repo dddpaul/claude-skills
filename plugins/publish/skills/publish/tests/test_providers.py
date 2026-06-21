@@ -8,8 +8,8 @@ env var must be ignored. Phrases that do not name a provider must return
 the ``NEEDS_DISAMBIGUATION`` sentinel, not a silent default.
 
 ``google-drive`` resolves its default root by globbing
-``~/Library/CloudStorage/GoogleDrive-*/My Drive/Reading``; 0 or >1 matches
-must raise ``ProviderResolutionError`` whose message names
+``~/Library/CloudStorage/GoogleDrive-*/My Drive``; 0 or >1 matches must
+raise ``ProviderResolutionError`` whose message names
 ``PUBLISH_GOOGLE_DRIVE_DIR`` as the disambiguator.
 
 The legacy var's name is assembled from string parts so a strict
@@ -104,7 +104,7 @@ def test_default_root_when_publish_icloud_dir_unset():
     mod = _load_module()
     root = mod.resolve_root("icloud", env={})
     expected = Path(
-        "~/Library/Mobile Documents/com~apple~CloudDocs/Reading"
+        "~/Library/Mobile Documents/com~apple~CloudDocs"
     ).expanduser()
     assert root == expected
 
@@ -118,7 +118,7 @@ def test_legacy_env_var_is_ignored():
         "icloud", env={LEGACY_VAR: "/tmp/legacy-should-be-ignored"}
     )
     expected = Path(
-        "~/Library/Mobile Documents/com~apple~CloudDocs/Reading"
+        "~/Library/Mobile Documents/com~apple~CloudDocs"
     ).expanduser()
     assert root == expected
 
@@ -153,8 +153,8 @@ def test_unmatched_phrase_returns_disambiguation_sentinel(phrase: str):
 
 
 def _make_gdrive_account(home: Path, suffix: str) -> Path:
-    """Create a fake ``~/Library/CloudStorage/GoogleDrive-<suffix>/My Drive/Reading``."""
-    root = home / "Library" / "CloudStorage" / f"GoogleDrive-{suffix}" / "My Drive" / "Reading"
+    """Create a fake ``~/Library/CloudStorage/GoogleDrive-<suffix>/My Drive``."""
+    root = home / "Library" / "CloudStorage" / f"GoogleDrive-{suffix}" / "My Drive"
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -185,6 +185,21 @@ def test_google_drive_glob_exactly_one_match_resolves(tmp_path, monkeypatch):
     mod = _load_module()
     monkeypatch.setenv("HOME", str(tmp_path))
     expected = _make_gdrive_account(tmp_path, "alice@example.com")
+    root = mod.resolve_root("google-drive", env={})
+    assert root == expected
+
+
+def test_google_drive_glob_resolves_when_my_drive_has_no_reading_subdir(
+    tmp_path, monkeypatch
+):
+    """Regression for first-push hard-fail: a fresh ``My Drive`` with no
+    ``Reading/`` subdir must still resolve. Before v1.2 the default glob
+    ended in ``/Reading``, so the very skill meant to create that
+    directory could not run until it existed."""
+    mod = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    expected = _make_gdrive_account(tmp_path, "alice@example.com")
+    assert not (expected / "Reading").exists()
     root = mod.resolve_root("google-drive", env={})
     assert root == expected
 
