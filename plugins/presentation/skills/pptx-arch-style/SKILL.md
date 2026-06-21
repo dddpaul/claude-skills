@@ -84,7 +84,7 @@ Intermediate grays not listed in the palette (`#404040`, `#B8B8B8`, `#BFBFBF`, `
 
 Approved sizes (pt): **7, 8, 9, 10, 10.5, 11, 12, 13, 14, 15, 16, 20, 24, 28, 32, 36, 40.5, 52**. Any size outside this set = violation. **5pt and smaller are forbidden as body text** (unreadable on projection). The three smallest-and-largest carve-outs are role-specific: `7pt` is allowed for protocol labels above flow-arrows only (see Diagram Conventions); `28pt` and `32pt` are allowed for stat-callout big numbers only (see Stat Callout Boxes).
 
-**Legacy 22pt migration.** Content slide titles MUST be 24pt, not the legacy 22pt that pre-canary decks used. The linter's `text-runs-use-approved-font-and-size` rule will fire on any 22pt run — re-emit the title at 24pt rather than re-adding 22pt to the scale. Long titles must be split into title + subtitle to avoid a 2-line wrap (see [[#Content Slide Anatomy]] for the wider title zone that handles a wrap when the split is not possible).
+**Legacy 22pt migration.** Content slide titles MUST be 24pt, not the legacy 22pt that pre-canary decks used. The linter's `text-runs-use-approved-font-and-size` rule will fire on any 22pt run — re-emit the title at 24pt rather than re-adding 22pt to the scale. Title length is the load-bearing variable: a 24pt title MUST fit on a single line in the 9.234in title box (no 2-line wraps — see [[#Content Slide Anatomy]] for the hard rule). When the literal title would wrap, split it into a short head as the title and the remainder as the subtitle.
 
 | Element | Size | Weight | Color |
 |---------|------|--------|-------|
@@ -138,11 +138,11 @@ Every content slide has these fixed elements:
 
 ```
 ┌─────────────────────────────────────────────────┐
-│[##]  Slide Title (24pt bold Arial)              │ <- title zone (0-0.85in, top-aligned)
+│[##]  Slide Title (24pt bold Arial)              │ <- title zone (y=0, h=0.626, middle-aligned)
+│═══════════════════════════════════════════════════│ <- red line at y=0.500 (brand-constant, under page badge)
+│      Subtitle (10pt, #666666)                   │ <- subtitle (y=0.550, h=0.220)
 │                                                 │
-│═══════════════════════════════════════════════════│ <- red line at y=0.850in
-│      Subtitle (10pt, #666666)                   │ <- subtitle (y=0.90, h=0.18)
-│  Content area                                   │ <- from 1.100in to 5.10in
+│  Content area                                   │ <- from y≈0.787 to y≈5.10
 │  (body, tables, diagrams, images)               │
 │                                                 │
 │  Source: ... (8pt, #666666)                     │ <- footer, near bottom
@@ -150,11 +150,14 @@ Every content slide has these fixed elements:
 ```
 
 - **Page number badge:** top-left corner (0, 0), 0.496in x 0.518in, `#595959` fill, white 15pt centered text
-- **Red accent line:** x=0, y=0.850, w=10.00, h=0.042 (full width, no margin), color `#F12D16`. Pre-v0.7.0 decks anchored the line at y=0.500 above a shorter title box (h=0.626); the line moved down so the wider title zone (h=0.85) can host 2-line wraps without crossing it.
-- **Title text box:** x=0.750, y=0, w=9.234, h=0.85, `valign: 'top'` (anchor `t`). Top-alignment is load-bearing: with `valign: 'middle'` a 24pt single-line title centers at y≈0.42 and a 2-line wrap drops its bottom baseline below the red line. Top-anchored, both fit above y=0.85. Pre-v0.7.0 used h=0.626 with the red line at y=0.500; the v0.7.0 layout pushes everything below the title down by 0.35in to make room for 2-line wraps.
-- **Subtitle line** (optional): x=0.750, y=0.90, w=9.00, h=0.18, 10pt regular `#666666`. Sits immediately below the red line (which ends at y=0.892); ends at y=1.08 leaving a 0.02in gap above content. Pre-v0.7.0 recipes positioned this at y=0.55 (under the shorter title zone) or y=0.78 (broken intermediate from v0.6.x — overlapped content).
-- **Content area:** x=0.600, y=1.100, ends at y≈5.10 (4.00in usable, down from 4.31in pre-v0.7.0 — the 0.31in is the cost of supporting 2-line title wraps)
+- **Red accent line:** x=0, y=0.500, w=10.00, h=0.042 (full width, no margin), color `#F12D16`. **The red line is a brand constant** sitting flush under the page-badge bottom edge (badge ends at y=0.518; line top at y=0.500 sits visually under it). Do NOT move it down to absorb long titles — that is what split-into-subtitle is for (see the hard rule below).
+- **Title text box:** x=0.750, y=0, w=9.234, h=0.626, `valign: 'middle'` (anchor `ctr`). A 24pt single-line title (~0.30in glyph height) centers at y≈0.313, text bottom ~y=0.463 — clears the red line (top y=0.500) with ~0.04in margin. **Single-line only** at 24pt: a 2-line wrap drops the second baseline below y=0.500 and crosses the red line. Hard rule below.
+- **Hard rule — no 2-line title wraps.** A content slide title MUST fit on a single line at 24pt inside the 9.234in title box. If the literal title would wrap, the implementer MUST split it: short head as the title, remainder as the subtitle. The subtitle exists precisely for this overflow. Practical character thresholds (single-line fit at 24pt Arial Bold in 9.234in): ~50 Cyrillic characters, ~60 Latin characters — beyond these counts a split is mandatory rather than discretionary.
+- **Subtitle line** (optional, but mandatory whenever the title was split per the hard rule): x=0.750, y=0.550, w=9.00, h=0.220, 10pt regular `#666666`. Sits immediately under the red line (which ends at y=0.542) leaving a small visual gap; ends at y=0.770 leaving ~0.02in clearance above the content top.
+- **Content area:** x=0.600, y=0.787, ends at y≈5.10 (4.31in usable). Per-slide content may start higher than y=0.787 (e.g., when no subtitle is rendered) but MUST NOT start lower.
 - **Footer zone:** y=5.15–5.40, x=0.600, w=8.80, 8pt `#666666`
+
+**ADR — why the title zone reverted from v0.7.0 to v0.2.0 anatomy (v0.9.0).** Between v0.4.x and v0.7.0 the title box was widened (h=0.626 → h=0.85) and the red line was pushed down (y=0.500 → y=0.850) so that 2-line title wraps could fit above the line. This treated the red line as a movable layout variable. It is not: the red line is a brand constant that sits directly under the page-badge, and moving it broke the visual signature of every content slide. The correct variable was always the **title text** — long titles must be split into title + subtitle (the subtitle exists for exactly this), not absorbed by growing the title zone. v0.9.0 reverts the geometry to v0.2.0 (red line y=0.500, title h=0.626 valign='middle', subtitle y=0.550, content y=0.787) and promotes "no 2-line wraps" from soft advice to a hard rule. Future iterations: if a title does not fit, split it — do NOT move the red line.
 
 ### Title Slide
 
@@ -311,7 +314,7 @@ Card subtitle: 11pt Regular Arial #666666
 - 3-across: w=2.80, gap=0.20, starting x=0.60 → cards at x=0.60, 3.60, 6.60
 - 2-across: w=4.30, gap=0.20, starting x=0.60 → cards at x=0.60, 5.10
 - Card height: **0.65** without subtitle, **0.70** with subtitle (binary by presence, not by length)
-- y: first row at content area top (y=Y0=1.10), subsequent rows spaced by card height + 0.15
+- y: first row at content area top (y=Y0=0.787), subsequent rows spaced by card height + 0.15
 
 ### Stat Callout Boxes (Funnel)
 
@@ -531,7 +534,7 @@ function label(s, x, y, text) {
 }
 
 // Layout (root row 1 with NO terminal beside it, sub row 2, fanout row 3).
-// All y values are inside content area (Y0=1.10, YE=5.10) per v0.7.0 anatomy.
+// All y values are inside content area (Y0=0.787, YE=5.10).
 diamond(slide, 3.90, 1.20, "Условие А?");                                 // root spans x=[3.90,6.10]
 // NO branch — straight horizontal arrow from diamond right edge → terminal left edge.
 terminal(slide, 7.20, 1.38, "Terminal NO", BF, BB);
@@ -601,7 +604,7 @@ All component positions are computed from the content area bounds. Hardcoded exa
 X0     = 0.60        // left margin
 XE     = 9.40        // right edge (10.00 - 0.60)
 W      = 8.80        // content width (XE - X0)
-Y0     = 1.10        // content top (below subtitle line; pre-v0.7.0 was 0.87)
+Y0     = 0.787       // content top (below subtitle line at y=0.55 h=0.22; v0.7.0..v0.8.x used 1.10)
 YE     = 5.10        // content bottom (above footer zone)
 GAP    = 0.20        // standard horizontal gap
 VGAP   = 0.15        // standard vertical gap between rows
@@ -680,16 +683,17 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 - 0.400" = 365760 EMU (group header bar height)
 - 0.450" = 411480 EMU (numbered circle diameter)
 - 0.496" = 453542 EMU (page number badge width)
-- 0.500" = 457200 EMU (red accent line y-position — pre-v0.7.0)
+- 0.500" = 457200 EMU (red accent line y-position — brand constant under page badge)
 - 0.518" = 473659 EMU (page number badge height)
+- 0.550" = 502920 EMU (subtitle y-position — under red line)
 - 0.600" = 548640 EMU (content area left margin)
-- 0.626" ≈ 572414 EMU (title text box height — legacy pre-v0.7.0)
-- 0.850" = 777240 EMU (title text box height — current; fits 2-line wraps; also red accent line y-position from v0.7.0)
+- 0.626" ≈ 572414 EMU (title text box height — single-line 24pt valign:middle)
 - 0.700" = 640080 EMU (category card / accent height)
 - 0.750" = 685800 EMU (title text box x-start)
-- 0.787" ≈ 719633 EMU (content area top — pre-v0.7.0)
-- 0.900" = 822960 EMU (subtitle y-position from v0.7.0)
-- 1.100" = 1005840 EMU (content area top — current, from v0.7.0)
+- 0.787" ≈ 719633 EMU (content area top — below subtitle slot)
+- 0.850" = 777240 EMU (title text box height — withdrawn v0.7.0..v0.8.x experiment; do not use)
+- 0.900" = 822960 EMU (subtitle y-position — withdrawn v0.7.0..v0.8.x experiment; do not use)
+- 1.100" = 1005840 EMU (content area top — withdrawn v0.7.0..v0.8.x experiment; do not use)
 - 5.625" = 5143500 EMU (slide height)
 - 9.234" ≈ 8443570 EMU (title text box width)
 - 10.000" = 9144000 EMU (slide width)
@@ -698,14 +702,14 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 
 1. **Always** use the page number badge + red accent line on content slides
 2. **Never** use the page number badge on title or section divider slides
-3. **Red accent line** is always at x=0, y=0.850, w=10.00 (full slide width, no side margins). Pre-v0.7.0 decks used y=0.500 above a 0.626in title box; the v0.7.0 geometry moves the line down to accommodate a 0.85in title zone that fits 2-line wraps.
+3. **Red accent line** is always at x=0, y=0.500, w=10.00 (full slide width, no side margins). The line is a brand constant sitting flush under the page-number badge — do not move it. v0.7.0..v0.8.x experimentally pushed it down to y=0.850 to absorb 2-line title wraps; v0.9.0 reverts because the line is brand-level, not layout-level. Long titles MUST be split into title + subtitle (see [[#Content Slide Anatomy]] hard rule).
 4. **Left-align** all body text; center only slide titles on section slides
 5. **No underlines** under titles — use the red accent line as the separator
 6. **Footer/source** text goes near the bottom in 8pt `#666666`
 7. **Numbered circles** (red) for standalone items outside boxes; text "1. 2. 3." for lists inside a content box
 8. **Use semantic colors** for status — green=done, amber=planned, gray=unverified — never arbitrary colors
 9. **Two-box layout** (green + amber side by side) for summary/takeaway slides. Layout: green x=0.60 w=4.20, amber x=5.00 w=4.40, same y, h=0.85. Use below a dashed separator line
-10. **Content area** starts at 1.100in from top (pre-v0.7.0: 0.787in), uses 0.600in left margin
+10. **Content area** starts at 0.787in from top (below the subtitle slot), uses 0.600in left margin. v0.7.0..v0.8.x pushed this to 1.100in to accommodate a downward-shifted red line; v0.9.0 reverts.
 11. **No shadows** on any shapes or text — all elements are flat. The slide background MUST carry `<a:effectLst/>` inside `<p:bgPr>` to override theme-inherited shadows (this is sufficient — per-shape effectLst overrides are NOT required, since the theme used by this template defines no shape-level shadows that would propagate). **pptxgenjs (v4.0.1) does not emit `<a:effectLst/>` for `slide.background = { color: ... }`** — run `scripts/postprocess-effectlst.py` after generation to inject it (see [[#Validation]] for the full pipeline)
 12. **Orthogonal LINE shapes only** on content slides: every `addShape("line", ...)` MUST be either purely horizontal (`h=0, w>0`) or purely vertical (`w=0, h>0`). Diagonal LINE shapes (both `w>0` and `h>0`) are forbidden regardless of context — connectors, separators, dividers, callouts. The linter rule `decision-tree-connector-orthogonal` (warning) fires on any violation. This generalizes the decision-tree-specific orthogonality requirement in Diagram Conventions to the whole slide vocabulary.
 
