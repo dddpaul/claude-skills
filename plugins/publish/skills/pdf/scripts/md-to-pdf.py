@@ -1,7 +1,7 @@
 """Convert a markdown file to PDF using weasyprint, writing atomically.
 
 Usage:
-    md-to-pdf.py <source.md> <target.pdf>
+    md-to-pdf.py <source.md> [<target.pdf>]
 
 Reads the source markdown, strips YAML frontmatter and Obsidian
 `table-of-contents` fenced blocks, then converts to HTML via the `markdown`
@@ -10,8 +10,12 @@ table of contents (H1 + H2 + H3) is injected at the top of the body with
 `target-counter`-compatible markup so the CSS can emit dot leaders and page
 numbers. The document is rendered to PDF via weasyprint with the sibling
 `references/styles.css` stylesheet, written to a hidden `.<name>.tmp` file
-alongside the target and `os.replace`d into place so iCloud only ever sees
+alongside the target and `os.replace`d into place so transports only ever see
 a complete file.
+
+Hard-fails when ``<source.md>`` does not have a ``.md`` extension. When
+``<target.pdf>`` is omitted, writes ``<source-dir>/<source-stem>.pdf`` next
+to the source.
 """
 
 import re
@@ -102,8 +106,15 @@ def md_to_html(raw: str) -> tuple[str, "markdown.Markdown"]:
 
 
 def main() -> None:
+    if len(sys.argv) < 2:
+        sys.exit("usage: md-to-pdf.py <source.md> [<target.pdf>]")
     src = Path(sys.argv[1]).resolve()
-    dst = Path(sys.argv[2]).resolve()
+    if src.suffix.lower() != ".md":
+        sys.exit(f"source must be a .md file: {src}")
+    if len(sys.argv) >= 3:
+        dst = Path(sys.argv[2]).resolve()
+    else:
+        dst = src.with_suffix(".pdf")
     css_path = Path(__file__).parent.parent / "references" / "styles.css"
     raw = src.read_text(encoding="utf-8")
     html_body, md = md_to_html(raw)
