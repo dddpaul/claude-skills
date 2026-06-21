@@ -58,7 +58,7 @@ ICLOUD = Provider(
     name="icloud",
     env_var="PUBLISH_ICLOUD_DIR",
     default_root=Path(
-        "~/Library/Mobile Documents/com~apple~CloudDocs/Reading"
+        "~/Library/Mobile Documents/com~apple~CloudDocs"
     ).expanduser(),
     triggers=(
         "send to books",
@@ -75,7 +75,7 @@ ICLOUD = Provider(
 GOOGLE_DRIVE = Provider(
     name="google-drive",
     env_var="PUBLISH_GOOGLE_DRIVE_DIR",
-    default_root_glob="~/Library/CloudStorage/GoogleDrive-*/My Drive/Reading",
+    default_root_glob="~/Library/CloudStorage/GoogleDrive-*/My Drive",
     triggers=(
         "send to gdrive",
         "send to google drive",

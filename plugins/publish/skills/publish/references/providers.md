@@ -10,8 +10,8 @@ provider.
 
 | Provider | Env var | Default root |
 |---|---|---|
-| icloud | `PUBLISH_ICLOUD_DIR` | `~/Library/Mobile Documents/com~apple~CloudDocs/Reading` |
-| google-drive | `PUBLISH_GOOGLE_DRIVE_DIR` | `~/Library/CloudStorage/GoogleDrive-*/My Drive/Reading` (glob) |
+| icloud | `PUBLISH_ICLOUD_DIR` | `~/Library/Mobile Documents/com~apple~CloudDocs` |
+| google-drive | `PUBLISH_GOOGLE_DRIVE_DIR` | `~/Library/CloudStorage/GoogleDrive-*/My Drive` (glob) |
 
 The default root is resolved at every invocation; restart the shell after
 editing your profile (`~/.zshrc` / `~/.bashrc`) before pushing.

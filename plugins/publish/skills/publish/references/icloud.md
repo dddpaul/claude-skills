@@ -25,7 +25,7 @@ provider rename.
 ## Default root
 
 ```text
-~/Library/Mobile Documents/com~apple~CloudDocs/Reading
+~/Library/Mobile Documents/com~apple~CloudDocs
 ```
 
 Override with `PUBLISH_ICLOUD_DIR` in your shell profile. The skill reads
