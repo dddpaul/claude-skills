@@ -92,24 +92,41 @@ Push markdown files from any project into a Syncthing-synced Obsidian vault on p
 посмотри оффдеск фидбэк
 ```
 
-### books
+### pdf
 
-*Plugin: reading*
+*Plugin: publish*
 
-Push markdown files from any project to Apple Books on iPad as PDF for off-desk reading with Apple Pencil annotations. iCloud Drive → tap to open in Books. Push-only — pen marks stay with the human.
+Convert a markdown file to a PDF rendered with weasyprint, IBM Plex typography, and Obsidian-style heading anchors. Conversion-only — no upload, no transport. Sibling skills (e.g. `publish`) shell out to its script when they need a PDF.
 
-**Usage**: Ask Claude to send a doc to books for review on iPad.
+**Usage**: Ask Claude to render a markdown file as a PDF.
+
+**Example**:
+```
+convert this to pdf
+render as pdf
+сделай pdf
+```
+
+### publish
+
+*Plugin: publish*
+
+Publish a markdown file from the active project as a PDF to a configured transport provider. v1 ships only the `icloud` provider (iCloud Drive → tap to open in Books / Files / Preview on any signed-in device). Push-only — pen marks stay with the human.
+
+**Usage**: Ask Claude to send a doc to a transport for off-desk reading.
 
 **Example**:
 ```
 send to books
+read on ipad
 положи это в books
 почитаю на айпаде
+положи в icloud
 ```
 
 ## Project Structure
 
-Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, `plugins/obsidian/skills/`, and `plugins/reading/skills/`:
+Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, `plugins/obsidian/skills/`, and `plugins/publish/skills/`:
 
 ```
 claude-skills/
@@ -145,16 +162,27 @@ claude-skills/
     │           ├── SKILL.md                      # Skill definition and instructions
     │           └── references/
     │               └── setup.md                  # Syncthing + Obsidian Android manual setup
-    └── reading/                                  # plugins/reading/skills/
+    └── publish/                                  # plugins/publish/skills/
         ├── .claude-plugin/
         │   └── plugin.json                       # Plugin manifest
         └── skills/
-            └── books/
-                ├── SKILL.md                      # Skill definition and instructions
+            ├── pdf/
+            │   ├── SKILL.md                      # Conversion-only MD → PDF skill
+            │   ├── references/
+            │   │   └── styles.css                # PDF styling (typography, page breaks)
+            │   ├── scripts/
+            │   │   └── md-to-pdf.py              # Markdown → PDF converter
+            │   └── tests/
+            │       └── test_anchors.py           # Obsidian-anchor resolution tests
+            └── publish/
+                ├── SKILL.md                      # Umbrella push skill
                 ├── references/
-                │   └── styles.css                # PDF styling (typography, page breaks)
-                └── scripts/
-                    └── md-to-pdf.py              # Markdown → PDF converter
+                │   ├── providers.md              # Provider table (env vars, default roots)
+                │   └── icloud.md                 # iCloud-as-transport notes
+                ├── scripts/
+                │   └── providers.py              # Trigger → provider routing
+                └── tests/
+                    └── test_providers.py         # Trigger + env-var resolver tests
 ```
 
 ## Installation
@@ -173,7 +201,7 @@ These skills are distributed as Claude Code plugins via a marketplace.
 /plugin install architect@dddpaul-claude-skills      # arch-describe + arch-draw
 /plugin install presentation@dddpaul-claude-skills   # pptx-core-style + pptx-arch-style
 /plugin install obsidian@dddpaul-claude-skills       # offdesk
-/plugin install reading@dddpaul-claude-skills        # books
+/plugin install publish@dddpaul-claude-skills        # pdf + publish
 ```
 
 ### Update later

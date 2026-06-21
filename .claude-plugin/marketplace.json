@@ -18,9 +18,9 @@
       "description": "Obsidian vault tooling — offdesk push/pull for off-desk markdown review via Syncthing."
     },
     {
-      "name": "reading",
-      "source": "./plugins/reading",
-      "description": "Push markdown from any project to Apple Books on iPad as PDF for off-desk reading with Apple Pencil annotations. Push-only via iCloud Drive."
+      "name": "publish",
+      "source": "./plugins/publish",
+      "description": "Publish a markdown file as a PDF and optionally drop it on a transport provider. pdf renders MD → PDF with weasyprint + IBM Plex; publish layers the icloud transport on top (v1 ships icloud only)."
     }
   ]
 }
