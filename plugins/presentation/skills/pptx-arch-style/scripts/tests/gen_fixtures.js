@@ -108,7 +108,7 @@ function addPageBadge(s, num) {
   });
 }
 
-function addRedLine(s, { x = 0, y = 0.85, w = 10.0, h = 0.042, color = BRAND_RED } = {}) {
+function addRedLine(s, { x = 0, y = 0.5, w = 10.0, h = 0.042, color = BRAND_RED } = {}) {
   // line: { type: "none" } emits <a:ln><a:noFill/></a:ln> so the red line does
   // not accidentally match the red-highlight-marker-border rule (which keys on
   // shape.line.color == FF0000).
@@ -127,20 +127,20 @@ function addContentTitle(s, { text = "Content Slide Title" } = {}) {
     x: 0.75,
     y: 0.0,
     w: 9.234,
-    h: 0.85,
+    h: 0.626,
     fontFace: "Arial",
     fontSize: 24,
     bold: true,
     color: "000000",
     align: "left",
-    valign: "top",
+    valign: "middle",
   });
 }
 
 function addContentBody(s) {
   s.addText("Body text in approved font and size.", {
     x: 0.6,
-    y: 1.1,
+    y: 0.787,
     w: 8.8,
     h: 0.5,
     fontFace: "Roboto Condensed",
@@ -156,7 +156,7 @@ function addContentSlide(pres, opts = {}) {
     pageNum = "2",
     badge = true,
     redLine = true,
-    redLineCoords = { x: 0.0, y: 0.85, w: 10.0, h: 0.042 },
+    redLineCoords = { x: 0.0, y: 0.5, w: 10.0, h: 0.042 },
     redLineColor = BRAND_RED,
     bodyFontSize = 10.5,
     titleText = "Content Slide Title",
@@ -170,7 +170,7 @@ function addContentSlide(pres, opts = {}) {
   addContentTitle(s, { text: titleText });
   s.addText("Body text in approved font and size.", {
     x: 0.6,
-    y: 1.1,
+    y: 0.787,
     w: 8.8,
     h: 0.5,
     fontFace: "Roboto Condensed",
@@ -263,10 +263,10 @@ async function buildViolatorWrongRedLineCoords() {
   addTitleSlide(pres);
   addSectionSlide(pres);
   // Coords drift by 0.1in on x — well past the 0.005 tolerance — but width
-  // stays >= 9.5 and y stays in the mandatory-match band [0.80, 0.90] so the
+  // stays >= 9.5 and y stays in the mandatory-match band [0.45, 0.55] so the
   // mandatory-element check still finds the line. This isolates the failure
   // to red-accent-line-coords only.
-  addContentSlide(pres, { redLineCoords: { x: 0.1, y: 0.85, w: 9.8, h: 0.042 } });
+  addContentSlide(pres, { redLineCoords: { x: 0.1, y: 0.5, w: 9.8, h: 0.042 } });
   await buildPres(pres, path.join(VIOLATORS, "red-accent-line-coords.pptx"));
 }
 
@@ -497,7 +497,7 @@ async function buildEdgeWithinTolerance() {
   addSectionSlide(pres);
   addContentSlide(pres, {
     // 0.003 drift on every axis — under 0.005 tolerance, should pass.
-    redLineCoords: { x: 0.003, y: 0.853, w: 9.997, h: 0.042 },
+    redLineCoords: { x: 0.003, y: 0.503, w: 9.997, h: 0.042 },
   });
   await buildPres(pres, path.join(EDGE, "red-line-within-tolerance.pptx"));
 }
@@ -508,52 +508,40 @@ async function buildEdgeOutsideTolerance() {
   addSectionSlide(pres);
   addContentSlide(pres, {
     // 0.010 drift on x — over 0.005 tolerance, should fail.
-    redLineCoords: { x: 0.01, y: 0.85, w: 10.0, h: 0.042 },
+    redLineCoords: { x: 0.01, y: 0.5, w: 10.0, h: 0.042 },
   });
   await buildPres(pres, path.join(EDGE, "red-line-outside-tolerance.pptx"));
 }
 
 async function buildEdgeTitleZoneSmokeTest() {
-  // TASK-27 (v0.7.0 path c) smoke-test fixture. Builds two content slides —
-  // one with a 1-line title and one with a long Cyrillic title that wraps to
-  // 2 lines — using the canonical v0.7.0 recipe:
-  //   title h=0.85 valign=top, red line y=0.85, content top y=1.10
-  // The companion test in test_lint.py asserts:
-  //   1. golden ruleset still passes (no violations)
-  //   2. title shape bottom-y (y + h = 0.85) does not cross the red line top
-  //      (also y=0.85), AND with valign=top a 24pt Arial 1-line or 2-line
-  //      title cannot drop below y=0.85 (geometric guarantee, since text
-  //      anchors at the top of a 0.85in tall box)
-  //   3. subtitle bottom-y (0.87 + 0.20 = 1.07) does not cross content top y=1.10
+  // TASK-31 (v0.9.0 revert) smoke-test fixture. The v0.7.0 anatomy moved the
+  // red line to y=0.85 to absorb 2-line title wraps; v0.9.0 reverts and
+  // forbids wraps entirely — long titles MUST split into title + subtitle.
+  // This fixture demonstrates the canonical v0.9.0 pattern across two slides:
+  //   slide 1 — short single-line title, no subtitle
+  //   slide 2 — long title split into a short head title + remainder subtitle
+  // Geometry:
+  //   title h=0.626 valign=middle (24pt single-line glyphs center at y≈0.31)
+  //   red line y=0.500 (brand constant under page badge)
+  //   subtitle y=0.550 h=0.220 (immediately under red line)
+  //   content top y=0.787
+  // Companion test asserts: red line at y=0.500, title shape geometry matches
+  // (y=0, h=0.626), subtitle (when present) at y=0.550, no 2-line title wraps.
   const pres = makePres();
   addContentSlide(pres, {
     pageNum: "1",
     titleText: "Short title — 1 line",
-    extraShapes: [
-      (s) =>
-        s.addText("Subtitle line — sits under the red line", {
-          x: 0.75,
-          y: 0.9,
-          w: 9.0,
-          h: 0.18,
-          fontFace: "Roboto Condensed",
-          fontSize: 10,
-          color: "666666",
-          align: "left",
-        }),
-    ],
   });
   addContentSlide(pres, {
     pageNum: "2",
-    titleText:
-      "Рекомендация: Путь 1 — Camunda 8 как отдельная информационная система",
+    titleText: "Рекомендация: Путь 1",
     extraShapes: [
       (s) =>
-        s.addText("Subtitle line — under wrapped 2-line title", {
+        s.addText("Camunda 8 как отдельная информационная система", {
           x: 0.75,
-          y: 0.9,
+          y: 0.55,
           w: 9.0,
-          h: 0.18,
+          h: 0.22,
           fontFace: "Roboto Condensed",
           fontSize: 10,
           color: "666666",
