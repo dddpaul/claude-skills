@@ -314,7 +314,7 @@ Card subtitle: 11pt Regular Arial #666666
 - 3-across: w=2.80, gap=0.20, starting x=0.60 → cards at x=0.60, 3.60, 6.60
 - 2-across: w=4.30, gap=0.20, starting x=0.60 → cards at x=0.60, 5.10
 - Card height: **0.65** without subtitle, **0.70** with subtitle (binary by presence, not by length)
-- y: first row at content area top (y=Y0=1.10), subsequent rows spaced by card height + 0.15
+- y: first row at content area top (y=Y0=0.787), subsequent rows spaced by card height + 0.15
 
 ### Stat Callout Boxes (Funnel)
 
