@@ -638,7 +638,7 @@ Example n=4: r = [4/10, 3/10, 2/10, 1/10] = [0.40, 0.30, 0.20, 0.10]
 
 ### Two-Box Summary Layout (green + amber)
 
-For any width split ratio `r` (default 0.48 / 0.52):
+For any width split ratio `r` (default 0.488 / 0.512 — reproduces Rule #9 widths exactly given W=8.80 and GAP=0.20):
 
 ```
 greenW = W * r - GAP / 2
@@ -688,7 +688,7 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 - 0.700" = 640080 EMU (category card / accent height)
 - 0.750" = 685800 EMU (title text box x-start)
 - 0.787" ≈ 719633 EMU (content area top — pre-v0.7.0)
-- 0.900" = 823560 EMU (subtitle y-position from v0.7.0)
+- 0.900" = 822960 EMU (subtitle y-position from v0.7.0)
 - 1.100" = 1005840 EMU (content area top — current, from v0.7.0)
 - 5.625" = 5143500 EMU (slide height)
 - 9.234" ≈ 8443570 EMU (title text box width)
@@ -699,7 +699,7 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 1. **Always** use the page number badge + red accent line on content slides
 2. **Never** use the page number badge on title or section divider slides
 3. **Red accent line** is always at x=0, y=0.850, w=10.00 (full slide width, no side margins). Pre-v0.7.0 decks used y=0.500 above a 0.626in title box; the v0.7.0 geometry moves the line down to accommodate a 0.85in title zone that fits 2-line wraps.
-4. **Left-align** all body text; center only slide titles on title/section slides
+4. **Left-align** all body text; center only slide titles on section slides
 5. **No underlines** under titles — use the red accent line as the separator
 6. **Footer/source** text goes near the bottom in 8pt `#666666`
 7. **Numbered circles** (red) for standalone items outside boxes; text "1. 2. 3." for lists inside a content box
@@ -707,6 +707,7 @@ Check: last element bottom `itemY[n-1] + itemH[n-1]` must be ≤ `YE`.
 9. **Two-box layout** (green + amber side by side) for summary/takeaway slides. Layout: green x=0.60 w=4.20, amber x=5.00 w=4.40, same y, h=0.85. Use below a dashed separator line
 10. **Content area** starts at 1.100in from top (pre-v0.7.0: 0.787in), uses 0.600in left margin
 11. **No shadows** on any shapes or text — all elements are flat. The slide background MUST carry `<a:effectLst/>` inside `<p:bgPr>` to override theme-inherited shadows (this is sufficient — per-shape effectLst overrides are NOT required, since the theme used by this template defines no shape-level shadows that would propagate). **pptxgenjs (v4.0.1) does not emit `<a:effectLst/>` for `slide.background = { color: ... }`** — run `scripts/postprocess-effectlst.py` after generation to inject it (see [[#Validation]] for the full pipeline)
+12. **Orthogonal LINE shapes only** on content slides: every `addShape("line", ...)` MUST be either purely horizontal (`h=0, w>0`) or purely vertical (`w=0, h>0`). Diagonal LINE shapes (both `w>0` and `h>0`) are forbidden regardless of context — connectors, separators, dividers, callouts. The linter rule `decision-tree-connector-orthogonal` (warning) fires on any violation. This generalizes the decision-tree-specific orthogonality requirement in Diagram Conventions to the whole slide vocabulary.
 
 ## Validation
 
