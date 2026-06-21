@@ -1,7 +1,7 @@
 {
   "name": "publish",
-  "version": "1.0.0",
-  "description": "Publish a markdown file as a PDF and optionally drop it on a transport provider. pdf renders MD → PDF with weasyprint + IBM Plex; publish layers the icloud transport on top (v1 ships icloud only).",
+  "version": "1.1.0",
+  "description": "Publish a markdown file as a PDF and optionally drop it on a transport provider. pdf renders MD → PDF with weasyprint + IBM Plex; publish layers transport providers on top (v1.1 ships icloud and google-drive).",
   "author": {
     "name": "Pavel Derendyaev",
     "email": "dddpaul@gmail.com"
