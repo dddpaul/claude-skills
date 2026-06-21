@@ -1,10 +1,10 @@
 ---
 id: TASK-33
 title: Add google-drive provider to the publish skill
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-21 07:03'
-updated_date: '2026-06-21 10:28'
+updated_date: '2026-06-21 10:31'
 labels:
   - 'feature:publish-plugin-split'
 dependencies:
@@ -132,26 +132,6 @@ Dependency: T1 must be complete first — the publish skill and its providers.md
 - [x] #10 plugins/publish/.claude-plugin/plugin.json version bumped to 1.1.0; root README mentions google-drive under ### publish; uv run ruff check . and uv run pytest both pass
 <!-- AC:END -->
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
@@ -168,4 +148,8 @@ Plan:
 Reset after iteration-2 failure from Anthropic session limit (not a code defect). task-33 branch deleted; ready for a fresh attempt.
 
 Plan iteration 1 (2026-06-21): Implement google-drive provider with glob-based root resolution. Key design: introduce ProviderResolutionError for hard-fail messages naming the env var; extend Provider class to optionally carry a default_root_glob (string with ~) instead of an expanded Path; resolve_root() expands glob lazily and applies 0/1/>1 rules. Tests use tmp_path to create fake GoogleDrive-* directories and monkeypatch HOME to make glob deterministic without touching the real filesystem.
+
+Commit: `2bff035` - task-33: add google-drive provider to publish skill (v1.1.0)
+
+Iteration 1 (2026-06-21): implemented google-drive provider per spec. ProviderResolutionError + glob-based root with 0/1/>1 rules in scripts/providers.py; env var wins verbatim. 20 new tests (46 total), ruff clean, pytest green. plugin.json 1.0.0 -> 1.1.0. task-reviewer agent: APPROVED on commit 2bff035.
 <!-- SECTION:NOTES:END -->
