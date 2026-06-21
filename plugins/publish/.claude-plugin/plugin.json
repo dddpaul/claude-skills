@@ -1,0 +1,12 @@
+{
+  "name": "publish",
+  "version": "1.0.0",
+  "description": "Publish a markdown file as a PDF and optionally drop it on a transport provider. pdf renders MD → PDF with weasyprint + IBM Plex; publish layers the icloud transport on top (v1 ships icloud only).",
+  "author": {
+    "name": "Pavel Derendyaev",
+    "email": "dddpaul@gmail.com"
+  },
+  "homepage": "https://github.com/dddpaul/claude-skills",
+  "repository": "https://github.com/dddpaul/claude-skills",
+  "license": "Apache-2.0"
+}
