@@ -196,24 +196,27 @@ def test_every_rule_has_spec_ref(rules):
     assert not missing, f"rules missing spec_ref: {missing}"
 
 
-def test_title_zone_smoke_test_v070_geometry(rules):
-    """TASK-27 (v0.7.0 path c): a deck with 1-line AND 2-line titles built per
-    the canonical recipe lints clean AND its geometry is internally
-    consistent:
+def test_title_zone_smoke_test_v090_anatomy(rules):
+    """TASK-31 (v0.9.0 revert): a deck demonstrating the canonical v0.2.0/v0.9.0
+    title-zone anatomy lints clean AND has the geometry pinned by the spec:
 
-      * title text box bottom-y == red line top-y == 0.85 (top-anchored
-        24pt text cannot drop below 0.85 because valign=top pins the first
-        line baseline near y=0)
-      * subtitle bottom-y (0.90 + 0.18 = 1.08) sits above content top y=1.10
-        with a 0.02in gap — no overlap
-      * red line at y=0.85 with h=0.042 ends at y=0.892, subtitle top y=0.90
-        leaves an 0.008in gap below the red line — no overlap
+      * red line at y=0.500 (brand constant, under page badge)
+      * title shape at y=0, h=0.626 (24pt single-line valign='middle' glyphs
+        center at y≈0.313 and clear the red line by ~0.04in)
+      * subtitle (when present) at y=0.550, h=0.220 — sits immediately below
+        the red line bottom (y=0.542) with a small gap, ends at y=0.770
+      * content top y=0.787 — subtitle clears it with a 0.017in gap
+
+    Critically, this asserts the title shape height is 0.626 (NOT 0.85) —
+    the v0.7.0..v0.8.x experiment is rolled back.
     """
     from pptx import Presentation as _Pres
 
     fixture = FIXTURES / "edge" / "title-zone-smoke-test.pptx"
     report = lint_mod.lint(fixture, rules)
-    assert report.violations == [], f"v0.7.0 smoke deck must lint clean; got {report.violations}"
+    assert report.violations == [], (
+        f"v0.9.0 smoke deck must lint clean; got {report.violations}"
+    )
     assert lint_mod.exit_code(report) == 0
 
     deck = _Pres(str(fixture))
@@ -224,8 +227,7 @@ def test_title_zone_smoke_test_v070_geometry(rules):
             return False
         text = shape.text_frame.text
         lowered = text.lower()
-        # Exclude subtitle (which also contains "title") and page-number badge.
-        if "subtitle" in lowered:
+        if "camunda" in lowered:
             return False
         return "title" in lowered or "Рекомендация" in text
 
@@ -241,35 +243,46 @@ def test_title_zone_smoke_test_v070_geometry(rules):
         red = red_lines[0]
         red_y = (red.top or 0) / EMU
         red_h = (red.height or 0) / EMU
-        assert abs(red_y - 0.85) < 0.005, (
-            f"slide {idx}: red line y={red_y} (expected 0.85)"
+        assert abs(red_y - 0.500) < 0.005, (
+            f"slide {idx}: red line y={red_y} (expected 0.500 — v0.9.0 brand constant)"
         )
+
         assert title_shapes, f"slide {idx}: title shape not found"
         for t in title_shapes:
             top = (t.top or 0) / EMU
             h = (t.height or 0) / EMU
-            bottom = top + h
-            assert bottom <= red_y + 0.005, (
-                f"slide {idx}: title shape bottom y={bottom} crosses red line y={red_y}"
+            assert abs(top - 0.0) < 0.005, (
+                f"slide {idx}: title shape top y={top} (expected 0.0)"
+            )
+            assert abs(h - 0.626) < 0.005, (
+                f"slide {idx}: title shape height h={h} (expected 0.626 — "
+                f"NOT 0.85; v0.9.0 reverts the v0.7.0 widening)"
             )
 
-        subtitle_shapes = [
-            s
-            for s in shapes
-            if s.has_text_frame
-            and "subtitle" in s.text_frame.text.lower()
-        ]
-        assert subtitle_shapes, f"slide {idx}: subtitle shape not found"
-        sub = subtitle_shapes[0]
-        sub_top = (sub.top or 0) / EMU
-        sub_h = (sub.height or 0) / EMU
-        sub_bottom = sub_top + sub_h
-        assert sub_top >= red_y + red_h - 0.005, (
-            f"slide {idx}: subtitle top y={sub_top} overlaps red line bottom y={red_y + red_h}"
-        )
-        assert sub_bottom <= 1.10 + 0.005, (
-            f"slide {idx}: subtitle bottom y={sub_bottom} crosses content top y=1.10"
-        )
+        if idx == 2:
+            subtitle_shapes = [
+                s
+                for s in shapes
+                if s.has_text_frame and "camunda" in s.text_frame.text.lower()
+            ]
+            assert subtitle_shapes, (
+                f"slide {idx}: subtitle (split remainder) shape not found"
+            )
+            sub = subtitle_shapes[0]
+            sub_top = (sub.top or 0) / EMU
+            sub_h = (sub.height or 0) / EMU
+            sub_bottom = sub_top + sub_h
+            assert abs(sub_top - 0.550) < 0.005, (
+                f"slide {idx}: subtitle top y={sub_top} (expected 0.550)"
+            )
+            assert sub_top >= red_y + red_h - 0.005, (
+                f"slide {idx}: subtitle top y={sub_top} overlaps red line "
+                f"bottom y={red_y + red_h}"
+            )
+            assert sub_bottom <= 0.787 + 0.005, (
+                f"slide {idx}: subtitle bottom y={sub_bottom} crosses "
+                f"content top y=0.787"
+            )
 
 
 def test_main_cli_exit_codes(rules, capsys):
