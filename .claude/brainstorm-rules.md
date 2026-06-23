@@ -116,3 +116,19 @@ The remaining options (Write plan, Plan mode, Start now) follow after.
 
 <!-- Add project-specific brainstorm rules below this heading. Content here is preserved on `ralph upgrade`. -->
 
+### publish plugin — provider doc-parity Files list
+
+When a brainstorm or task adds a new provider to the `publish` plugin (e.g., `onedrive`, future `dropbox`/`box`/etc.), the task's **Files** section MUST enumerate all four doc-parity surfaces — not just the code+test files. Specifically:
+
+- `plugins/publish/skills/publish/scripts/providers.py` (code)
+- `plugins/publish/skills/publish/tests/test_providers.py` (tests)
+- `plugins/publish/skills/publish/SKILL.md` (frontmatter triggers + body trigger section + push procedure branch + Providers wikilink list)
+- `plugins/publish/skills/publish/references/providers.md` (canonical provider table + trigger mapping)
+- `plugins/publish/skills/publish/references/<provider>.md` (new per-provider deep-dive — mount-only, multi-account hard-fail, default-root, push-only, slug collision, macOS prerequisites)
+- `README.md` `### publish` section (version mention, env var, ≥3 example trigger phrases)
+- `plugins/publish/.claude-plugin/plugin.json` (version bump + description)
+
+**Why:** TASK-36 (onedrive) shipped code+tests+SKILL.md+plugin.json but omitted `references/providers.md`, `references/onedrive.md`, and `README.md`. Ralph followed the spec literally, the cumulative review came back **Partial**, and TASK-37 was needed to close the gap. Listing all surfaces in the original Files block prevents the next provider from repeating this round-trip.
+
+**How to apply:** When distilling a "add new provider" brainstorm into a ralph-task, paste the seven-bullet list above into the task's Files section verbatim, swap `<provider>` for the new id, and mark each `(exists)` / `(to-create)` per the destination-frame validation step.
+
