@@ -1,10 +1,10 @@
 ---
 id: TASK-37
 title: Add onedrive doc parity to publish skill (v1.3.1)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-23 08:34'
-updated_date: '2026-06-23 08:39'
+updated_date: '2026-06-23 08:42'
 labels:
   - 'feature:publish-plugin-split'
 dependencies: []
@@ -62,5 +62,13 @@ Patch bump (1.3.0 → 1.3.1) — docs only, no behavior or API change.
 - [x] #5 plugins/publish/skills/publish/SKILL.md Providers paragraph wikilink list contains [[icloud]], [[google-drive]], and [[onedrive]]
 - [x] #6 plugins/publish/.claude-plugin/plugin.json version bumped 1.3.0 → 1.3.1
 - [x] #7 uv run ruff check . exits 0 and uv run pytest exits 0
-- [ ] #8 task-reviewer agent on git diff master..HEAD returns APPROVED before merge
+- [x] #8 task-reviewer agent on git diff master..HEAD returns APPROVED before merge
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Commit: `93ff96b` - task-37: add onedrive doc parity (v1.3.1)
+
+Implemented: providers.md adds onedrive row + trigger section + glob enumeration; new references/onedrive.md mirrors google-drive.md with Personal-vs-Work/School naming note; SKILL.md Providers wikilink list adds [[onedrive]]; README ### publish bumped to v1.3 three providers w/ PUBLISH_ONEDRIVE_DIR + 3 onedrive triggers; plugin.json 1.3.0 -> 1.3.1 (patch — doc-only). ruff clean; pytest 97/97. task-reviewer APPROVED. Closes the 3 doc-parity drifts flagged by design/publish-plugin-split-review-2026-06-23.md.
+<!-- SECTION:NOTES:END -->
