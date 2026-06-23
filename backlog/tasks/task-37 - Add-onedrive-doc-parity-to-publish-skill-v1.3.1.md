@@ -1,9 +1,10 @@
 ---
 id: TASK-37
 title: Add onedrive doc parity to publish skill (v1.3.1)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-06-23 08:34'
+updated_date: '2026-06-23 08:39'
 labels:
   - 'feature:publish-plugin-split'
 dependencies: []
@@ -54,12 +55,12 @@ Patch bump (1.3.0 → 1.3.1) — docs only, no behavior or API change.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 providers.md provider table includes an onedrive row with env_var PUBLISH_ONEDRIVE_DIR and default_root_glob ~/Library/CloudStorage/OneDrive-*
-- [ ] #2 providers.md trigger-mapping section lists all 6 onedrive trigger phrases (EN: send to onedrive / send to one drive / read on onedrive; RU: положи в onedrive / положи в ванндрайв / отправь на onedrive)
-- [ ] #3 plugins/publish/skills/publish/references/onedrive.md exists and mirrors google-drive.md structure: mount-only rationale, multi-account hard-fail with PUBLISH_ONEDRIVE_DIR hint, default-root section, push-only stance, slug collision note, macOS Personal vs Work/School naming note
-- [ ] #4 README.md '### publish' section reads 'v1.3 ships three providers' (or equivalent), mentions PUBLISH_ONEDRIVE_DIR, and includes at least 3 example onedrive trigger phrases
-- [ ] #5 plugins/publish/skills/publish/SKILL.md Providers paragraph wikilink list contains [[icloud]], [[google-drive]], and [[onedrive]]
-- [ ] #6 plugins/publish/.claude-plugin/plugin.json version bumped 1.3.0 → 1.3.1
-- [ ] #7 uv run ruff check . exits 0 and uv run pytest exits 0
+- [x] #1 providers.md provider table includes an onedrive row with env_var PUBLISH_ONEDRIVE_DIR and default_root_glob ~/Library/CloudStorage/OneDrive-*
+- [x] #2 providers.md trigger-mapping section lists all 6 onedrive trigger phrases (EN: send to onedrive / send to one drive / read on onedrive; RU: положи в onedrive / положи в ванндрайв / отправь на onedrive)
+- [x] #3 plugins/publish/skills/publish/references/onedrive.md exists and mirrors google-drive.md structure: mount-only rationale, multi-account hard-fail with PUBLISH_ONEDRIVE_DIR hint, default-root section, push-only stance, slug collision note, macOS Personal vs Work/School naming note
+- [x] #4 README.md '### publish' section reads 'v1.3 ships three providers' (or equivalent), mentions PUBLISH_ONEDRIVE_DIR, and includes at least 3 example onedrive trigger phrases
+- [x] #5 plugins/publish/skills/publish/SKILL.md Providers paragraph wikilink list contains [[icloud]], [[google-drive]], and [[onedrive]]
+- [x] #6 plugins/publish/.claude-plugin/plugin.json version bumped 1.3.0 → 1.3.1
+- [x] #7 uv run ruff check . exits 0 and uv run pytest exits 0
 - [ ] #8 task-reviewer agent on git diff master..HEAD returns APPROVED before merge
 <!-- AC:END -->
