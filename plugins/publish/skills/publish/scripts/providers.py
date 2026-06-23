@@ -87,9 +87,24 @@ GOOGLE_DRIVE = Provider(
     ),
 )
 
+ONEDRIVE = Provider(
+    name="onedrive",
+    env_var="PUBLISH_ONEDRIVE_DIR",
+    default_root_glob="~/Library/CloudStorage/OneDrive-*",
+    triggers=(
+        "send to onedrive",
+        "send to one drive",
+        "read on onedrive",
+        "положи в onedrive",
+        "положи в ванндрайв",
+        "отправь на onedrive",
+    ),
+)
+
 PROVIDERS: dict[str, Provider] = {
     ICLOUD.name: ICLOUD,
     GOOGLE_DRIVE.name: GOOGLE_DRIVE,
+    ONEDRIVE.name: ONEDRIVE,
 }
 
 
