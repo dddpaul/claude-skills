@@ -1,16 +1,19 @@
 """Verify the publish skill's trigger → provider resolver.
 
-The publish skill ships two providers: ``icloud`` and ``google-drive``.
-All eight icloud trigger phrases must route to ``icloud``; all seven
-google-drive trigger phrases must route to ``google-drive``. Each
-provider's env var must override the default root; the legacy pre-rename
-env var must be ignored. Phrases that do not name a provider must return
-the ``NEEDS_DISAMBIGUATION`` sentinel, not a silent default.
+The publish skill ships three providers: ``icloud``, ``google-drive``,
+and ``onedrive``. All eight icloud trigger phrases must route to
+``icloud``; all seven google-drive trigger phrases must route to
+``google-drive``; all six onedrive trigger phrases must route to
+``onedrive``. Each provider's env var must override the default root;
+the legacy pre-rename env var must be ignored. Phrases that do not name
+a provider must return the ``NEEDS_DISAMBIGUATION`` sentinel, not a
+silent default.
 
 ``google-drive`` resolves its default root by globbing
-``~/Library/CloudStorage/GoogleDrive-*/My Drive``; 0 or >1 matches must
-raise ``ProviderResolutionError`` whose message names
-``PUBLISH_GOOGLE_DRIVE_DIR`` as the disambiguator.
+``~/Library/CloudStorage/GoogleDrive-*/My Drive``; ``onedrive`` resolves
+its default root by globbing ``~/Library/CloudStorage/OneDrive-*``. For
+both, 0 or >1 matches must raise ``ProviderResolutionError`` whose
+message names the provider's env var as the disambiguator.
 
 The legacy var's name is assembled from string parts so a strict
 ``grep -r`` for the literal name across ``plugins/`` finds no matches —
@@ -56,6 +59,15 @@ GOOGLE_DRIVE_TRIGGERS = (
     "положи в gdrive",
     "положи в гугл драйв",
     "отправь на драйв",
+)
+
+ONEDRIVE_TRIGGERS = (
+    "send to onedrive",
+    "send to one drive",
+    "read on onedrive",
+    "положи в onedrive",
+    "положи в ванндрайв",
+    "отправь на onedrive",
 )
 
 
@@ -135,6 +147,19 @@ def test_publish_icloud_dir_wins_over_legacy_env_var():
     assert root == Path("/tmp/publish-wins")
 
 
+@pytest.mark.parametrize("phrase", ONEDRIVE_TRIGGERS)
+def test_each_onedrive_trigger_resolves_to_onedrive(phrase: str):
+    mod = _load_module()
+    assert mod.resolve_provider(phrase) == "onedrive"
+
+
+@pytest.mark.parametrize("phrase", ONEDRIVE_TRIGGERS)
+def test_onedrive_trigger_matching_is_case_insensitive(phrase: str):
+    mod = _load_module()
+    assert mod.resolve_provider(phrase.upper()) == "onedrive"
+    assert mod.resolve_provider(f"  {phrase}  ") == "onedrive"
+
+
 @pytest.mark.parametrize(
     "phrase",
     [
@@ -150,6 +175,7 @@ def test_unmatched_phrase_returns_disambiguation_sentinel(phrase: str):
     assert mod.resolve_provider(phrase) == mod.NEEDS_DISAMBIGUATION
     assert mod.NEEDS_DISAMBIGUATION != "icloud"
     assert mod.NEEDS_DISAMBIGUATION != "google-drive"
+    assert mod.NEEDS_DISAMBIGUATION != "onedrive"
 
 
 def _make_gdrive_account(home: Path, suffix: str) -> Path:
@@ -234,5 +260,76 @@ def test_google_drive_env_override_skips_glob_entirely(tmp_path, monkeypatch):
     override = "/tmp/some-explicit-gdrive-root"
     root = mod.resolve_root(
         "google-drive", env={"PUBLISH_GOOGLE_DRIVE_DIR": override}
+    )
+    assert root == Path(override)
+
+
+def _make_onedrive_mount(home: Path, suffix: str) -> Path:
+    """Create a fake ``~/Library/CloudStorage/OneDrive-<suffix>``."""
+    root = home / "Library" / "CloudStorage" / f"OneDrive-{suffix}"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def test_publish_onedrive_dir_overrides_default_root(tmp_path, monkeypatch):
+    mod = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    _make_onedrive_mount(tmp_path, "Personal")
+    _make_onedrive_mount(tmp_path, "Acme")
+    override = str(tmp_path / "explicit-root")
+    root = mod.resolve_root(
+        "onedrive", env={"PUBLISH_ONEDRIVE_DIR": override}
+    )
+    assert root == Path(override)
+
+
+def test_publish_onedrive_dir_strips_trailing_slash(tmp_path, monkeypatch):
+    mod = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    override = str(tmp_path / "explicit-root") + "/"
+    root = mod.resolve_root(
+        "onedrive", env={"PUBLISH_ONEDRIVE_DIR": override}
+    )
+    assert root == Path(str(tmp_path / "explicit-root"))
+
+
+def test_onedrive_glob_exactly_one_match_resolves(tmp_path, monkeypatch):
+    mod = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    expected = _make_onedrive_mount(tmp_path, "Personal")
+    root = mod.resolve_root("onedrive", env={})
+    assert root == expected
+
+
+def test_onedrive_glob_zero_matches_hard_fails(tmp_path, monkeypatch):
+    mod = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    with pytest.raises(mod.ProviderResolutionError) as excinfo:
+        mod.resolve_root("onedrive", env={})
+    assert "PUBLISH_ONEDRIVE_DIR" in str(excinfo.value)
+
+
+def test_onedrive_glob_multi_account_hard_fails(tmp_path, monkeypatch):
+    mod = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    _make_onedrive_mount(tmp_path, "Personal")
+    _make_onedrive_mount(tmp_path, "Acme")
+    with pytest.raises(mod.ProviderResolutionError) as excinfo:
+        mod.resolve_root("onedrive", env={})
+    msg = str(excinfo.value)
+    assert "PUBLISH_ONEDRIVE_DIR" in msg
+    assert "Personal" in msg
+    assert "Acme" in msg
+
+
+def test_onedrive_env_override_skips_glob_entirely(tmp_path, monkeypatch):
+    """When the env var is set, the glob is not consulted — proven by
+    pointing HOME at an empty tree (which would hard-fail under the glob
+    path) and confirming the env value is used verbatim."""
+    mod = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    override = "/tmp/some-explicit-onedrive-root"
+    root = mod.resolve_root(
+        "onedrive", env={"PUBLISH_ONEDRIVE_DIR": override}
     )
     assert root == Path(override)
