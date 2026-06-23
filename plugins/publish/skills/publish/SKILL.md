@@ -95,7 +95,7 @@ default to any provider.
 See [[providers]] for the table of supported providers, their env vars, and
 default roots. v1.3 ships `icloud`, `google-drive`, and `onedrive`;
 provider-specific transport notes live in dedicated reference files
-([[icloud]], [[google-drive]]).
+([[icloud]], [[google-drive]], [[onedrive]]).
 
 ## Out of scope (v1.3)
 
