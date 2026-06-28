@@ -1,10 +1,10 @@
 ---
 id: TASK-38
 title: Upgrade Ralph infrastructure files to latest templates
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-28 15:48'
-updated_date: '2026-06-28 16:13'
+updated_date: '2026-06-28 16:18'
 labels: []
 dependencies: []
 priority: medium
@@ -47,3 +47,11 @@ Out of scope:
 - [x] #3 .claude/brainstorm-rules.md ## Project additions block (publish doc-parity rule) preserved byte-for-byte after upgrade
 - [x] #4 settings.local.json narrow rules verification prints PASS (no missing rules)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Commit: `08b8322` - task-38: upgrade ralph.sh shim to Python-only orchestrator
+
+Ran /ralph-init upgrade on task branch. Only two managed files were outdated: ralph.sh (removed RALPH_IMPL bash-fallback dispatch; now Python-only shim execing ralph_orchestrator.py) and .claude/settings.local.json (gitignored, local-only — re-merged uv-run + utc-to-moscow narrow rules and pptx helper rules; preserved 3 customs xxd/awk-Project-additions/WebFetch-github; dropped 3 superseded narrow rules usage-check/preflight/wait-heartbeat now covered by uv run). All other managed files already current; CLAUDE.md ##Project-Specific and brainstorm-rules ##Project additions preserved untouched. Gates: ruff clean, pytest 97/97. task-reviewer APPROVED.
+<!-- SECTION:NOTES:END -->
