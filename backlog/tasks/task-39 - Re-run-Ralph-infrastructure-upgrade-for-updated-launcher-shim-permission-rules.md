@@ -1,10 +1,10 @@
 ---
 id: TASK-39
 title: Re-run Ralph infrastructure upgrade for updated launcher-shim permission rules
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-02 20:36'
-updated_date: '2026-07-03 05:09'
+updated_date: '2026-07-03 05:15'
 labels: []
 dependencies: []
 priority: medium
@@ -48,10 +48,12 @@ Out of scope:
 - [x] #4 settings.local.json Step 3.10 verification prints PASS for all 3 narrow rules (preflight.sh + wait-heartbeat.sh + utc-to-moscow.sh, literal $HOME) and PASS for both pptx helper rules
 <!-- AC:END -->
 
-
-
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: (1) Build U2 status table — diff each managed file vs its current template (redirect temp files to $TMPDIR, not /tmp, per prior sandbox lesson). (2) For CLAUDE.md + brainstorm-rules, diff only the pre-heading generic region. (3) Apply U4 updates to outdated tracked files; section-aware merge for CLAUDE.md + brainstorm-rules. (4) Overwrite settings.local.json from template, then re-run 3.7b narrow-rule merge (preflight.sh + wait-heartbeat.sh + utc-to-moscow.sh, literal $HOME) + 3.7c pptx merge, preserving existing custom permissions via jq unique. settings.local.json is gitignored — local-only, never committed. (5) Run Step 3.10 verification → expect PASS. (6) task-reviewer on git diff master..HEAD (settings.local.json excluded as gitignored). (7) build/lint/test gates, Done, merge.
+
+Commit: `2e9666d` - task-39: upgrade CLAUDE.md + settings.local.json to latest templates
+
+Completed via upgrade flow. U2 found only CLAUDE.md + settings.local.json outdated. CLAUDE.md: section-aware merge added generic ## Implementation Mode Gate (16 insertions, 0 deletions); ## Project-Specific preserved byte-for-byte. settings.local.json (gitignored, local-only): preservation-aware jq union — added preflight.sh + wait-heartbeat.sh literal-$HOME launcher-shim rules (the drift this re-run fixed), kept utc-to-moscow.sh $HOME form + both pptx rules, dropped superseded absolute-path utc form, preserved customs (xxd, github.com WebFetch, awk brainstorm-rules rule, uv run). Step 3.10 verification PASS. All other managed files current from TASK-38. Gates: ruff clean, pytest 97/97. task-reviewer APPROVED.
 <!-- SECTION:NOTES:END -->
