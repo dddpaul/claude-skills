@@ -1,14 +1,15 @@
 ---
 name: publish
-description: Publish a markdown file from the active project as a PDF to a configured transport provider (v1.3 ships icloud + google-drive + onedrive). Push-only — no read-back. Triggers (EN) "send to books", "read on ipad", "review on books", "send to icloud", "send to gdrive", "send to google drive", "read on gdrive", "read on drive", "send to onedrive", "send to one drive", "read on onedrive"; triggers (RU) "положи это в books", "положи это в книги", "почитаю на айпаде", "положи в icloud", "положи в gdrive", "положи в гугл драйв", "отправь на драйв", "положи в onedrive", "положи в ванндрайв", "отправь на onedrive".
+description: Publish a file from the active project to a configured transport provider (v1.4 ships icloud + google-drive + onedrive): markdown is rendered to PDF, while ready-made artifacts (.pdf/.pptx/.key/.docx) are copied verbatim (passthrough, no conversion). Push-only — no read-back. Triggers (EN) "send to books", "read on ipad", "review on books", "send to icloud", "send to gdrive", "send to google drive", "read on gdrive", "read on drive", "send to onedrive", "send to one drive", "read on onedrive"; triggers (RU) "положи это в books", "положи это в книги", "почитаю на айпаде", "положи в icloud", "положи в gdrive", "положи в гугл драйв", "отправь на драйв", "положи в onedrive", "положи в ванндрайв", "отправь на onedrive".
 ---
 
 # publish
 
-Umbrella push skill. Converts a markdown file in the active project to a PDF
-via the sibling [[pdf]] skill, then drops it under a per-project subfolder on
-a configured transport provider. v1.3 ships three providers: `icloud`,
-`google-drive`, and `onedrive`.
+Umbrella push skill. A markdown source is rendered to a PDF via the sibling
+[[pdf]] skill; a ready-made artifact (`.pdf`, `.pptx`, `.key`, `.docx`) is
+copied verbatim (passthrough — no conversion). Either way the result is
+dropped under a per-project subfolder on a configured transport provider.
+v1.4 ships three providers: `icloud`, `google-drive`, and `onedrive`.
 
 The skill is **push-only**: any annotations the human makes (Apple Pencil on
 iPad, etc.) stay with the human, not with Claude. There is no pull-back.
@@ -43,12 +44,21 @@ default to any provider.
 1. **Identify the provider** from the matched trigger phrase. Each trigger
    maps to exactly one provider (see [[providers]]). If no specific provider
    matched, ask the user, then proceed.
-2. **Resolve the source path.** Take the absolute path of the source
-   markdown file. **Hard-fail if the extension is not `.md`** — this skill
-   ships markdown only.
-3. **Compute the slug** = `Path(source).stem`. On collision in the target
-   subfolder, append `-<sha1(absolute_source_path)[:6]>` so the same source
-   always maps to the same slug.
+2. **Resolve the source path and select the mode** from the source
+   extension (case-insensitive):
+   - `.md` → **render mode**: the markdown is rendered to PDF via the
+     [[pdf]] skill (step 7 render branch).
+   - `.pdf`, `.pptx`, `.key`, `.docx` (the ready-made-artifact allowlist)
+     → **passthrough mode**: the file is copied verbatim, no conversion
+     (step 7 passthrough branch).
+   - Any other extension → **hard-fail**, naming the `.md` render path and
+     the passthrough allowlist.
+3. **Compute the target basename.** In render mode it is `<slug>.pdf` where
+   `slug = Path(source).stem`; in passthrough mode it is `Path(source).name`
+   — the original filename and extension, preserved verbatim. On collision
+   in the target subfolder, append `-<sha1(absolute_source_path)[:6]>` to the
+   stem (before the extension) so the same source always maps to the same
+   target name.
 4. **Resolve the project root** via `git rev-parse --show-toplevel`. If the
    command fails (not a git repo), fall back to `dirname(source)`. The
    `basename` of the project root becomes the per-project subfolder name.
@@ -67,24 +77,33 @@ default to any provider.
      Personal mounts as `OneDrive-Personal`; Work/School mounts as
      `OneDrive-<Org>`. Never auto-pick on multi-account.
 6. **Ensure the per-project subfolder exists.** Layout is symmetric across
-   providers:
+   providers; the target basename depends on the mode (step 3):
 
    ```text
-   <provider-root>/Reading/<project-basename>/<slug>.pdf
+   <provider-root>/Reading/<project-basename>/<slug>.pdf       # render mode (.md)
+   <provider-root>/Reading/<project-basename>/<original-name>  # passthrough (.pdf/.pptx/.key/.docx)
    ```
 
    ```bash
    mkdir -p "<provider-root>/Reading/<project-basename>"
    ```
 
-7. **Shell out to the [[pdf]] skill** with the source and the final target
-   path:
+7. **Produce the target file** — branch on the mode from step 2:
+   - **Render mode (`.md`):** shell out to the [[pdf]] skill with the
+     source and the final target path:
 
-   ```bash
-   uv run plugins/publish/skills/pdf/scripts/md-to-pdf.py \
-       "<source.md>" \
-       "<provider-root>/Reading/<project-basename>/<slug>.pdf"
-   ```
+     ```bash
+     uv run plugins/publish/skills/pdf/scripts/md-to-pdf.py \
+         "<source.md>" \
+         "<provider-root>/Reading/<project-basename>/<slug>.pdf"
+     ```
+   - **Passthrough mode (ready-made artifact):** copy the file verbatim —
+     do **not** invoke `md-to-pdf.py` or any other converter:
+
+     ```bash
+     cp "<source.ext>" \
+        "<provider-root>/Reading/<project-basename>/<original-name>"
+     ```
 
 8. **Report the final path** so the user can open it on the target device
    (e.g. on iPad: tap-to-open in Files.app → Open in Books; on Google
@@ -93,16 +112,18 @@ default to any provider.
 ## Providers
 
 See [[providers]] for the table of supported providers, their env vars, and
-default roots. v1.3 ships `icloud`, `google-drive`, and `onedrive`;
+default roots. v1.4 ships `icloud`, `google-drive`, and `onedrive`;
 provider-specific transport notes live in dedicated reference files
 ([[icloud]], [[google-drive]], [[onedrive]]).
 
-## Out of scope (v1.3)
+## Out of scope (v1.4)
 
 - **No pull triggers, no annotation extraction.** Pen marks stay with the
   human.
 - **No EPUB output.** Apple Books pen annotations don't work on EPUB.
-- **No non-`.md` input.** PDF, EPUB, anything-else are out of scope.
+- **No arbitrary input.** Passthrough accepts only the ready-made-artifact
+  allowlist (`.pdf`, `.pptx`, `.key`, `.docx`); markdown is rendered to PDF.
+  Any other extension still hard-fails.
 - **No multi-file batching.** One file per push.
 - **No auto-cleanup** of old PDFs in the provider folder.
 - **No fallback to the legacy v0.x env var.** Clean break in v1; if the
