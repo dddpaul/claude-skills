@@ -111,7 +111,7 @@ render as pdf
 
 *Plugin: publish*
 
-Publish a markdown file from the active project as a PDF to a configured transport provider. v1.3 ships three providers: `icloud` (iCloud Drive → tap to open in Books / Files / Preview on any signed-in device, override with `PUBLISH_ICLOUD_DIR`), `google-drive` (Google Drive for desktop mount; mount-only with multi-account hard-fail — set `PUBLISH_GOOGLE_DRIVE_DIR` to disambiguate when more than one account is signed in), and `onedrive` (OneDrive for Mac mount; same multi-account hard-fail for Personal alongside Work/School — set `PUBLISH_ONEDRIVE_DIR` to disambiguate). Push-only — pen marks stay with the human.
+Publish a file from the active project to a configured transport provider: markdown is rendered to PDF, while ready-made artifacts (`.pdf`/`.pptx`/`.key`/`.docx`) are copied as-is (passthrough, no conversion). v1.4 ships three providers: `icloud` (iCloud Drive → tap to open in Books / Files / Preview on any signed-in device, override with `PUBLISH_ICLOUD_DIR`), `google-drive` (Google Drive for desktop mount; mount-only with multi-account hard-fail — set `PUBLISH_GOOGLE_DRIVE_DIR` to disambiguate when more than one account is signed in), and `onedrive` (OneDrive for Mac mount; same multi-account hard-fail for Personal alongside Work/School — set `PUBLISH_ONEDRIVE_DIR` to disambiguate). Push-only — pen marks stay with the human.
 
 **Usage**: Ask Claude to send a doc to a transport for off-desk reading.
 
