@@ -36,10 +36,14 @@ For each push:
    | exactly 1 | use the single match as the root |
    | >1 (multi-account) | hard-fail; message names the env var, lists matches, never auto-picks |
 
-5. The final layout under the root is symmetric across providers:
+5. The final layout under the root is symmetric across providers. Markdown
+   is rendered to `<slug>.pdf`; a ready-made artifact
+   (`.pdf`/`.pptx`/`.key`/`.docx`) is copied verbatim under its original
+   name — no conversion:
 
    ```text
-   <provider-root>/Reading/<project-basename>/<slug>.pdf
+   <provider-root>/Reading/<project-basename>/<slug>.pdf       # rendered from .md
+   <provider-root>/Reading/<project-basename>/<original-name>  # passthrough artifact
    ```
 
 ## Trigger mapping
