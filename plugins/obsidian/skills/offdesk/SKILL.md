@@ -57,7 +57,9 @@ VAULT_ROOT="${OFFDESK_ICLOUD_VAULT%/}"
 if [ -z "$VAULT_ROOT" ]; then
     container="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents"
     # -maxdepth 1: one level of the Obsidian container, not a tree walk.
-    matches=$(find "$container" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+    # ! -name '.*': skip .Trash and friends, matching the resolver's glob.
+    matches=$(find "$container" -mindepth 1 -maxdepth 1 -type d \
+        ! -name '.*' 2>/dev/null | sort)
     count=$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')
     if [ "$count" -eq 1 ]; then
         VAULT_ROOT="$matches"
