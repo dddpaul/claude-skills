@@ -15,7 +15,7 @@
     {
       "name": "obsidian",
       "source": "./plugins/obsidian",
-      "description": "Obsidian vault tooling — offdesk push/pull for off-desk markdown review via Syncthing."
+      "description": "Obsidian vault tooling — offdesk pushes markdown from any project into an Obsidian vault on a phone or tablet and pulls annotated callouts back, over either of two transports: syncthing (P2P, the default) or icloud (an Obsidian vault in iCloud Drive, for iPad)."
     },
     {
       "name": "publish",

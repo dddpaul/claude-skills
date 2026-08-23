@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Merge offdesk-* keys into a markdown file's YAML frontmatter.
 
-Reads source markdown from a path, merges three keys
-(offdesk-source, offdesk-project-root, offdesk-copied-at) into the
-existing leading `---` ... `---` frontmatter block (or creates one if
-absent), and writes the result to a destination path. Existing keys
-are preserved untouched. A key that already exists is updated in place
-rather than duplicated.
+Reads source markdown from a path, merges four keys
+(offdesk-source, offdesk-project-root, offdesk-copied-at,
+offdesk-transport) into the existing leading `---` ... `---`
+frontmatter block (or creates one if absent), and writes the result to a
+destination path. Existing keys are preserved untouched. A key that
+already exists is updated in place rather than duplicated.
 
 Usage:
 
@@ -15,13 +15,16 @@ Usage:
         --dst <vault-copy.md> \\
         --offdesk-source <rel-path> \\
         --offdesk-project-root <abs-path> \\
-        [--offdesk-copied-at <iso-utc>]
+        [--offdesk-copied-at <iso-utc>] \\
+        [--offdesk-transport syncthing|icloud]
 
 If --offdesk-copied-at is omitted, the current UTC time in ISO 8601
-seconds precision is used. The merge is line-based and assumes scalar
-string values for the offdesk-* keys (no nested structures, no list
-values). Non-offdesk keys in the frontmatter are preserved verbatim
-regardless of their shape.
+seconds precision is used. If --offdesk-transport is omitted it defaults
+to the skill's default transport, syncthing; the key records which vault
+the copy was written to, so a vault copy stays self-describing if a vault
+later moves. The merge is line-based and assumes scalar string values for
+the offdesk-* keys (no nested structures, no list values). Non-offdesk
+keys in the frontmatter are preserved verbatim regardless of their shape.
 """
 
 from __future__ import annotations
@@ -32,7 +35,16 @@ import sys
 from pathlib import Path
 
 FRONTMATTER_DELIM = "---"
-OFFDESK_KEYS = ("offdesk-source", "offdesk-project-root", "offdesk-copied-at")
+OFFDESK_KEYS = (
+    "offdesk-source",
+    "offdesk-project-root",
+    "offdesk-copied-at",
+    "offdesk-transport",
+)
+# Kept in lockstep with scripts/transports.py TRANSPORTS by a test, so this
+# script stays importable and runnable on its own.
+TRANSPORT_NAMES = ("syncthing", "icloud")
+DEFAULT_TRANSPORT = "syncthing"
 
 
 def split_frontmatter(text: str) -> tuple[list[str], str]:
@@ -99,6 +111,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--offdesk-source", required=True)
     parser.add_argument("--offdesk-project-root", required=True)
     parser.add_argument("--offdesk-copied-at", default=None)
+    parser.add_argument(
+        "--offdesk-transport",
+        default=DEFAULT_TRANSPORT,
+        choices=TRANSPORT_NAMES,
+    )
     args = parser.parse_args(argv)
 
     text = args.src.read_text(encoding="utf-8")
@@ -107,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         "offdesk-source": args.offdesk_source,
         "offdesk-project-root": args.offdesk_project_root,
         "offdesk-copied-at": args.offdesk_copied_at or iso_utc_now(),
+        "offdesk-transport": args.offdesk_transport,
     }
     missing = [k for k in OFFDESK_KEYS if k not in updates]
     if missing:
