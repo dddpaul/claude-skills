@@ -211,7 +211,7 @@ def resolve_pull_scope(phrase: str) -> tuple[str, ...]:
 
 
 def resolve_root(transport_name: str, env: dict[str, str] | None = None) -> Path:
-    """Return the absolute vault root for a transport.
+    """Return the vault root for a transport.
 
     Env vars are read in ``Transport.env_vars`` order and the first set,
     non-empty one wins verbatim (trailing slash stripped); the default root

@@ -216,6 +216,12 @@ def test_syncthing_default_root_when_no_env_var_set(tmp_path, monkeypatch):
 
 
 def test_syncthing_env_vars_strip_trailing_slash():
+    """A trailing slash in an env var is accepted and normalized away.
+
+    This pins the contract, not the ``rstrip`` that implements it: ``Path``
+    would collapse the trailing separator on its own, so the assertion
+    cannot fail while the value still goes through ``Path``.
+    """
     mod = _load_module()
     assert mod.resolve_root(
         "syncthing", env={"OFFDESK_SYNCTHING_VAULT": "/tmp/offdesk-syncthing/"}
@@ -311,6 +317,8 @@ def test_icloud_env_override_skips_the_glob_entirely(tmp_path, monkeypatch):
 
 
 def test_icloud_env_override_strips_trailing_slash(tmp_path, monkeypatch):
+    """Same contract as the syncthing case, and normalized by ``Path`` the
+    same way — see ``test_syncthing_env_vars_strip_trailing_slash``."""
     mod = _load_module()
     monkeypatch.setenv("HOME", str(tmp_path))
     root = mod.resolve_root(

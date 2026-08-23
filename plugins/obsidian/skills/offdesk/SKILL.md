@@ -49,25 +49,32 @@ VAULT_ROOT="${OFFDESK_SYNCTHING_VAULT:-${OFFDESK_OBSIDIAN_VAULT:-$HOME/Obsidian/
 VAULT_ROOT="${VAULT_ROOT%/}"   # strip trailing slash for consistency
 ```
 
-```bash
-# icloud
+```sh
+# icloud — no shell arrays and no bare glob: the snippet must behave
+# identically under sh, bash and zsh (macOS default), where array indexing
+# and unmatched-glob handling all differ.
 VAULT_ROOT="${OFFDESK_ICLOUD_VAULT%/}"
 if [ -z "$VAULT_ROOT" ]; then
-    matches=()
-    for d in "$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents/"*/; do
-        [ -d "$d" ] && matches+=("${d%/}")
-    done
-    case ${#matches[@]} in
-        1) VAULT_ROOT="${matches[0]}" ;;
-        0) echo "offdesk: no Obsidian iCloud vault found; set OFFDESK_ICLOUD_VAULT" >&2 ;;
-        *) printf 'offdesk: %s vaults matched; set OFFDESK_ICLOUD_VAULT:\n' "${#matches[@]}" >&2
-           printf '  %s\n' "${matches[@]}" >&2 ;;
-    esac
+    container="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents"
+    # -maxdepth 1: one level of the Obsidian container, not a tree walk.
+    matches=$(find "$container" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+    count=$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')
+    if [ "$count" -eq 1 ]; then
+        VAULT_ROOT="$matches"
+    elif [ "$count" -eq 0 ]; then
+        echo "offdesk: no Obsidian iCloud vault under $container;" >&2
+        echo "  set OFFDESK_ICLOUD_VAULT to the vault root" >&2
+        exit 1
+    else
+        echo "offdesk: $count vaults matched; set OFFDESK_ICLOUD_VAULT to one of:" >&2
+        printf '  %s\n' "$matches" >&2
+        exit 1
+    fi
 fi
 ```
 
-Report the failure to the user and stop; do not fall back to another
-transport.
+On either failure, report it to the user and stop — never continue with an
+empty `VAULT_ROOT`, and never fall back to another transport.
 
 ## Push
 
@@ -184,8 +191,8 @@ Procedure:
    just works (it may block while downloading). The one silent-miss case is
    a legacy `.<name>.md.icloud` stub, where the file is absent under its own
    name and grep reports nothing:
-   ```bash
-   ls -a "$VAULT_ROOT/<slug>/" | grep -F '.icloud'
+   ```sh
+   find "$VAULT_ROOT/<slug>/" -name '*.icloud'
    ```
    If stubs are found, report the unmaterialized files (and that
    `brctl download "<path>"` will fetch them) instead of "no feedback".
