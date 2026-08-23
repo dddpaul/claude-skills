@@ -82,14 +82,16 @@ Create an architecture review deck using pptx-arch-style with a title slide, sta
 
 *Plugin: obsidian*
 
-Push markdown files from any project into a Syncthing-synced Obsidian vault on phone/tablet for off-desk reading, then pull annotated `>[!ai]` callouts back to the source file. P2P only — no cloud, no bot.
+Push markdown files from any project into an Obsidian vault on phone/tablet for off-desk reading, then pull annotated `>[!ai]` callouts back to the source file. Two transports carry the vault: **syncthing** (P2P, the default — no cloud, no bot) and **icloud** (an Obsidian vault in iCloud Drive, for iPad). A push goes to exactly one transport; a pull scans both by default and tags each finding with its transport and the vault copy's age.
 
-**Usage**: Ask Claude to send a doc to offdesk for review, or to check feedback from your phone.
+**Usage**: Ask Claude to send a doc to offdesk for review, or to check feedback from your phone. Name iCloud in the phrase to use that vault instead; vault roots come from `OFFDESK_SYNCTHING_VAULT` / `OFFDESK_ICLOUD_VAULT`.
 
 **Example**:
 ```
 положи это в offdesk
+send to offdesk icloud
 посмотри оффдеск фидбэк
+check offdesk icloud
 ```
 
 ### pdf
@@ -166,8 +168,15 @@ claude-skills/
     │   └── skills/
     │       └── offdesk/
     │           ├── SKILL.md                      # Skill definition and instructions
-    │           └── references/
-    │               └── setup.md                  # Syncthing + Obsidian Android manual setup
+    │           ├── references/
+    │           │   ├── transports.md             # Transport table (env vars, default roots)
+    │           │   └── setup.md                  # Syncthing, iCloud + Obsidian manual setup
+    │           ├── scripts/
+    │           │   ├── transports.py             # Trigger → transport routing
+    │           │   └── merge-frontmatter.py      # offdesk-* frontmatter merge
+    │           └── tests/
+    │               ├── test_transports.py        # Trigger + vault-root resolver tests
+    │               └── test_trigger_collisions.py  # offdesk vs publish vocabulary guard
     └── publish/                                  # plugins/publish/skills/
         ├── .claude-plugin/
         │   └── plugin.json                       # Plugin manifest

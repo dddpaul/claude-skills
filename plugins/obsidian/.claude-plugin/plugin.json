@@ -1,7 +1,7 @@
 {
   "name": "obsidian",
-  "description": "Obsidian vault tooling",
-  "version": "0.2.1",
+  "description": "Obsidian vault tooling — offdesk pushes markdown from any project into an Obsidian vault on a phone or tablet and pulls annotated callouts back, over either of two transports: syncthing (P2P, the default) or icloud (an Obsidian vault in iCloud Drive, for iPad).",
+  "version": "0.3.0",
   "author": { "name": "Pavel Derendyaev", "email": "dddpaul@gmail.com" },
   "homepage": "https://github.com/dddpaul/claude-skills",
   "repository": "https://github.com/dddpaul/claude-skills",
