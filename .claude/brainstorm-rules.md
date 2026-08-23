@@ -118,7 +118,7 @@ The remaining options (Write plan, Plan mode, Start now) follow after.
 
 ### publish plugin — provider doc-parity Files list
 
-When a brainstorm or task adds a new provider to the `publish` plugin (e.g., `onedrive`, future `dropbox`/`box`/etc.), the task's **Files** section MUST enumerate all four doc-parity surfaces — not just the code+test files. Specifically:
+When a brainstorm or task adds a new provider to the `publish` plugin (e.g., `onedrive`, future `dropbox`/`box`/etc.), the task's **Files** section MUST enumerate all eight doc-parity surfaces — not just the code+test files. Specifically:
 
 - `plugins/publish/skills/publish/scripts/providers.py` (code)
 - `plugins/publish/skills/publish/tests/test_providers.py` (tests)
@@ -127,8 +127,9 @@ When a brainstorm or task adds a new provider to the `publish` plugin (e.g., `on
 - `plugins/publish/skills/publish/references/<provider>.md` (new per-provider deep-dive — mount-only, multi-account hard-fail, default-root, push-only, slug collision, macOS prerequisites)
 - `README.md` `### publish` section (version mention, env var, ≥3 example trigger phrases)
 - `plugins/publish/.claude-plugin/plugin.json` (version bump + description)
+- `.claude-plugin/marketplace.json` (publish entry description — keep it byte-identical to the plugin.json description above, so the provider list and version claim never drift)
 
-**Why:** TASK-36 (onedrive) shipped code+tests+SKILL.md+plugin.json but omitted `references/providers.md`, `references/onedrive.md`, and `README.md`. Ralph followed the spec literally, the cumulative review came back **Partial**, and TASK-37 was needed to close the gap. Listing all surfaces in the original Files block prevents the next provider from repeating this round-trip.
+**Why:** TASK-36 (onedrive) shipped code+tests+SKILL.md+plugin.json but omitted `references/providers.md`, `references/onedrive.md`, and `README.md`. Ralph followed the spec literally, the cumulative review came back **Partial**, and TASK-37 was needed to close the gap. Listing all surfaces in the original Files block prevents the next provider from repeating this round-trip. TASK-41 added the eighth bullet. The marketplace manifest was never in this list — and had already been missed before the list existed — so every publish version bump since the plugin split (TASK-33, 34, 36, 37, and 40) left the marketplace entry advertising v1 icloud-only behaviour while `plugin.json` moved on to 1.4.0. Of those, only TASK-40 ran under this rule; the bullet closes the gap for the next provider.
 
-**How to apply:** When distilling a "add new provider" brainstorm into a ralph-task, paste the seven-bullet list above into the task's Files section verbatim, swap `<provider>` for the new id, and mark each `(exists)` / `(to-create)` per the destination-frame validation step.
+**How to apply:** When distilling a "add new provider" brainstorm into a ralph-task, paste the eight-bullet list above into the task's Files section verbatim, swap `<provider>` for the new id, and mark each `(exists)` / `(to-create)` per the destination-frame validation step.
 
