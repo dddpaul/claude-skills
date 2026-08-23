@@ -338,3 +338,191 @@ Everything else in the brainstorm body — vault layout (subject to the vault-pa
 - TASK-3 AC verifying frontmatter triggers already updated to substring set: 'send to offdesk', 'положи это в offdesk', 'review my offdesk notes', 'посмотри оффдеск фидбэк'.
 - TASK-4 description Example block and AC verifying README triggers already updated to: 'положи это в offdesk', 'посмотри оффдеск фидбэк'.
 - User-global brainstorm at `~/.claude/brainstorms/offdesk-brainstorm.md` is intentionally NOT updated — it stays as the historical pre-update snapshot. This in-repo design doc plus its addenda is the authoritative trigger set for implementation and review.
+
+---
+
+## Addendum: iCloud transport for iPad + Obsidian (added 2026-08-23)
+
+### Why
+
+The skill was designed around Syncthing to a phone/tablet, with Obsidian on Android. The user now wants the same
+round-trip against an **iPad**: open the note from iCloud in Obsidian, add `>[!ai]` callouts, pull them back. Syncthing
+stays in use, so this is an added transport, not a migration.
+
+Nothing currently covers this. The `publish` skill reaches iCloud but always renders markdown to PDF (an explicit
+decision — its v1.4 passthrough allowlist is `.pdf/.pptx/.key/.docx` and deliberately excludes `.md`), and it is
+push-only by contract. `offdesk` has the right semantics — verbatim `.md`, frontmatter merge, callout pull-back — but
+its vault root is a single path. Investigation confirmed Syncthing is nowhere in the skill's mechanics: push is a
+frontmatter merge plus a write to `$VAULT_ROOT/<slug>/<file>.md`, pull is a grep over the same directory. Syncthing
+appears only in prose. The transport is just "which directory syncs," so a second one is additive.
+
+### What changed
+
+**Transport model.** Two named transports, `syncthing` and `icloud`, using the same vocabulary `publish` uses for
+providers: one env var per transport, a table in `references/`, glob resolution with a hard-fail that never auto-picks.
+
+**Root resolution.** Per transport, first match wins:
+
+| Transport | Resolution order |
+|---|---|
+| `icloud` | `OFFDESK_ICLOUD_VAULT` → glob `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/*` |
+| `syncthing` | `OFFDESK_SYNCTHING_VAULT` → `OFFDESK_OBSIDIAN_VAULT` (back-compat alias) → `~/Obsidian/offdesk` |
+
+The alias is mandatory, not a courtesy: `OFFDESK_OBSIDIAN_VAULT` is already set in the user's profile with seven project
+folders behind it. It keeps working silently, with no deprecation warning. Glob resolution follows the `publish` rules
+exactly — 0 matches hard-fails naming the env var, exactly 1 is used, more than 1 hard-fails listing the candidates and
+never guesses (the Obsidian iOS vault name is user-chosen, so multiple vaults are plausible).
+
+**Push routing — `syncthing` is the default.** All eight existing trigger phrases keep their current meaning, so
+established muscle memory and the seven existing project folders are untouched. `icloud` requires an explicit marker.
+
+**Trigger vocabulary — anchored on "offdesk", never on the device.** A device-named phrase would collide with `publish`,
+which already owns "read on ipad" / "почитаю на айпаде" for its icloud provider. The two skills do different things
+(rendered PDF into `Reading/`, push-only, versus verbatim `.md` into an Obsidian vault with pull-back), so the utterance
+must not be ambiguous. No offdesk phrase may contain `ipad` / `айпад` / `books` / `книги`; no publish phrase may contain
+`offdesk` / `оффдеск`. This is enforced by a test that greps both SKILL.md files and fails on a non-empty intersection.
+
+```text
+syncthing (default — the existing eight phrases, unchanged):
+  EN: "send to offdesk", "send to phone for review", "review later", "check later"
+  RU: "положи это в offdesk", "положи это в оффдеск", "посмотрю позже", "проверю позже"
+
+icloud (new — always explicitly marked):
+  EN: "send to offdesk icloud", "offdesk icloud", "offdesk on icloud"
+  RU: "положи в offdesk icloud", "положи в оффдеск айклауд", "оффдеск айклауд"
+```
+
+**Layout is unchanged and symmetric across transports** — `<vault-root>/<project-slug>/<filename>.md`. No `Reading/`
+wrapper; that is `publish` vocabulary for a different job. The existing slug-collision rule (suffix
+`sha1(project-root)[:6]`) applies unchanged.
+
+**iCloud materialization.** An earlier draft made `brctl download` a mandatory pre-step for pull. That was dropped as
+over-engineering: on this macOS version an evicted iCloud file is a *dataless file under its own name*, and an ordinary
+read materializes it transparently, so grep works — it may simply block while downloading. Note that
+`defaults read com.apple.bird optimize-storage` returns `1` on this machine, so eviction is permitted; "everything is
+local" is not guaranteed. The one narrow failure that survives is a legacy `.<name>.md.icloud` stub, where the file is
+absent under its own name and grep silently reports no annotations. That is closed after the fact rather than up front:
+**only when pull returns zero annotations**, check the project folder for `*.icloud` stubs and report unmaterialized
+files instead of "no feedback". Search scope stays pinned to `<vault>/<slug>/` — a `find` across the whole iCloud tree
+was measured at over two minutes before being killed.
+
+**Pull spans both vaults by default.** Annotations are made away from the desk, and remembering which device they were
+left on is exactly the friction the skill exists to remove. Cost is two directory-scoped greps. An explicit phrase
+("check offdesk icloud") narrows to one transport. Results are merged and each line is tagged with its transport and
+the file's mtime — the mtime directly answers "has iCloud propagated yet, or did I come back too early":
+
+```text
+[icloud, 2h ago]     design/foo.md:42 — is this still true after the split?
+[syncthing, 3d ago]  design/bar.md:17 — check the numbers here
+```
+
+The same source file annotated in both vaults yields **two independent annotation sets, not duplicates** — they were
+written on different devices. Group by source file, show both, do not deduplicate.
+
+**Frontmatter gains `offdesk-transport: icloud|syncthing`** on push, so a vault copy is self-describing and stays
+correct if a vault later moves. The Cleanup section needs no edit: it already strips all `offdesk-*` keys by wildcard.
+
+**Push targets exactly one transport.** No push-to-both — it would fan out state that later has to be merged back.
+
+**A resolver module is introduced.** The skill currently has no resolver by design ("performs file copy, frontmatter
+merge, and grep directly — no compiled CLI tool"), which was fine for one hardcoded vault. Two transports add env
+precedence, glob expansion with a 0/1/>1 contract, and trigger mapping — rules that are easy to get subtly wrong in
+prose and impossible to regression-test. `scripts/transports.py` mirrors `publish`'s `scripts/providers.py`, whose test
+suite supplies the shape to copy.
+
+**Versioning.** `obsidian` plugin `0.2.1 → 0.3.0` — minor: additive transport plus broadened triggers, nothing removed.
+
+**Delivered as one task.** Splitting the resolver from the docs would leave the skill advertising a transport it cannot
+resolve.
+
+### Implementation checklist
+
+- Add `plugins/obsidian/skills/offdesk/scripts/transports.py` — transport constants, env precedence, glob resolution,
+  trigger mapping; modelled on `plugins/publish/skills/publish/scripts/providers.py`.
+- Extend `merge-frontmatter.py` with `--offdesk-transport`.
+- Rework `SKILL.md`: frontmatter triggers, transport section, push routing, pull-both semantics, zero-result stub check,
+  `offdesk-transport` key. Replace "Syncthing-synced" framing with transport-neutral wording.
+- Add `references/transports.md` — table, resolution order, trigger mapping.
+- Add an iCloud section to `references/setup.md` — create the vault in Obsidian on iOS, where it lands on the Mac, which
+  env var to set.
+- Add `tests/test_transports.py` and `tests/test_trigger_collisions.py` (offdesk has no tests today).
+- Update `README.md` `### offdesk`, `plugins/obsidian/.claude-plugin/plugin.json` (0.3.0 + description), and the
+  `obsidian` entry in `.claude-plugin/marketplace.json`.
+
+### Distilled for ralph-task
+
+**Direction:** Option B — multi-transport `offdesk`: add an `icloud` transport alongside the existing Syncthing vault,
+using the named-transport vocabulary `publish` already uses for providers, so `.md` round-trips through an Obsidian
+vault on iCloud for iPad review.
+
+**Locked decisions (with rationale):**
+
+- **Two named transports, `syncthing` + `icloud`, one env var each.** *Rationale:* mirrors `publish`'s provider model,
+  which already solved env-vs-glob resolution and multi-match ambiguity in this same repo.
+- **`icloud` root defaults to the glob `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/*`.** *Rationale:* the
+  Obsidian iOS vault name is chosen by the user, so the path cannot be a literal.
+- **Glob contract: 0 → hard-fail naming the env var; 1 → use; >1 → hard-fail listing candidates, never auto-pick.**
+  *Rationale:* byte-identical to the `google-drive` / `onedrive` rule; silently guessing a vault would write notes into
+  the wrong one.
+- **`OFFDESK_OBSIDIAN_VAULT` remains a working alias for `syncthing`, ahead of the literal default and behind
+  `OFFDESK_SYNCTHING_VAULT`.** *Rationale:* it is already set in the user's profile with seven project folders behind it.
+- **`syncthing` is the default transport; all eight existing phrases keep their meaning.** *Rationale:* preserves muscle
+  memory and existing folders; `icloud` is opt-in per push.
+- **offdesk triggers are anchored on "offdesk"/"оффдеск" and must never contain `ipad`/`айпад`/`books`/`книги`.**
+  *Rationale:* those belong to `publish`'s icloud provider, which renders PDF and is push-only — a shared utterance
+  would be unresolvable.
+- **Layout stays `<vault-root>/<project-slug>/<filename>.md` for both transports.** *Rationale:* symmetric and already
+  proven; `Reading/` is `publish` vocabulary for a different job.
+- **Pull spans both vaults by default, tagged with transport and mtime; an explicit phrase narrows to one.**
+  *Rationale:* the user should not have to recall which device an annotation was left on; mtime exposes sync lag.
+- **No `brctl` on the happy path; only on a zero-annotation result, check for `*.icloud` stubs and report
+  unmaterialized files.** *Rationale:* dataless files materialize transparently on read, so a pre-download is wasted
+  work; the stub case is the only silent-miss path and is cheaper to catch after the fact.
+- **Pull search scope is pinned to `<vault>/<slug>/`.** *Rationale:* a `find` over the whole iCloud tree was measured at
+  >2 minutes.
+- **New frontmatter key `offdesk-transport`; Cleanup unchanged.** *Rationale:* makes a vault copy self-describing; the
+  existing `offdesk-*` wildcard already strips it.
+- **One task, `obsidian` plugin bumped `0.2.1 → 0.3.0`.** *Rationale:* additive feature; splitting would ship a skill
+  advertising a transport it cannot resolve.
+- **All artifacts authored in English**, with RU trigger phrases kept verbatim as data.
+
+**Scope cuts:**
+
+- No push to both transports in one invocation.
+- No `brctl download` on the pull happy path.
+- No deduplication of annotations across vaults.
+- No migration of the seven existing project folders out of the Syncthing vault.
+- No deprecation warning or removal for `OFFDESK_OBSIDIAN_VAULT`.
+- No transports beyond these two (no dropbox/box/etc.).
+- No changes to `publish`'s triggers, providers, or behaviour.
+- No `Reading/`-style subfolder inside the vault.
+
+**Acceptance criteria (sketch):**
+
+- `transports.py` resolves the `syncthing` root with precedence `OFFDESK_SYNCTHING_VAULT` → `OFFDESK_OBSIDIAN_VAULT` →
+  `~/Obsidian/offdesk`, proven by tests covering all three tiers.
+- `transports.py` expands the `icloud` glob and returns the single match; 0 matches raises an error naming
+  `OFFDESK_ICLOUD_VAULT`; >1 raises an error listing every match.
+- Each of the eight existing offdesk phrases resolves to `syncthing`; each new icloud phrase resolves to `icloud`.
+- A test asserts the offdesk and publish trigger sets are disjoint and that no offdesk phrase contains
+  `ipad`/`айпад`/`books`/`книги`.
+- `merge-frontmatter.py` accepts `--offdesk-transport` and writes an `offdesk-transport` key without disturbing existing
+  frontmatter keys.
+- `SKILL.md` documents both transports, the syncthing default, pull-across-both with transport+mtime tagging, and the
+  zero-result `.icloud` stub check; no remaining claim that the vault is Syncthing-only.
+- `references/transports.md` exists with the transport table, resolution order, and trigger mapping.
+- `references/setup.md` has an iCloud section covering vault creation on iOS, the resulting Mac path, and the env var.
+- `README.md` `### offdesk` names both transports with at least three example trigger phrases.
+- `plugins/obsidian/.claude-plugin/plugin.json` is `0.3.0`, and the `obsidian` entry in `.claude-plugin/marketplace.json`
+  describes both transports.
+- `uv run ruff check .` passes and `uv run pytest` shows no new failures.
+
+**Implementation checklist:**
+
+- Write `scripts/transports.py` modelled on `publish`'s `providers.py`.
+- Add `--offdesk-transport` to `merge-frontmatter.py`.
+- Rework `SKILL.md` (frontmatter, transports, push routing, pull semantics, stub check, transport-neutral prose).
+- Write `references/transports.md`; add the iCloud section to `references/setup.md`.
+- Write `tests/test_transports.py` and `tests/test_trigger_collisions.py`.
+- Update `README.md`, `plugin.json` (0.3.0), and `.claude-plugin/marketplace.json`.
+- Run `uv run ruff check .` and `uv run pytest`.
