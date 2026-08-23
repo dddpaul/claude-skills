@@ -1,10 +1,14 @@
 # Offdesk — manual setup
 
 One-time per-user setup. The `offdesk` skill does not automate any of these
-steps — run them once on your laptop and Android device, and the skill takes
-over from there.
+steps — run them once per transport, and the skill takes over from there.
 
-## macOS setup
+Set up only the transports you use: the Syncthing sections cover the
+laptop ↔ Android P2P vault, the iCloud section covers an Obsidian vault in
+iCloud Drive for iPad. See [[transports]] for how each vault root is
+resolved.
+
+## Syncthing — macOS setup
 
 Install and start Syncthing:
 
@@ -28,11 +32,13 @@ Vault root on laptop (default):
 ```
 
 If your Obsidian layout uses a different directory, override the default by
-setting `OFFDESK_OBSIDIAN_VAULT` in your shell profile (`~/.zshrc` or
+setting `OFFDESK_SYNCTHING_VAULT` in your shell profile (`~/.zshrc` or
 `~/.bashrc`) and point it at whichever directory Syncthing shares — the
-skill reads the env var at every push/pull.
+skill reads the env var at every push/pull. `OFFDESK_OBSIDIAN_VAULT` is the
+older name of the same setting and still works: if it is already in your
+profile there is nothing to change, and nothing to un-set.
 
-## Android setup
+## Syncthing — Android setup
 
 - Install **Syncthing** on Android from F-Droid (the cleanest channel — the
   Play Store build is no longer maintained).
@@ -49,13 +55,60 @@ Android-side vault path:
 ```
 
 This Android path is the Syncthing folder mapping on the device, set
-independently of the laptop-side `OFFDESK_OBSIDIAN_VAULT` env var. Leave
-it as-is — do not try to rename it to match the laptop default.
+independently of the laptop-side env var. Leave it as-is — do not try to
+rename it to match the laptop default.
 
-## Obsidian Android — Templates plugin + toolbar
+## iCloud — iPad setup
 
-Enable the built-in **Templates** plugin (Settings → Core plugins →
-Templates).
+The iCloud transport needs no sync daemon and no pairing: Obsidian on iOS
+can keep a vault in iCloud Drive, and macOS mounts the same vault locally.
+
+On the iPad:
+
+- Install **Obsidian** from the App Store.
+- On the vault picker, choose **Create new vault**, give it a name (for
+  example `offdesk`), and turn **Store in iCloud** on. An existing local
+  vault cannot be switched to iCloud in place — create an iCloud vault and
+  move the notes into it.
+
+The vault then appears on the Mac under Obsidian's iCloud container, with
+the vault name you chose as the last path component:
+
+```text
+~/Library/Mobile Documents/iCloud~md~obsidian/Documents/<vault-name>
+```
+
+The skill finds it by expanding
+`~/Library/Mobile Documents/iCloud~md~obsidian/Documents/*` and using the
+single matching directory. If you keep more than one Obsidian iCloud vault
+— or none, because the vault has not synced to the Mac yet — the skill
+stops and asks you to name the vault explicitly. Set it in your shell
+profile:
+
+```bash
+export OFFDESK_ICLOUD_VAULT="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents/offdesk"
+```
+
+The skill reads the env var at every push/pull; restart the shell after
+editing the profile.
+
+Two iCloud notes worth knowing:
+
+- **Files can be evicted.** With `optimize-storage` enabled (check with
+  `defaults read com.apple.bird optimize-storage`), macOS may drop the
+  local copy of a file that has not been used. Reading such a file
+  materializes it transparently, so the skill's grep still works — it may
+  simply pause while downloading.
+- **Legacy `.icloud` stubs.** An older eviction form replaces the file with
+  a `.<name>.md.icloud` placeholder, and a grep over the folder finds
+  nothing. The skill checks for these only when a pull returns zero
+  annotations; `brctl download "<path>"` fetches them.
+
+## Obsidian — Templates plugin + toolbar
+
+Do this in the vault you review in — the Syncthing vault on Android, the
+iCloud vault on iPad, or both. Enable the built-in **Templates** plugin
+(Settings → Core plugins → Templates).
 
 Create two template files in the vault:
 
@@ -80,7 +133,8 @@ Bind both to the bottom toolbar so they're one tap away while reading:
 
 ## .stignore
 
-Place a `.stignore` file at the vault root on the laptop:
+Syncthing only — the iCloud vault needs no ignore file. Place a `.stignore`
+file at the Syncthing vault root on the laptop:
 
 ```text
 ~/Obsidian/offdesk/.stignore
