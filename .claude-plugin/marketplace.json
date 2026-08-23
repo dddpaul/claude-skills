@@ -20,7 +20,7 @@
     {
       "name": "publish",
       "source": "./plugins/publish",
-      "description": "Publish a markdown file as a PDF and optionally drop it on a transport provider. pdf renders MD → PDF with weasyprint + IBM Plex; publish layers the icloud transport on top (v1 ships icloud only)."
+      "description": "Publish a file to a transport provider: markdown is rendered to PDF (weasyprint + IBM Plex via the pdf skill), while ready-made artifacts (.pdf/.pptx/.key/.docx) are copied verbatim (passthrough, no conversion). pdf renders MD → PDF; publish layers transport providers on top (v1.4 ships icloud, google-drive, and onedrive)."
     }
   ]
 }
