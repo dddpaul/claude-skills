@@ -56,6 +56,11 @@ pair cost (text similarity, geometric distance, shape kind), and prints the disc
 Shapes that match nothing on the other side are reported as `only in ref` / `only in gen` rather than
 force-fitted into a misleading diff.
 
+Runs are compared after merging adjacent runs of identical formatting, walked side by side by the
+characters each covers, so a paragraph the two engines split in different places reports nothing. The
+`run[N]` in a finding numbers those merged spans, so it need not line up with the `run[N]`
+`dump_slide.py` prints for either deck.
+
 - `--pos-tol INCHES` — coordinate slack; x/y/w/h deltas at or below it are not reported. Default
   0.040in. A different generator pair needs a different value: widen it until engine rounding stops
   showing, then leave it there so real drift still surfaces.
