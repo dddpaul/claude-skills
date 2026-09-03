@@ -4,7 +4,7 @@ title: Add an engine-artefact folding flag to pptx-compare
 status: In Progress
 assignee: []
 created_date: '2026-09-03 17:19'
-updated_date: '2026-09-03 17:39'
+updated_date: '2026-09-03 17:40'
 labels: []
 dependencies:
   - TASK-43
@@ -98,4 +98,6 @@ Handoff checklist (Source-carrying task): GREEN with one yellow — the 'How to 
 Commit: `145420e` - task-44: add --fold-engine-artefacts to compare_decks.py
 
 Commit: `8e2d0bd` - task-44: fold a run-count mismatch only when both sides coalesce alike
+
+Commit: `14d11c9` - task-44: show the convergence check as an exit-code test, not a spin loop
 <!-- SECTION:NOTES:END -->
