@@ -353,9 +353,8 @@ def test_folding_leaves_a_run_level_difference_alone():
 def test_a_run_split_whose_formatting_differs_survives_the_fold():
     """Coalescing is lossless only for runs that carried the same formatting.
 
-    The per-run loop zips to the shorter side, so with one run against three
-    the formatting of gen's runs 1 and 2 is never inspected and the run-count
-    line is the only trace they exist. Folding it on matching text alone would
+    One run against three with the middle one bold: merging cannot explain that
+    away, so the line survives the fold. Folding it on matching text alone would
     report a deck with a spuriously bold word as converged.
     """
     ref = compare_decks.Para(runs=[compare_decks.Run(text="Alpha beta gamma")])
@@ -392,3 +391,142 @@ def test_a_mixed_format_paragraph_folds_when_the_merge_agrees():
     assert (
         compare_decks.diff_runs(ref, gen, "para[0]", fold_engine_artefacts=True) == []
     )
+
+
+# --- pairing runs by their coalesced form ------------------------------------
+#
+# Runs are paired after merging adjacent runs of identical formatting, and the
+# merged runs are then walked together by the characters each covers. Pairing
+# by raw index instead straddles the formatting boundaries whenever the two
+# engines split a paragraph in different places, which shows up twice over: a
+# difference reported between paragraphs that are character for character the
+# same, and a real one missed because it sat past the end of the shorter list.
+
+
+def _mixed_format_deck(path, fragments) -> None:
+    """A one-slide deck whose single paragraph holds ``(text, bold)`` runs.
+
+    Everything the comparison reads apart from the split — the frame, the shape
+    name, each run's font and size — is fixed here, so two decks written by this
+    function differ only in where the paragraph was cut and in the weight each
+    piece carries.
+    """
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+
+    presentation = Presentation()
+    presentation.slide_width = Inches(10)
+    presentation.slide_height = Inches(5.625)
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    box = slide.shapes.add_textbox(Inches(1.0), Inches(1.0), Inches(6.0), Inches(0.5))
+    box.name = "label-body"
+    paragraph = box.text_frame.paragraphs[0]
+    for text, bold in fragments:
+        run = paragraph.add_run()
+        run.text = text
+        run.font.name = "Arial"
+        run.font.size = Pt(18)
+        run.font.bold = bold
+    presentation.save(str(path))
+
+
+def test_a_paragraph_split_at_a_different_point_reports_no_run_difference():
+    """The bold-label case: same characters, same formatting, other split.
+
+    Pairing by index sets gen's second bold fragment against ref's plain value
+    and calls the weight a difference. No character disagrees with its opposite
+    number, so there is nothing here to report but the count.
+    """
+    ref = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="Label: ", bold=True),
+            compare_decks.Run(text="value"),
+        ]
+    )
+    gen = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="La", bold=True),
+            compare_decks.Run(text="bel: ", bold=True),
+            compare_decks.Run(text="value"),
+        ]
+    )
+    lines = compare_decks.diff_runs(ref, gen, "para[0]")
+    assert [line for line in lines if " run[" in line] == [], lines
+    assert len(lines) == 1 and "run count: ref=2 gen=3" in lines[0], lines
+    # And with the count line folded, such a paragraph reaches zero.
+    assert (
+        compare_decks.diff_runs(ref, gen, "para[0]", fold_engine_artefacts=True) == []
+    )
+
+
+def test_a_formatting_difference_is_reported_across_a_differing_split():
+    """The same split difference, with one real difference underneath it.
+
+    Only the value's slant differs, and it has to survive both the merge and
+    the fold — otherwise the pairing would have swapped one false finding for
+    a missing true one.
+    """
+    ref = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="Label: ", bold=True),
+            compare_decks.Run(text="value"),
+        ]
+    )
+    gen = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="La", bold=True),
+            compare_decks.Run(text="bel: ", bold=True),
+            compare_decks.Run(text="value", italic=True),
+        ]
+    )
+    kept = compare_decks.diff_runs(ref, gen, "para[0]", fold_engine_artefacts=True)
+    assert "para[0] run[1] italic: ref=None gen=True" in kept, kept
+
+
+def test_a_run_past_the_end_of_the_shorter_list_is_still_compared():
+    """One run against three: index pairing inspects only the first of them.
+
+    The bold middle fragment is the finding, and it sits at index 1 of a list
+    the ref side does not have — reachable only by walking the two sides by
+    character rather than by index.
+    """
+    ref = compare_decks.Para(runs=[compare_decks.Run(text="Alpha beta gamma")])
+    gen = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="Alpha "),
+            compare_decks.Run(text="beta ", bold=True),
+            compare_decks.Run(text="gamma"),
+        ]
+    )
+    kept = compare_decks.diff_runs(ref, gen, "para[0]")
+    assert "para[0] run[1] bold: ref=None gen=True" in kept, kept
+
+
+def test_a_mixed_format_deck_split_differently_folds_to_zero(tmp_path, capsys):
+    """End to end, on decks: the convergence signal the flag exists for.
+
+    A mixed-format paragraph the generator cut in a different place is exactly
+    the deck that used to fold its count line and then report a run difference
+    anyway, so the loop never reached zero.
+    """
+    ref_deck = tmp_path / "label-ref.pptx"
+    gen_deck = tmp_path / "label-gen.pptx"
+    _mixed_format_deck(ref_deck, (("Label: ", True), ("value", False)))
+    _mixed_format_deck(gen_deck, (("La", True), ("bel: ", True), ("value", False)))
+
+    plain = compare_decks.compare_decks(ref_deck, gen_deck)
+    assert plain.diff_count == 1, _lines(plain)
+    assert "run count: ref=2 gen=3" in _lines(plain)[0]
+
+    folded = compare_decks.compare_decks(
+        ref_deck, gen_deck, fold_engine_artefacts=True
+    )
+    assert folded.ok
+    assert folded.diff_count == 0
+    assert (
+        compare_decks.main(
+            [str(ref_deck), str(gen_deck), "--fold-engine-artefacts"]
+        )
+        == 0
+    )
+    capsys.readouterr()

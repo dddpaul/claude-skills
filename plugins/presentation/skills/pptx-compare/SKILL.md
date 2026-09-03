@@ -56,6 +56,11 @@ pair cost (text similarity, geometric distance, shape kind), and prints the disc
 Shapes that match nothing on the other side are reported as `only in ref` / `only in gen` rather than
 force-fitted into a misleading diff.
 
+Runs are compared after merging adjacent runs of identical formatting, walked side by side by the
+characters each covers, so a paragraph the two engines split in different places reports nothing. The
+`run[N]` in a finding numbers those merged spans, so it need not line up with the `run[N]`
+`dump_slide.py` prints for either deck.
+
 - `--pos-tol INCHES` — coordinate slack; x/y/w/h deltas at or below it are not reported. Default
   0.040in. A different generator pair needs a different value: widen it until engine rounding stops
   showing, then leave it there so real drift still surfaces.
@@ -131,9 +136,9 @@ counts only what is left, so a deck differing solely by those reports `Total: 0`
 included.** The flag is opt-in and subtracts nothing else. A run-count mismatch is folded only once
 both paragraphs coalesce to the same formatted text — merging adjacent runs is lossless only when
 they carried identical formatting, so a split whose runs differ in font, size, weight or colour is
-drift the engine pair does not explain and survives the fold. This matters more than it sounds: the
-per-run comparison stops at the shorter side, so when the counts differ the run-count line is the
-only trace the extra runs exist.
+drift the engine pair does not explain and survives the fold. The runs themselves are compared after
+that same merge, walked side by side by the characters each covers rather than paired by index, so
+where the two decks split a paragraph has no bearing on what is reported.
 
 Which mode to use depends on what you are reading the output for:
 
@@ -154,12 +159,6 @@ uv run scripts/compare_decks.py ref.pptx gen.pptx --fold-engine-artefacts && ech
 
 A folded report says so in its header, so a filtered report is never mistaken for a full one. Fold to
 decide whether you are done; drop the flag to read what is actually left.
-
-One caveat on reaching zero. Runs are compared by position, so a paragraph split across a formatting
-boundary — a bold label whose plain value the generator emits in two fragments — folds its count line
-but can still report a per-run mismatch, and the loop never converges to zero. Uniformly formatted
-paragraphs, the common case, are unaffected. The misalignment is not introduced by the flag: it shows
-in the default view too, next to the count line.
 
 ## Known limitation: groups are opaque
 

@@ -1,7 +1,7 @@
 {
   "name": "presentation",
   "description": "PPTX tooling for architectural decks — two style guides (core-style, arch-style) plus pptx-compare for diffing two decks",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "author": { "name": "Pavel Derendyaev", "email": "dddpaul@gmail.com" },
   "homepage": "https://github.com/dddpaul/claude-skills",
   "repository": "https://github.com/dddpaul/claude-skills",
