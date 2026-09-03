@@ -31,6 +31,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE
 from pptx.util import Inches, Pt
 
 HERE = Path(__file__).resolve().parent
@@ -48,15 +49,15 @@ def build(path: Path, *, title_size_pt: int, rect_x_in: float, extra: bool) -> N
     presentation.slide_height = Inches(5.625)
     slide = presentation.slides.add_slide(presentation.slide_layouts[6])
 
-    title = slide.shapes.add_textbox(Inches(0.75), Inches(0.20), Inches(8.5), Inches(0.6))
+    title = slide.shapes.add_textbox(
+        Inches(0.75), Inches(0.20), Inches(8.5), Inches(0.6)
+    )
     title.name = "title"
     run = title.text_frame.paragraphs[0].add_run()
     run.text = TITLE_TEXT
     run.font.name = "Arial"
     run.font.size = Pt(title_size_pt)
     run.font.bold = True
-
-    from pptx.enum.shapes import MSO_SHAPE
 
     rect = slide.shapes.add_shape(
         MSO_SHAPE.RECTANGLE, Inches(rect_x_in), Inches(1.20), Inches(3.0), Inches(1.0)

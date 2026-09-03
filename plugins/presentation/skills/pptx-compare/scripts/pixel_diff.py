@@ -65,8 +65,8 @@ def load_pages(folder: Path) -> list[Path]:
 
 def diff_pair(
     ref_path: Path, gen_path: Path, threshold: int
-) -> tuple[Image.Image, Image.Image, int, int]:
-    """Return (mask, overlay, differing pixels, total pixels) for one page."""
+) -> tuple[Image.Image, int, int]:
+    """Return (overlay, differing pixels, total pixels) for one page."""
     ref = Image.open(ref_path).convert("RGB")
     gen = Image.open(gen_path).convert("RGB")
     if ref.size != gen.size:
@@ -78,7 +78,7 @@ def diff_pair(
     differing = mask.histogram()[255]
     overlay = gen.copy()
     overlay.paste(Image.new("RGB", gen.size, HIGHLIGHT), mask=mask.convert("1"))
-    return mask, overlay, differing, ref.size[0] * ref.size[1]
+    return overlay, differing, ref.size[0] * ref.size[1]
 
 
 def contact_sheet(overlays: list[Path], destination: Path) -> Path | None:
@@ -127,6 +127,14 @@ def write_zoom(pages: list[PageDiff], spec: str, outdir: Path) -> list[Path]:
     sources = [("ref", match.ref), ("gen", match.gen)]
     if match.overlay:
         sources.append(("overlay", match.overlay))
+    size = Image.open(match.ref).size
+    if box[2] > size[0] or box[3] > size[1]:
+        # Image.crop pads outside the image rather than raising, so one
+        # mistyped digit would otherwise write a huge mostly-empty PNG.
+        raise ValueError(
+            f"--zoom box {box} reaches outside page {number}, which is "
+            f"{size[0]}x{size[1]}"
+        )
     for tag, source in sources:
         crop = Image.open(source).convert("RGB").crop(box)
         destination = outdir / f"zoom-{number:02d}-{tag}.png"
@@ -149,7 +157,7 @@ def compare_folders(
     outdir.mkdir(parents=True, exist_ok=True)
     results = []
     for number, (ref_path, gen_path) in enumerate(zip(ref_pages, gen_pages), start=1):
-        _, overlay, differing, total = diff_pair(ref_path, gen_path, threshold)
+        overlay, differing, total = diff_pair(ref_path, gen_path, threshold)
         destination = outdir / f"overlay-{number:02d}.png"
         overlay.save(destination)
         results.append(

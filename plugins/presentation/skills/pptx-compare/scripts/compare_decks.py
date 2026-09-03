@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from pptx import Presentation
+from pptx.exc import PackageNotFoundError
 
 EMU_PER_INCH = 914400
 EMU_PER_POINT = 12700
@@ -264,17 +265,28 @@ def _parse_paras(text_frame) -> list[Para]:
 
 
 def _geom_of(shape) -> str | None:
-    """Preset geometry name, or the connector kind for a ``p:cxnSp``."""
+    """Preset geometry name, or the connector kind for a ``p:cxnSp``.
+
+    Read off the shape's own ``spPr`` rather than any descendant, so a group
+    does not inherit the geometry of whichever child happens to come first.
+    """
     try:
         element = shape._element
     except AttributeError:
         return None
-    prst = element.find(
-        ".//{http://schemas.openxmlformats.org/drawingml/2006/main}prstGeom"
+    spPr = element.find(
+        "{http://schemas.openxmlformats.org/presentationml/2006/main}spPr"
     )
-    if prst is not None:
-        return prst.get("prst")
-    return None
+    if spPr is None:
+        spPr = element.find(
+            "{http://schemas.openxmlformats.org/drawingml/2006/main}spPr"
+        )
+    if spPr is None:
+        return None
+    prst = spPr.find(
+        "{http://schemas.openxmlformats.org/drawingml/2006/main}prstGeom"
+    )
+    return None if prst is None else prst.get("prst")
 
 
 def parse_shape(shape, index: int) -> Shape:
@@ -589,7 +601,11 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     pos_tol_emu = int(round(args.pos_tol * EMU_PER_INCH))
-    report = compare_decks(args.ref, args.gen, pos_tol_emu)
+    try:
+        report = compare_decks(args.ref, args.gen, pos_tol_emu)
+    except PackageNotFoundError as exc:
+        print(f"not a readable .pptx: {exc}", file=sys.stderr)
+        return 2
     text = format_report(report)
     print(text)
     if args.report:

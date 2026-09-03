@@ -28,6 +28,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from pptx.exc import PackageNotFoundError
+
 import compare_decks
 from compare_decks import EMU_PER_INCH, Shape
 
@@ -97,7 +99,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no such deck: {args.deck}", file=sys.stderr)
         return 2
 
-    slides = compare_decks.parse_deck(args.deck)
+    try:
+        slides = compare_decks.parse_deck(args.deck)
+    except PackageNotFoundError as exc:
+        print(f"not a readable .pptx: {exc}", file=sys.stderr)
+        return 2
     if not 1 <= args.number <= len(slides):
         print(
             f"slide {args.number} out of range: {args.deck.name} has {len(slides)}",
