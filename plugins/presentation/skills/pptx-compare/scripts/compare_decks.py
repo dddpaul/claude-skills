@@ -20,8 +20,14 @@ which discrepancies are engine artefacts rather than real drift — see
 Usage:
     uv run compare_decks.py REF.pptx GEN.pptx
     uv run compare_decks.py REF.pptx GEN.pptx --pos-tol 0.02
+    uv run compare_decks.py REF.pptx GEN.pptx --fold-engine-artefacts
     uv run compare_decks.py REF.pptx GEN.pptx --render --dpi 144 --outdir ./_cmp
     uv run compare_decks.py REF.pptx GEN.pptx --report report.md
+
+The full diff is the default. ``--fold-engine-artefacts`` opts into the
+narrower view: the findings this tool itself attributes to the engine pair are
+dropped, so a deck differing only by those reports zero and exits 0 — one
+signal to loop a generator against, instead of a list to read line by line.
 
 Exit codes:
     0 — the decks match within tolerance
@@ -36,7 +42,7 @@ import difflib
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 from pptx import Presentation
@@ -139,6 +145,9 @@ class Report:
     gen: Path
     slides: list[SlideDiff] = field(default_factory=list)
     fatal: str | None = None
+    # True when the findings this tool attributes to the engine pair were
+    # dropped rather than listed; recorded so the report can say so.
+    folded_engine_artefacts: bool = False
 
     @property
     def ok(self) -> bool:
@@ -394,17 +403,59 @@ def _diff_field(out: list[str], what: str, ref, gen) -> None:
         out.append(f"{what}: ref={ref!r} gen={gen!r}")
 
 
-def diff_runs(ref: Para, gen: Para, prefix: str) -> list[str]:
+def _format_profile(run: Run) -> tuple:
+    """A run's character formatting, i.e. everything about it but the text.
+
+    Derived from the dataclass fields rather than listed by hand, so a property
+    added to ``Run`` later joins the profile automatically — which can only make
+    the fold below stricter, never looser.
+    """
+    return tuple(getattr(run, f.name) for f in fields(run) if f.name != "text")
+
+
+def _coalesce(runs: list[Run]) -> list[tuple[str, tuple]]:
+    """Merge adjacent runs carrying identical character formatting.
+
+    This is the normalisation PowerPoint performs on save. Applying it to both
+    sides is what makes two paragraphs that differ only by run splitting
+    comparable: text that survives the merge identically was only ever split
+    differently, while a formatting difference survives it and stays visible.
+    """
+    merged: list[tuple[str, tuple]] = []
+    for run in runs:
+        profile = _format_profile(run)
+        if merged and merged[-1][1] == profile:
+            merged[-1] = (merged[-1][0] + run.text, profile)
+        else:
+            merged.append((run.text, profile))
+    return merged
+
+
+def diff_runs(
+    ref: Para, gen: Para, prefix: str, *, fold_engine_artefacts: bool = False
+) -> list[str]:
     """Diff two paragraphs run by run.
 
     Run counts routinely differ between engines even when the rendered text is
-    identical (PowerPoint coalesces adjacent runs on save), so a bare count
-    mismatch is reported only when the concatenated text also differs.
+    identical (PowerPoint coalesces adjacent runs on save), which is why the
+    count mismatch is annotated as a probable engine artefact rather than
+    reported flatly.
+
+    ``fold_engine_artefacts`` drops that annotated line, but only once both
+    paragraphs coalesce to the same thing. Merging is lossless only for runs
+    that carried identical formatting (``engine-differences.md`` §1), and the
+    loop below zips to the shorter side, so when the counts differ the extra
+    runs are never inspected and this line is the only trace they exist:
+    folding it on matching text alone would hide a word that is bold on one
+    side and not the other.
     """
     out: list[str] = []
-    if ref.text != gen.text:
+    text_differs = ref.text != gen.text
+    if text_differs:
         out.append(f"{prefix} text: ref={ref.text!r} gen={gen.text!r}")
-    if len(ref.runs) != len(gen.runs):
+    if len(ref.runs) != len(gen.runs) and not (
+        fold_engine_artefacts and _coalesce(ref.runs) == _coalesce(gen.runs)
+    ):
         out.append(
             f"{prefix} run count: ref={len(ref.runs)} gen={len(gen.runs)} "
             "(engine artefact if the text above matches — see engine-differences.md)"
@@ -420,7 +471,13 @@ def diff_runs(ref: Para, gen: Para, prefix: str) -> list[str]:
     return out
 
 
-def diff_shape(ref: Shape, gen: Shape, pos_tol_emu: int) -> list[str]:
+def diff_shape(
+    ref: Shape,
+    gen: Shape,
+    pos_tol_emu: int,
+    *,
+    fold_engine_artefacts: bool = False,
+) -> list[str]:
     """All discrepancies between a matched pair of shapes."""
     out: list[str] = []
     for axis in ("x", "y", "w", "h"):
@@ -454,15 +511,28 @@ def diff_shape(ref: Shape, gen: Shape, pos_tol_emu: int) -> list[str]:
         _diff_field(out, f"{prefix} space after", a.space_after_pt, b.space_after_pt)
         _diff_field(out, f"{prefix} indent", a.indent_pt, b.indent_pt)
         _diff_field(out, f"{prefix} left margin", a.margin_left_pt, b.margin_left_pt)
-        out += diff_runs(a, b, prefix)
+        out += diff_runs(
+            a, b, prefix, fold_engine_artefacts=fold_engine_artefacts
+        )
     return out
 
 
 def compare_decks(
-    ref_path: Path, gen_path: Path, pos_tol_emu: int = DEFAULT_POS_TOL_EMU
+    ref_path: Path,
+    gen_path: Path,
+    pos_tol_emu: int = DEFAULT_POS_TOL_EMU,
+    *,
+    fold_engine_artefacts: bool = False,
 ) -> Report:
-    """Compare two decks slide by slide and shape by shape."""
-    report = Report(ref=ref_path, gen=gen_path)
+    """Compare two decks slide by slide and shape by shape.
+
+    With ``fold_engine_artefacts`` the findings this tool marks as artefacts of
+    the engine pair are never recorded, so ``diff_count`` and ``ok`` count only
+    what is left — a deck differing solely by those reports zero and is ``ok``.
+    """
+    report = Report(
+        ref=ref_path, gen=gen_path, folded_engine_artefacts=fold_engine_artefacts
+    )
     ref_slides = parse_deck(ref_path)
     gen_slides = parse_deck(gen_path)
     if len(ref_slides) != len(gen_slides):
@@ -481,7 +551,12 @@ def compare_decks(
             elif gen_shape is None:
                 slide.lines.append(f"only in ref: {ref_shape.label()}")
             else:
-                for line in diff_shape(ref_shape, gen_shape, pos_tol_emu):
+                for line in diff_shape(
+                    ref_shape,
+                    gen_shape,
+                    pos_tol_emu,
+                    fold_engine_artefacts=fold_engine_artefacts,
+                ):
                     slide.lines.append(f"{ref_shape.label()} -> {line}")
         report.slides.append(slide)
     return report
@@ -530,8 +605,13 @@ def format_report(report: Report) -> str:
         "",
         f"- ref: `{report.ref}`",
         f"- gen: `{report.gen}`",
-        "",
     ]
+    if report.folded_engine_artefacts:
+        lines.append(
+            "- engine artefacts folded: findings this tool attributes to the "
+            "engine pair are not listed below (see engine-differences.md)"
+        )
+    lines.append("")
     if report.fatal:
         lines += [f"FATAL: {report.fatal}", ""]
         return "\n".join(lines)
@@ -570,6 +650,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--fold-engine-artefacts",
+        action="store_true",
+        help=(
+            "drop the findings this tool marks as artefacts of the engine pair "
+            "(a run-count mismatch whose runs coalesce to the same formatted "
+            "text) and count only what is left, so a deck differing solely by "
+            "those reports zero and exits 0; off by default, which lists every "
+            "difference"
+        ),
+    )
+    parser.add_argument(
         "--render",
         action="store_true",
         help="also render both decks to PNG via soffice then pdftoppm",
@@ -602,7 +693,12 @@ def main(argv: list[str] | None = None) -> int:
 
     pos_tol_emu = int(round(args.pos_tol * EMU_PER_INCH))
     try:
-        report = compare_decks(args.ref, args.gen, pos_tol_emu)
+        report = compare_decks(
+            args.ref,
+            args.gen,
+            pos_tol_emu,
+            fold_engine_artefacts=args.fold_engine_artefacts,
+        )
     except PackageNotFoundError as exc:
         print(f"not a readable .pptx: {exc}", file=sys.stderr)
         return 2
