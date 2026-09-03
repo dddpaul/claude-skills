@@ -155,6 +155,12 @@ uv run scripts/compare_decks.py ref.pptx gen.pptx --fold-engine-artefacts && ech
 A folded report says so in its header, so a filtered report is never mistaken for a full one. Fold to
 decide whether you are done; drop the flag to read what is actually left.
 
+One caveat on reaching zero. Runs are compared by position, so a paragraph split across a formatting
+boundary — a bold label whose plain value the generator emits in two fragments — folds its count line
+but can still report a per-run mismatch, and the loop never converges to zero. Uniformly formatted
+paragraphs, the common case, are unaffected. The misalignment is not introduced by the flag: it shows
+in the default view too, next to the count line.
+
 ## Known limitation: groups are opaque
 
 **A grouped shape is compared as one shape; its contents are not inspected.** The parse walks the
