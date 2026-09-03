@@ -10,7 +10,7 @@
     {
       "name": "presentation",
       "source": "./plugins/presentation",
-      "description": "Presentation style guides for the pptx skill — corporate core-style and architecture-committee arch-style."
+      "description": "PPTX tooling — two style guides for the pptx skill (corporate core-style, architecture-committee arch-style) plus pptx-compare, a diagnostic harness that diffs two decks structurally, by rendered pixels, or one slide at a time."
     },
     {
       "name": "obsidian",
