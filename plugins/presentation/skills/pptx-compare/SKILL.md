@@ -128,9 +128,12 @@ ones.
 counts only what is left, so a deck differing solely by those reports `Total: 0` and exits `0`.
 
 **The default is unchanged: without the flag every difference is still listed, engine artefacts
-included.** The flag is opt-in and subtracts nothing else — a discrepancy the tool does not itself
-mark as an artefact survives the fold untouched, and so does a run-count mismatch whose paragraph
-text also differs, because that is drift the engine pair does not explain.
+included.** The flag is opt-in and subtracts nothing else. A run-count mismatch is folded only once
+both paragraphs coalesce to the same formatted text — merging adjacent runs is lossless only when
+they carried identical formatting, so a split whose runs differ in font, size, weight or colour is
+drift the engine pair does not explain and survives the fold. This matters more than it sounds: the
+per-run comparison stops at the shorter side, so when the counts differ the run-count line is the
+only trace the extra runs exist.
 
 Which mode to use depends on what you are reading the output for:
 

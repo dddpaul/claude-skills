@@ -42,7 +42,7 @@ import difflib
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 from pptx import Presentation
@@ -403,6 +403,34 @@ def _diff_field(out: list[str], what: str, ref, gen) -> None:
         out.append(f"{what}: ref={ref!r} gen={gen!r}")
 
 
+def _format_profile(run: Run) -> tuple:
+    """A run's character formatting, i.e. everything about it but the text.
+
+    Derived from the dataclass fields rather than listed by hand, so a property
+    added to ``Run`` later joins the profile automatically — which can only make
+    the fold below stricter, never looser.
+    """
+    return tuple(getattr(run, f.name) for f in fields(run) if f.name != "text")
+
+
+def _coalesce(runs: list[Run]) -> list[tuple[str, tuple]]:
+    """Merge adjacent runs carrying identical character formatting.
+
+    This is the normalisation PowerPoint performs on save. Applying it to both
+    sides is what makes two paragraphs that differ only by run splitting
+    comparable: text that survives the merge identically was only ever split
+    differently, while a formatting difference survives it and stays visible.
+    """
+    merged: list[tuple[str, tuple]] = []
+    for run in runs:
+        profile = _format_profile(run)
+        if merged and merged[-1][1] == profile:
+            merged[-1] = (merged[-1][0] + run.text, profile)
+        else:
+            merged.append((run.text, profile))
+    return merged
+
+
 def diff_runs(
     ref: Para, gen: Para, prefix: str, *, fold_engine_artefacts: bool = False
 ) -> list[str]:
@@ -413,17 +441,20 @@ def diff_runs(
     count mismatch is annotated as a probable engine artefact rather than
     reported flatly.
 
-    ``fold_engine_artefacts`` drops that annotated line, and only when the
-    concatenated text matches — the very condition the annotation hedges on.
-    A run-count mismatch alongside a text mismatch is drift the engine pair
-    does not explain, so it survives the fold.
+    ``fold_engine_artefacts`` drops that annotated line, but only once both
+    paragraphs coalesce to the same thing. Merging is lossless only for runs
+    that carried identical formatting (``engine-differences.md`` §1), and the
+    loop below zips to the shorter side, so when the counts differ the extra
+    runs are never inspected and this line is the only trace they exist:
+    folding it on matching text alone would hide a word that is bold on one
+    side and not the other.
     """
     out: list[str] = []
     text_differs = ref.text != gen.text
     if text_differs:
         out.append(f"{prefix} text: ref={ref.text!r} gen={gen.text!r}")
     if len(ref.runs) != len(gen.runs) and not (
-        fold_engine_artefacts and not text_differs
+        fold_engine_artefacts and _coalesce(ref.runs) == _coalesce(gen.runs)
     ):
         out.append(
             f"{prefix} run count: ref={len(ref.runs)} gen={len(gen.runs)} "
@@ -623,9 +654,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "drop the findings this tool marks as artefacts of the engine pair "
-            "(a run-count mismatch whose paragraph text matches) and count only "
-            "what is left, so a deck differing solely by those reports zero and "
-            "exits 0; off by default, which lists every difference"
+            "(a run-count mismatch whose runs coalesce to the same formatted "
+            "text) and count only what is left, so a deck differing solely by "
+            "those reports zero and exits 0; off by default, which lists every "
+            "difference"
         ),
     )
     parser.add_argument(

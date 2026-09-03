@@ -328,10 +328,67 @@ def test_a_run_count_mismatch_survives_the_fold_when_the_text_differs():
     assert any("run count: ref=1 gen=3" in line for line in kept)
 
 
-def test_an_equal_run_count_is_untouched_by_the_fold():
-    """Folding keys off the artefact, not off the paragraph having any runs."""
-    same = _para("Alpha ", "beta")
-    kept = compare_decks.diff_runs(
-        same, _para("Alpha ", "beta"), "para[0]", fold_engine_artefacts=True
+def test_folding_leaves_a_run_level_difference_alone():
+    """Folding keys off the artefact, not off the paragraph having any runs.
+
+    Equal run counts, one word bold on the gen side: nothing here is an
+    artefact, so the fold must subtract nothing.
+    """
+    ref = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="Alpha ", bold=False),
+            compare_decks.Run(text="beta", bold=False),
+        ]
     )
-    assert kept == []
+    gen = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="Alpha ", bold=False),
+            compare_decks.Run(text="beta", bold=True),
+        ]
+    )
+    kept = compare_decks.diff_runs(ref, gen, "para[0]", fold_engine_artefacts=True)
+    assert kept == ["para[0] run[1] bold: ref=False gen=True"]
+
+
+def test_a_run_split_whose_formatting_differs_survives_the_fold():
+    """Coalescing is lossless only for runs that carried the same formatting.
+
+    The per-run loop zips to the shorter side, so with one run against three
+    the formatting of gen's runs 1 and 2 is never inspected and the run-count
+    line is the only trace they exist. Folding it on matching text alone would
+    report a deck with a spuriously bold word as converged.
+    """
+    ref = compare_decks.Para(runs=[compare_decks.Run(text="Alpha beta gamma")])
+    gen = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="Alpha "),
+            compare_decks.Run(text="beta ", bold=True),
+            compare_decks.Run(text="gamma"),
+        ]
+    )
+    kept = compare_decks.diff_runs(ref, gen, "para[0]", fold_engine_artefacts=True)
+    assert any("run count: ref=1 gen=3" in line for line in kept)
+
+
+def test_a_mixed_format_paragraph_folds_when_the_merge_agrees():
+    """The gate is coalescing-equivalence, not uniform formatting.
+
+    A bold label followed by a plain value is a mixed paragraph, but splitting
+    the value in two is still pure run splitting — so it still folds.
+    """
+    ref = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="Label: ", bold=True),
+            compare_decks.Run(text="value"),
+        ]
+    )
+    gen = compare_decks.Para(
+        runs=[
+            compare_decks.Run(text="Label: ", bold=True),
+            compare_decks.Run(text="val"),
+            compare_decks.Run(text="ue"),
+        ]
+    )
+    assert (
+        compare_decks.diff_runs(ref, gen, "para[0]", fold_engine_artefacts=True) == []
+    )
