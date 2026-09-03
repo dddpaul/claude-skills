@@ -4,7 +4,7 @@ title: Add an engine-artefact folding flag to pptx-compare
 status: In Progress
 assignee: []
 created_date: '2026-09-03 17:19'
-updated_date: '2026-09-03 17:31'
+updated_date: '2026-09-03 17:39'
 labels: []
 dependencies:
   - TASK-43
@@ -96,4 +96,6 @@ Plan: (1) Thread a keyword-only `fold_engine_artefacts` flag through diff_runs -
 Handoff checklist (Source-carrying task): GREEN with one yellow — the 'How to reproduce the measurement' paths under /Users/paul/... are not mounted in this container, so the 73-vs-145 figures are taken as given from the task body rather than re-measured. They are context, not an acceptance criterion; every AC is checkable in-repo. All (exists) paths verified present, TASK-43 is Done.
 
 Commit: `145420e` - task-44: add --fold-engine-artefacts to compare_decks.py
+
+Commit: `8e2d0bd` - task-44: fold a run-count mismatch only when both sides coalesce alike
 <!-- SECTION:NOTES:END -->
