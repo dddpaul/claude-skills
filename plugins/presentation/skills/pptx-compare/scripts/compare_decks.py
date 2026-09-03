@@ -42,7 +42,7 @@ import difflib
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 
 from pptx import Presentation
@@ -413,28 +413,68 @@ def _format_profile(run: Run) -> tuple:
     return tuple(getattr(run, f.name) for f in fields(run) if f.name != "text")
 
 
-def _coalesce(runs: list[Run]) -> list[tuple[str, tuple]]:
+def _coalesce(runs: list[Run]) -> list[Run]:
     """Merge adjacent runs carrying identical character formatting.
 
-    This is the normalisation PowerPoint performs on save. Applying it to both
-    sides is what makes two paragraphs that differ only by run splitting
-    comparable: text that survives the merge identically was only ever split
-    differently, while a formatting difference survives it and stays visible.
+    This is the normalisation PowerPoint performs on save, and it is canonical:
+    however each side chose to split its runs, two paragraphs holding the same
+    text with the same formatting per character merge to the same list. That is
+    what makes the merged form the right thing to compare — a difference in
+    splitting alone disappears, while a formatting difference survives the
+    merge and stays visible.
+
+    The input runs are never mutated: a merge rebinds the slot to a new ``Run``.
     """
-    merged: list[tuple[str, tuple]] = []
+    merged: list[Run] = []
     for run in runs:
-        profile = _format_profile(run)
-        if merged and merged[-1][1] == profile:
-            merged[-1] = (merged[-1][0] + run.text, profile)
+        if merged and _format_profile(merged[-1]) == _format_profile(run):
+            merged[-1] = replace(merged[-1], text=merged[-1].text + run.text)
         else:
-            merged.append((run.text, profile))
+            merged.append(run)
     return merged
+
+
+def _align_runs(ref: list[Run], gen: list[Run]) -> list[tuple[Run, Run]]:
+    """Pair two coalesced run lists by the characters each run covers.
+
+    Zipping the lists positionally holds only while both sides split the
+    paragraph in the same places. Walking them together character by character
+    instead splits at the union of the two sides' boundaries, so every pair
+    covers a stretch of text that is one run on both sides — a run is compared
+    against whatever the other side has at those characters rather than against
+    whatever happens to share its index, and none is dropped for being past the
+    end of a shorter list.
+
+    The walk stops where the shorter text ends. That only happens when the two
+    paragraphs hold different text, which the caller reports in its own right.
+    """
+    pairs: list[tuple[Run, Run]] = []
+    i = j = 0
+    ref_used = gen_used = 0
+    while i < len(ref) and j < len(gen):
+        pairs.append((ref[i], gen[j]))
+        take = min(len(ref[i].text) - ref_used, len(gen[j].text) - gen_used)
+        ref_used += take
+        gen_used += take
+        if ref_used >= len(ref[i].text):
+            i += 1
+            ref_used = 0
+        if gen_used >= len(gen[j].text):
+            j += 1
+            gen_used = 0
+    return pairs
 
 
 def diff_runs(
     ref: Para, gen: Para, prefix: str, *, fold_engine_artefacts: bool = False
 ) -> list[str]:
-    """Diff two paragraphs run by run.
+    """Diff two paragraphs by their coalesced runs.
+
+    The pairing is on the merged runs, not on raw position. Two engines split
+    the same paragraph at different points, so pairing by index straddles the
+    formatting boundaries and reports a difference between paragraphs that are
+    character for character the same. Merging first is canonical (``_coalesce``)
+    and pairs like with like.
 
     Run counts routinely differ between engines even when the rendered text is
     identical (PowerPoint coalesces adjacent runs on save), which is why the
@@ -443,24 +483,23 @@ def diff_runs(
 
     ``fold_engine_artefacts`` drops that annotated line, but only once both
     paragraphs coalesce to the same thing. Merging is lossless only for runs
-    that carried identical formatting (``engine-differences.md`` §1), and the
-    loop below zips to the shorter side, so when the counts differ the extra
-    runs are never inspected and this line is the only trace they exist:
-    folding it on matching text alone would hide a word that is bold on one
-    side and not the other.
+    that carried identical formatting (``engine-differences.md`` §1), so a
+    split whose runs differ in font, size, weight or colour is drift the engine
+    pair does not explain and the line stays.
     """
     out: list[str] = []
-    text_differs = ref.text != gen.text
-    if text_differs:
+    if ref.text != gen.text:
         out.append(f"{prefix} text: ref={ref.text!r} gen={gen.text!r}")
+    ref_runs = _coalesce(ref.runs)
+    gen_runs = _coalesce(gen.runs)
     if len(ref.runs) != len(gen.runs) and not (
-        fold_engine_artefacts and _coalesce(ref.runs) == _coalesce(gen.runs)
+        fold_engine_artefacts and ref_runs == gen_runs
     ):
         out.append(
             f"{prefix} run count: ref={len(ref.runs)} gen={len(gen.runs)} "
             "(engine artefact if the text above matches — see engine-differences.md)"
         )
-    for i, (a, b) in enumerate(zip(ref.runs, gen.runs)):
+    for i, (a, b) in enumerate(_align_runs(ref_runs, gen_runs)):
         tag = f"{prefix} run[{i}]"
         _diff_field(out, f"{tag} font", a.font, b.font)
         _diff_field(out, f"{tag} size", a.size_pt, b.size_pt)
