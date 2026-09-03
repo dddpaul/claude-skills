@@ -128,7 +128,7 @@ def write_zoom(pages: list[PageDiff], spec: str, outdir: Path) -> list[Path]:
     if match.overlay:
         sources.append(("overlay", match.overlay))
     size = Image.open(match.ref).size
-    if box[2] > size[0] or box[3] > size[1]:
+    if box[0] < 0 or box[1] < 0 or box[2] > size[0] or box[3] > size[1]:
         # Image.crop pads outside the image rather than raising, so one
         # mistyped digit would otherwise write a huge mostly-empty PNG.
         raise ValueError(

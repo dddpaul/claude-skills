@@ -154,3 +154,12 @@ def test_zoom_box_flush_with_the_page_edge_is_allowed(folders, tmp_path):
     pages = pixel_diff.compare_folders(ref_dir, gen_dir, outdir, 8)
     written = pixel_diff.write_zoom(pages, f"1:0,0,{SIZE[0]},{SIZE[1]}", outdir)
     assert all(Image.open(p).size == SIZE for p in written)
+
+
+def test_zoom_box_with_a_negative_origin_is_rejected(folders, tmp_path):
+    ref_dir, gen_dir = folders
+    outdir = tmp_path / "out"
+    pages = pixel_diff.compare_folders(ref_dir, gen_dir, outdir, 8)
+    with pytest.raises(ValueError, match="reaches outside page 1"):
+        pixel_diff.write_zoom(pages, "1:-500,-500,100,60", outdir)
+    assert not list(outdir.glob("zoom-*.png"))
