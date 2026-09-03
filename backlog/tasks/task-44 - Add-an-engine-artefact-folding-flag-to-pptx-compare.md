@@ -1,10 +1,10 @@
 ---
 id: TASK-44
 title: Add an engine-artefact folding flag to pptx-compare
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-03 17:19'
-updated_date: '2026-09-03 17:40'
+updated_date: '2026-09-03 17:46'
 labels: []
 dependencies:
   - TASK-43
@@ -100,4 +100,28 @@ Commit: `145420e` - task-44: add --fold-engine-artefacts to compare_decks.py
 Commit: `8e2d0bd` - task-44: fold a run-count mismatch only when both sides coalesce alike
 
 Commit: `14d11c9` - task-44: show the convergence check as an exit-code test, not a spin loop
+
+Commit: `a2fbded` - task-44: note the positional run-pairing caveat on reaching zero
+
+Done. Implemented --fold-engine-artefacts on compare_decks.py.
+
+Design: the flag is threaded as a keyword-only argument through diff_runs -> diff_shape -> compare_decks and recorded on Report. Folded findings are never appended to SlideDiff.lines, so diff_count, the 'Total:' line, report.ok and the process exit code all count only what is left — restoring the single-signal convergence check (exit 0 == converged) the task asked for. format_report prints a header note when folding is on, so a filtered report always says it is filtered.
+
+Fold gate (changed during review): the first implementation folded a run-count mismatch whenever the concatenated paragraph texts matched. The task-reviewer found that unsound and I reproduced it: the per-run loop uses zip(ref.runs, gen.runs), which truncates to the shorter side, so with 1 run against 3 the formatting of the extra runs is never inspected and the run-count line is their only trace — folding it hid a word that was bold on one side only. The fix adds _format_profile() and _coalesce(), which apply PowerPoint's own merge (adjacent runs with identical formatting) to BOTH sides, and folds only when the merged forms are equal. This is exact rather than heuristic: it subsumes text equality, folds legitimately coalesced mixed-format paragraphs (which a formatting-uniformity check would refuse), and refuses every case where formatting actually differs. _format_profile derives from dataclasses.fields(Run) minus 'text', so a field added to Run later joins the profile automatically — a direction that can only make the fold stricter. _coalesce sits behind the flag's short-circuit and is never called on the default path.
+
+Default behaviour is unchanged and this was verified byte-for-byte, not merely by finding count: stdout, stderr, exit code and --report file bytes compared against 'git show master:compare_decks.py' across all fixture permutations, self-compares and --pos-tol 0.001/0.04/5.0 — zero differences. The reviewer independently repeated this over 20 cases.
+
+Fixtures: gen_fixtures.py gained build_run_split() and writes coalesced-ref.pptx / coalesced-gen.pptx — one-slide decks whose only difference is 1 run vs 3 identically formatted runs. ref.pptx and gen.pptx were deliberately restored after regeneration: rebuilding them changes only zip timestamps, and committing that churn would obscure the diff.
+
+Tests: 12 added (55 in the skill's suite, up from 43). Includes the flag-off pin required by AC #4, the fold-to-zero pair, exit-code convergence, and four gate tests — text differs, run-level difference with equal counts, formatting-differing split, and mixed-format split that must still fold. The reviewer mutation-tested the gate six ways and all six mutants were killed, and ran a 300k-case property fuzz over the soundness invariant: 46,700 folds fired, 0 unsound.
+
+Review: APPROVED by the task-reviewer agent on the second pass (CHANGES REQUESTED on the first — the unsound gate above, plus one vacuous test which was replaced with a discriminating one asserting the exact surviving line).
+
+Handoff assumption, as flagged in the plan: the task's 'How to reproduce the measurement' block cites /Users/paul/... host paths that are not mounted in this container, so the 73-vs-145 figures are taken as given from the task body rather than re-measured. They are motivation, not an acceptance criterion; all 8 ACs are checkable in-repo and were checked.
+
+Version: plugins/presentation/.claude-plugin/plugin.json 0.10.0 -> 0.10.1, per the SemVer pick pinned in this task's notes (patch: a new opt-in CLI flag on an existing skill is neither a new skill nor a broadened trigger, and the default is unchanged). marketplace.json carries no per-plugin version key, so it needed no bump.
+
+Follow-up: TASK-45 records an adjacent, pre-existing defect the review's fuzz surfaced — runs are paired positionally, so a paragraph split across a formatting boundary reports a spurious per-run mismatch. It is out of TASK-44's scope (it would change default output and so break AC #4) and it over-reports rather than hides, so it cannot cause a false 'converged'. SKILL.md carries a caveat paragraph about it as a stopgap.
+
+Test gate: full suite 239 passed / 1 failed. The failure is test_decision_tree_helper in the untouched pptx-arch-style skill, needing a vendored node_modules that is absent in this container; it fails identically on master (baseline captured before any edit: 227 passed / 1 failed, same test).
 <!-- SECTION:NOTES:END -->
