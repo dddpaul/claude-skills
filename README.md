@@ -182,7 +182,8 @@ claude-skills/
     │           └── scripts/
     │               ├── compare_decks.py          # Shape-by-shape diff of two decks
     │               ├── dump_slide.py             # One slide as exact numbers
-    │               └── pixel_diff.py             # Pixel diff of two render folders
+    │               ├── pixel_diff.py             # Pixel diff of two render folders
+    │               └── tests/                    # Pytest suite + fixture decks
     ├── obsidian/                                 # plugins/obsidian/skills/
     │   ├── .claude-plugin/
     │   │   └── plugin.json                       # Plugin manifest

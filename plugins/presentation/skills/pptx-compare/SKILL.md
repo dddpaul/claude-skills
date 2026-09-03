@@ -119,6 +119,17 @@ artefacts of the engine pair and will never go away, no matter how the generator
 chasing a discrepancy, check it against `references/engine-differences.md`, which lists the four known
 ones.
 
+## Known limitation: groups are opaque
+
+**A grouped shape is compared as one shape; its contents are not inspected.** The parse walks the
+top-level shape tree of each slide, so a `p:grpSp` contributes its own name and frame and nothing else —
+two decks whose groups hold entirely different text can still be reported as `OK`. Grouping is idiomatic
+in hand-built PowerPoint decks, which is exactly use case 1 above, so **do not read a clean structural
+report as proof that two decks match** until you know neither contains groups.
+
+Two ways round it: ungroup in the reference before comparing, or fall back on `--render` plus
+`pixel_diff.py`, which sees the rendered result and so is blind to how shapes are nested.
+
 ## Typical loop
 
 ```

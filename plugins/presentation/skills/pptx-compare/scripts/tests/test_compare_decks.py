@@ -116,3 +116,96 @@ def test_exit_codes(capsys):
     assert compare_decks.main([str(REF), str(REF)]) == 0
     assert compare_decks.main([str(REF), str(GEN)]) == 1
     capsys.readouterr()
+
+
+def test_render_without_soffice_fails_loudly(monkeypatch, tmp_path):
+    """The missing-tool guard is all that stands between a user and a traceback."""
+    monkeypatch.setattr(compare_decks.shutil, "which", lambda name: None)
+    with pytest.raises(RuntimeError, match="soffice"):
+        compare_decks.render_deck(REF, tmp_path / "out", 144)
+
+
+def test_render_needs_pdftoppm_too(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        compare_decks.shutil, "which", lambda name: None if name == "pdftoppm" else "/x"
+    )
+    with pytest.raises(RuntimeError, match="pdftoppm"):
+        compare_decks.render_deck(REF, tmp_path / "out", 144)
+
+
+def test_render_failure_exits_2_and_writes_nothing(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(compare_decks.shutil, "which", lambda name: None)
+    monkeypatch.chdir(tmp_path)
+    assert compare_decks.main([str(REF), str(REF), "--render"]) == 2
+    assert "render failed" in capsys.readouterr().err
+    assert not (tmp_path / "_compare_out").exists()
+
+
+def test_unreadable_deck_exits_2(tmp_path, capsys):
+    junk = tmp_path / "junk.pptx"
+    junk.write_text("not a zip archive at all", encoding="utf-8")
+    assert compare_decks.main([str(REF), str(junk)]) == 2
+    assert "not a readable .pptx" in capsys.readouterr().err
+
+
+def test_missing_deck_exits_2(tmp_path, capsys):
+    assert compare_decks.main([str(REF), str(tmp_path / "nope.pptx")]) == 2
+    assert "no such deck" in capsys.readouterr().err
+
+
+def test_format_report_marks_clean_slides_ok():
+    text = compare_decks.format_report(compare_decks.compare_decks(REF, REF))
+    assert "## Slide 1: OK" in text
+    assert "Total: 0 discrepancies over 1 slide." in text
+
+
+def test_format_report_lists_every_discrepancy():
+    report = compare_decks.compare_decks(REF, GEN, TOL_BELOW_OFFSET)
+    text = compare_decks.format_report(report)
+    assert "## Slide 1: 3 discrepancies" in text
+    assert text.count("\n- ") == 3 + 2  # three findings plus the ref/gen header pair
+    assert "Total: 3 discrepancies over 1 slide." in text
+
+
+def test_format_report_shows_a_fatal_instead_of_slides(tmp_path):
+    from pptx import Presentation
+
+    short = tmp_path / "empty.pptx"
+    Presentation().save(str(short))
+    text = compare_decks.format_report(compare_decks.compare_decks(REF, short))
+    assert "FATAL: slide count differs" in text
+    assert "## Slide" not in text
+
+
+def test_report_flag_writes_the_same_text(tmp_path, capsys):
+    destination = tmp_path / "nested" / "report.md"
+    compare_decks.main([str(REF), str(GEN), "--report", str(destination)])
+    written = destination.read_text(encoding="utf-8")
+    assert written.strip() == capsys.readouterr().out.strip()
+
+
+def test_groups_are_opaque_which_SKILL_md_documents(tmp_path):
+    """Pin the limitation the skill warns about, so a future fix trips this test."""
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.util import Inches
+
+    presentation = Presentation()
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    parts = [
+        slide.shapes.add_shape(
+            MSO_SHAPE.OVAL, Inches(1), Inches(1), Inches(1), Inches(1)
+        ),
+        slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE, Inches(3), Inches(1), Inches(1), Inches(1)
+        ),
+    ]
+    slide.shapes.add_group_shape(parts).name = "grp"
+    deck = tmp_path / "grouped.pptx"
+    presentation.save(str(deck))
+
+    shapes = compare_decks.parse_deck(deck)[0]
+    assert [s.name for s in shapes] == ["grp"], "children must not be walked"
+    # The group must report no geometry of its own rather than borrowing a
+    # child's preset, which would make the diff blame the wrong shape.
+    assert shapes[0].geom is None

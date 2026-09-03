@@ -136,3 +136,21 @@ def test_main_exit_codes(folders, tmp_path, capsys):
     assert pixel_diff.main(argv + ["--max-diff", "1.0"]) == 0
     assert pixel_diff.main([str(ref_dir), str(tmp_path / "nope"), "--outdir", "x"]) == 2
     capsys.readouterr()
+
+
+def test_zoom_box_outside_the_page_is_rejected(folders, tmp_path):
+    """Image.crop pads silently, so an oversize box must be caught here."""
+    ref_dir, gen_dir = folders
+    outdir = tmp_path / "out"
+    pages = pixel_diff.compare_folders(ref_dir, gen_dir, outdir, 8)
+    with pytest.raises(ValueError, match="reaches outside page 1"):
+        pixel_diff.write_zoom(pages, "1:0,0,9999,9999", outdir)
+    assert not list(outdir.glob("zoom-*.png"))
+
+
+def test_zoom_box_flush_with_the_page_edge_is_allowed(folders, tmp_path):
+    ref_dir, gen_dir = folders
+    outdir = tmp_path / "out"
+    pages = pixel_diff.compare_folders(ref_dir, gen_dir, outdir, 8)
+    written = pixel_diff.write_zoom(pages, f"1:0,0,{SIZE[0]},{SIZE[1]}", outdir)
+    assert all(Image.open(p).size == SIZE for p in written)
