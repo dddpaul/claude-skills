@@ -78,6 +78,19 @@ Architectural presentation style guide for architecture committee reviews. Defin
 Create an architecture review deck using pptx-arch-style with a title slide, status tracker table, and flow diagram
 ```
 
+### pptx-compare
+
+*Plugin: presentation*
+
+Compare two `.pptx` decks — structurally, by rendered pixels, or by dumping a single slide with exact numbers. Diagnostic and opinion-free: it measures the gap between two decks and calls neither correct. Use it to align a generator against a hand-made reference, to check a rebuilt deck against the previously committed one for regressions, or to read exact values off someone else's slide.
+
+**Covers**: per-slide shape-by-shape diff (text by run, font, size, weight, color, fill, outline, alignment, indents, x/y/w/h in EMU) with cost-based shape matching and a `--pos-tol` coordinate tolerance; single-slide dump in EMU and inches; pixel diff of two render folders with red-highlight overlays, a contact sheet, and `--zoom`. `--render` needs `soffice` and `pdftoppm`; the structural comparison needs neither. Known PowerPoint/pptxgenjs engine artefacts are documented in `references/engine-differences.md`.
+
+**Example**:
+```
+Compare the generated deck against the reference and tell me what still differs
+```
+
 ### offdesk
 
 *Plugin: obsidian*
@@ -160,8 +173,16 @@ claude-skills/
     │   └── skills/
     │       ├── pptx-core-style/
     │       │   └── SKILL.md                      # Style guide for core architecture slides
-    │       └── pptx-arch-style/
-    │           └── SKILL.md                      # Style guide for architecture committee decks
+    │       ├── pptx-arch-style/
+    │       │   └── SKILL.md                      # Style guide for architecture committee decks
+    │       └── pptx-compare/
+    │           ├── SKILL.md                      # Skill definition and instructions
+    │           ├── references/
+    │           │   └── engine-differences.md     # PowerPoint vs pptxgenjs artefacts
+    │           └── scripts/
+    │               ├── compare_decks.py          # Shape-by-shape diff of two decks
+    │               ├── dump_slide.py             # One slide as exact numbers
+    │               └── pixel_diff.py             # Pixel diff of two render folders
     ├── obsidian/                                 # plugins/obsidian/skills/
     │   ├── .claude-plugin/
     │   │   └── plugin.json                       # Plugin manifest
@@ -214,7 +235,7 @@ These skills are distributed as Claude Code plugins via a marketplace.
 
 ```
 /plugin install architect@dddpaul-claude-skills      # arch-describe + arch-draw
-/plugin install presentation@dddpaul-claude-skills   # pptx-core-style + pptx-arch-style
+/plugin install presentation@dddpaul-claude-skills   # pptx-core-style + pptx-arch-style + pptx-compare
 /plugin install obsidian@dddpaul-claude-skills       # offdesk
 /plugin install publish@dddpaul-claude-skills        # pdf + publish
 ```
