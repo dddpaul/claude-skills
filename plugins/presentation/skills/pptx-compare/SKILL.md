@@ -149,9 +149,7 @@ to be judged by eye, line by line. Folded, the same run prints zero and the loop
 condition a script can test:
 
 ```
-until uv run scripts/compare_decks.py ref.pptx gen.pptx --fold-engine-artefacts; do
-  : # fix the generator, rebuild gen.pptx
-done
+uv run scripts/compare_decks.py ref.pptx gen.pptx --fold-engine-artefacts && echo converged
 ```
 
 A folded report says so in its header, so a filtered report is never mistaken for a full one. Fold to
