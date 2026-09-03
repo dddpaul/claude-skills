@@ -46,6 +46,7 @@ verdict).
 
 ```
 uv run scripts/compare_decks.py REF.pptx GEN.pptx [--pos-tol INCHES]
+                                [--fold-engine-artefacts]
                                 [--render] [--dpi N] [--outdir DIR] [--report FILE]
 ```
 
@@ -58,6 +59,8 @@ force-fitted into a misleading diff.
 - `--pos-tol INCHES` — coordinate slack; x/y/w/h deltas at or below it are not reported. Default
   0.040in. A different generator pair needs a different value: widen it until engine rounding stops
   showing, then leave it there so real drift still surfaces.
+- `--fold-engine-artefacts` — drop the findings the tool itself attributes to the engine pair, and
+  count only what is left. Off by default; see "Folding engine artefacts" below.
 - `--render` — additionally rasterise both decks (see below).
 - `--report FILE` — write the same text to a file as well as stdout.
 
@@ -119,6 +122,38 @@ artefacts of the engine pair and will never go away, no matter how the generator
 chasing a discrepancy, check it against `references/engine-differences.md`, which lists the four known
 ones.
 
+## Folding engine artefacts
+
+`--fold-engine-artefacts` drops the findings the tool has already attributed to the engine pair and
+counts only what is left, so a deck differing solely by those reports `Total: 0` and exits `0`.
+
+**The default is unchanged: without the flag every difference is still listed, engine artefacts
+included.** The flag is opt-in and subtracts nothing else — a discrepancy the tool does not itself
+mark as an artefact survives the fold untouched, and so does a run-count mismatch whose paragraph
+text also differs, because that is drift the engine pair does not explain.
+
+Which mode to use depends on what you are reading the output for:
+
+| You are | Use | Because |
+|---------|-----|---------|
+| Converging a generator on a reference | `--fold-engine-artefacts` | One signal beats a list to re-read each cycle |
+| Reading the discrepancy diff | the default | Folding hides differences you have not classified yet |
+
+The convergence loop is the case the flag exists for. Aligning a generator against a hand-built deck
+(use case 1 above) means running the comparison after every generator change; once the only remaining
+differences are engine artefacts, an unfolded report still prints several dozen lines and "done" has
+to be judged by eye, line by line. Folded, the same run prints zero and the loop has a stopping
+condition a script can test:
+
+```
+until uv run scripts/compare_decks.py ref.pptx gen.pptx --fold-engine-artefacts; do
+  : # fix the generator, rebuild gen.pptx
+done
+```
+
+A folded report says so in its header, so a filtered report is never mistaken for a full one. Fold to
+decide whether you are done; drop the flag to read what is actually left.
+
 ## Known limitation: groups are opaque
 
 **A grouped shape is compared as one shape; its contents are not inspected.** The parse walks the
@@ -135,6 +170,9 @@ Two ways round it: ungroup in the reference before comparing, or fall back on `-
 ```
 uv run scripts/compare_decks.py ref.pptx gen.pptx --report compare.md
 # fix the generator, rebuild gen.pptx, repeat until only known engine artefacts remain
+
+uv run scripts/compare_decks.py ref.pptx gen.pptx --fold-engine-artefacts
+# same comparison, artefacts folded: "Total: 0" and exit 0 mean converged
 
 uv run scripts/compare_decks.py ref.pptx gen.pptx --render --dpi 144 --outdir ./_cmp
 uv run scripts/pixel_diff.py ./_cmp/ref ./_cmp/gen --outdir ./_cmp/diff
