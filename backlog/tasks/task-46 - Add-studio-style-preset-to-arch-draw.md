@@ -1,10 +1,10 @@
 ---
 id: TASK-46
 title: Add studio style preset to arch-draw
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-09 05:38'
-updated_date: '2026-10-09 07:12'
+updated_date: '2026-10-10 13:36'
 labels:
   - 'feature:arch-draw-studio'
 dependencies: []
@@ -314,14 +314,29 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 references/style-studio.md gives an mxGraph style string for each element kind: four zones (external, internal, repo, fence), three boxes (plain, secret/deny, gate), four edges (default, deny, ok, gate), zone label, box title and subtitle, code label and edge label
-- [ ] #2 Every hex colour in style-studio.md and the three assets/studio-*.drawio files is one of the eleven light-palette values in the task's Style spec: grep -ohi '#[0-9a-f]\{6\}' over those four files, lowercased and deduplicated, lists nothing else
-- [ ] #3 Preset text styles use fontFamily IBM Plex Sans or IBM Plex Mono with a fontSource Google Fonts URL; every cell with IBM Plex Mono text (including every chip and the code line of Config with credentials, which is a text cell of its own) declares the IBM Plex Mono fontSource; and grep finds no Helvetica or Courier New in style-studio.md or any assets/studio-*.drawio file
-- [ ] #4 assets/studio-example.drawio parses (uv run python -c "import xml.etree.ElementTree as E; E.parse('plugins/architect/skills/arch-draw/assets/studio-example.drawio')"), has the 4 zones, 9 boxes, 7 edges and the free note from the Example section, and every x, y, width and height is a multiple of 10
-- [ ] #5 SKILL.md has a 'Style presets' section naming the default palettes and studio (used when the user asks for studio style), linking references/style-studio.md and saying that with studio the SKILL.md patterns (Kafka, Camunda 8, BPMN) are drawn with studio kinds, and its frontmatter description mentions the studio preset
-- [ ] #6 git diff master shows no change to references/cheatsheet.md or references/agent-prompt.md, and the only removed line in SKILL.md is the old frontmatter description
-- [ ] #7 README's arch-draw section mentions the studio preset and its Project Structure tree lists references/style-studio.md and the three assets/studio-*.drawio files; plugins/architect/.claude-plugin/plugin.json has version 0.2.0; uv run ruff check . passes; and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree, which already fails on master
-- [ ] #8 references/style-studio.md gives an mxGraph style string for each extension and BPMN kind: group, data store (plain and secret), chip (plain and deny), person, the async and two-way edge modifiers, start event, end event, error end event, task and exclusive gateway; and its usage note gives the deny, gate and ok meanings for general diagrams
-- [ ] #9 assets/studio-kafka-example.drawio parses with the same ElementTree check as AC #4, has the 3 zones, the group, 8 boxes, 2 data stores, 3 chips, the person, the free code note and the 11 edges of the Kafka example, and every x, y, width and height is a multiple of 10
-- [ ] #10 assets/studio-bpmn-example.drawio parses with the same ElementTree check as AC #4, has the start event, 3 tasks, the exclusive gateway, the end event, the error end event and the 6 sequence flows of the BPMN example, and every x, y, width and height is a multiple of 10
+- [x] #1 references/style-studio.md gives an mxGraph style string for each element kind: four zones (external, internal, repo, fence), three boxes (plain, secret/deny, gate), four edges (default, deny, ok, gate), zone label, box title and subtitle, code label and edge label
+- [x] #2 Every hex colour in style-studio.md and the three assets/studio-*.drawio files is one of the eleven light-palette values in the task's Style spec: grep -ohi '#[0-9a-f]\{6\}' over those four files, lowercased and deduplicated, lists nothing else
+- [x] #3 Preset text styles use fontFamily IBM Plex Sans or IBM Plex Mono with a fontSource Google Fonts URL; every cell with IBM Plex Mono text (including every chip and the code line of Config with credentials, which is a text cell of its own) declares the IBM Plex Mono fontSource; and grep finds no Helvetica or Courier New in style-studio.md or any assets/studio-*.drawio file
+- [x] #4 assets/studio-example.drawio parses (uv run python -c "import xml.etree.ElementTree as E; E.parse('plugins/architect/skills/arch-draw/assets/studio-example.drawio')"), has the 4 zones, 9 boxes, 7 edges and the free note from the Example section, and every x, y, width and height is a multiple of 10
+- [x] #5 SKILL.md has a 'Style presets' section naming the default palettes and studio (used when the user asks for studio style), linking references/style-studio.md and saying that with studio the SKILL.md patterns (Kafka, Camunda 8, BPMN) are drawn with studio kinds, and its frontmatter description mentions the studio preset
+- [x] #6 git diff master shows no change to references/cheatsheet.md or references/agent-prompt.md, and the only removed line in SKILL.md is the old frontmatter description
+- [x] #7 README's arch-draw section mentions the studio preset and its Project Structure tree lists references/style-studio.md and the three assets/studio-*.drawio files; plugins/architect/.claude-plugin/plugin.json has version 0.2.0; uv run ruff check . passes; and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree, which already fails on master
+- [x] #8 references/style-studio.md gives an mxGraph style string for each extension and BPMN kind: group, data store (plain and secret), chip (plain and deny), person, the async and two-way edge modifiers, start event, end event, error end event, task and exclusive gateway; and its usage note gives the deny, gate and ok meanings for general diagrams
+- [x] #9 assets/studio-kafka-example.drawio parses with the same ElementTree check as AC #4, has the 3 zones, the group, 8 boxes, 2 data stores, 3 chips, the person, the free code note and the 11 edges of the Kafka example, and every x, y, width and height is a multiple of 10
+- [x] #10 assets/studio-bpmn-example.drawio parses with the same ElementTree check as AC #4, has the start event, 3 tasks, the exclusive gateway, the end event, the error end event and the 6 sequence flows of the BPMN example, and every x, y, width and height is a multiple of 10
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: handoff gate green (all (exists) paths present, no deps, ACs are grep/parse checks, no external-tool default change; Source ~/.claude not needed — the spec is self-contained). Write references/style-studio.md (palette, fonts, translation choices, one style string per kind incl. extension + BPMN, usage note); generate the three assets/studio-*.drawio from one throwaway /tmp script (not committed — generators are out of scope), snapping geometry to the 10px grid, waypoints and label offsets included; add a Style presets section + Quick Reference link + description mention to SKILL.md; README line + tree; architect plugin.json 0.1.1 -> 0.2.0 (marketplace.json carries no per-plugin version). Verify ACs with a /tmp check script. draw.io is not installed in the container, so the render check is left for the host.
+
+Commit: `aad986f` - task-46: add studio style preset to arch-draw with reference, three example diagrams, SKILL.md presets section
+
+Commit: `bbc91fe` - task-46: unwrap studio preset prose, move the reads-config label clear of the fence border, lower the replication note
+
+Done. Added references/style-studio.md (palette, fonts, translation choices, one style string per zone/box/edge/label kind plus the group, data store, chip, person, async/two-way modifiers and the five BPMN kinds, and a usage note on colour meaning), three examples assets/studio-example.drawio, studio-kafka-example.drawio and studio-bpmn-example.drawio, a Style presets section + Quick Reference link + description mention in SKILL.md, a README line and tree entries, and architect plugin.json 0.1.1 -> 0.2.0 (marketplace.json has no per-plugin version). The examples were generated by a throwaway /tmp script, not committed, since generators are out of scope.
+Choices: semibold uses html font-weight:600 spans (Sans fontSource loads 400,600; fontStyle=1 is not used); Mono text always gets its own cell; geometry is on the 10px grid, with the 16px insets coming from spacingLeft; opencode's centre (y=385) is off the grid, so its ok edges exit at exitDy=30 (y=390); the fence label stays muted; the title is 18px (the spec gives no size); Kafka chips are stacked vertically and boxes next to chips are 50px high, so producer and consumer edges run straight.
+Verification: the AC checks (hex set = exactly the 11 palette values; no Helvetica or Courier New; Mono fontSource on every Mono cell; ElementTree parse; per-kind counts; every x/y/width/height incl. waypoints and offsets a multiple of 10) pass; ruff clean; pytest 243 passed, 1 failed (only the master baseline test_helper_renders_canonical_decision_tree). ralph:task-reviewer: first round CHANGES REQUESTED (R-DOCS-3 hard-wrapped prose; 2 minor label/note placements), all fixed in bbc91fe, then APPROVED 10/10.
+NOT RENDERED: draw.io is not installed in the devcontainer. On the host, run /Applications/draw.io.app/Contents/MacOS/draw.io -x -f png -o "$TMPDIR/<name>.png" plugins/architect/skills/arch-draw/assets/<name>.drawio for studio-example, studio-kafka-example and studio-bpmn-example. Check: corner radii (arcSize read as a diameter), arrowhead size (endSize=9), placement of the 'git' label (offset -10,-20) and the bottom-run 'reads config and history raw' label, the 'dead letter' label (offset -80,0), and the muted fence label against the original artifact.
+<!-- SECTION:NOTES:END -->
