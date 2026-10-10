@@ -36,7 +36,7 @@
           <mxGeometry x="920" y="100" width="140" height="60" as="geometry"/>
         </mxCell>
         <mxCell id="note-replication" value="replication factor 3 · min.insync.replicas 2" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;spacing=0;fontSize=11;fontColor=#5a6575;fontFamily=IBM Plex Mono;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BMono%3A400;" parent="1" vertex="1">
-          <mxGeometry x="480" y="180" width="620" height="20" as="geometry"/>
+          <mxGeometry x="480" y="190" width="620" height="20" as="geometry"/>
         </mxCell>
         <mxCell id="chip-payments" value="payments.v1" style="rounded=1;absoluteArcSize=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c3ccd7;strokeWidth=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#5a6575;fontFamily=IBM Plex Mono;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BMono%3A400;" parent="1" vertex="1">
           <mxGeometry x="720" y="240" width="140" height="30" as="geometry"/>
