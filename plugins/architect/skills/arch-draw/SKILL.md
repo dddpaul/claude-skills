@@ -268,14 +268,9 @@ style="...fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#333333;..."
 | default | Always, unless the user asks for another preset | The palettes in Color Schemes above (Enterprise/Professional, Workflow/Process) |
 | studio | The user asks for "studio style" or the "studio preset" | [references/style-studio.md](references/style-studio.md) |
 
-Studio is a restrained look: white boxes on lightly tinted zones, IBM Plex type, and colour kept for meaning only (red
-for refused paths and secret holders, amber for gates and masking, green for trusted paths). It replaces the colours,
-fonts and shape styles; the grid, spacing and routing rules in this file stay the same.
+Studio is a restrained look: white boxes on lightly tinted zones, IBM Plex type, and colour kept for meaning only (red for refused paths and secret holders, amber for gates and masking, green for trusted paths). It replaces the colours, fonts and shape styles; the grid, spacing and routing rules in this file stay the same.
 
-With studio, the patterns in this file (Kafka / event-driven, Camunda 8, Workflow/BPMN) are drawn with studio kinds
-instead of the default palette colours: zones and groups for clusters and boundaries, boxes, data stores, chips for
-topics, person for users, async and two-way edge modifiers, and the studio BPMN events, tasks and gateway. Worked
-examples: `assets/studio-example.drawio`, `assets/studio-kafka-example.drawio`, `assets/studio-bpmn-example.drawio`.
+With studio, the patterns in this file (Kafka / event-driven, Camunda 8, Workflow/BPMN) are drawn with studio kinds instead of the default palette colours: zones and groups for clusters and boundaries, boxes, data stores, chips for topics, person for users, async and two-way edge modifiers, and the studio BPMN events, tasks and gateway. Worked examples: `assets/studio-example.drawio`, `assets/studio-kafka-example.drawio`, `assets/studio-bpmn-example.drawio`.
 
 ## Common Architectural Patterns
 

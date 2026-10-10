@@ -54,7 +54,9 @@
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
         <mxCell id="edge-reads-config" value="reads config" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;endSize=9;strokeColor=#b3362b;strokeWidth=1.6;fontSize=11.5;fontColor=#b3362b;labelBackgroundColor=none;verticalAlign=bottom;spacingBottom=2;fontFamily=IBM Plex Sans;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BSans%3A400%2C600;exitX=1;exitY=0;exitDx=0;exitDy=165;entryX=0;entryY=0.5;" parent="1" source="zone-external" target="box-file-deny" edge="1">
-          <mxGeometry relative="1" as="geometry"/>
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="20" y="0" as="offset"/>
+          </mxGeometry>
         </mxCell>
         <mxCell id="edge-git" value="git" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;endSize=9;strokeColor=#18202b;strokeWidth=1.5;fontSize=11.5;fontColor=#18202b;labelBackgroundColor=none;verticalAlign=bottom;spacingBottom=2;fontFamily=IBM Plex Sans;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BSans%3A400%2C600;verticalAlign=middle;align=left;spacingBottom=0;spacingLeft=6;exitX=0;exitY=1;exitDx=210;exitDy=0;entryX=0;entryY=0.5;" parent="1" source="zone-external" target="box-git-guard" edge="1">
           <mxGeometry relative="1" as="geometry">

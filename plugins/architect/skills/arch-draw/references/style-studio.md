@@ -1,8 +1,6 @@
 # Studio Style Preset
 
-A restrained draw.io look: white boxes on lightly tinted zones, IBM Plex type, and colour kept for meaning only. Red
-marks refused paths and boxes that hold secrets, amber marks gates and masking, green marks the trusted path. Use it
-when the user asks for "studio style" or the "studio preset". Worked examples:
+A restrained draw.io look: white boxes on lightly tinted zones, IBM Plex type, and colour kept for meaning only. Red marks refused paths and boxes that hold secrets, amber marks gates and masking, green marks the trusted path. Use it when the user asks for "studio style" or the "studio preset". Worked examples:
 
 | Example | File |
 |---------|------|
@@ -10,8 +8,7 @@ when the user asks for "studio style" or the "studio preset". Worked examples:
 | Kafka platform: group, chips, data stores, person, async and two-way edges | [assets/studio-kafka-example.drawio](../assets/studio-kafka-example.drawio) |
 | BPMN order process | [assets/studio-bpmn-example.drawio](../assets/studio-bpmn-example.drawio) |
 
-All grid, spacing and routing rules from SKILL.md still apply: 10px grid for geometry, waypoints and label offsets,
-40px horizontal and 30px vertical gaps, explicit entry and exit points, no edge through a box.
+All grid, spacing and routing rules from SKILL.md still apply: 10px grid for geometry, waypoints and label offsets, 40px horizontal and 30px vertical gaps, explicit entry and exit points, no edge through a box.
 
 ## Palette
 
@@ -41,8 +38,7 @@ Set `background="#ffffff"` on `mxGraphModel` (or `#f4f6f8` when the diagram sits
 | Code labels: globs, commands, file names, topics | IBM Plex Mono 400 | `fontFamily=IBM Plex Mono;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BMono%3A400;` |
 | Diagram title, if any | IBM Plex Sans Condensed 600 | `fontFamily=IBM Plex Sans Condensed;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BSans%2BCondensed%3A600;` |
 
-`fontSource` is the URL-encoded Google Fonts CSS URL, so the diagram renders where the font is not installed. Every
-style string below already carries the right fragment.
+`fontSource` is the URL-encoded Google Fonts CSS URL, so the diagram renders where the font is not installed. Every style string below already carries the right fragment.
 
 ## Translation choices
 
@@ -63,8 +59,7 @@ The style was first drawn as SVG. These are the decisions made when moving it to
 
 ## Zones
 
-Rounded rectangles, 10px radius. The label sits top-left, 16px in and about 22px down: 10.5px, semibold, uppercase,
-muted, letter-spacing .08em. Value: `<span style="font-weight:600;letter-spacing:.08em">EXTERNAL MODELS</span>`.
+Rounded rectangles, 10px radius. The label sits top-left, 16px in and about 22px down: 10.5px, semibold, uppercase, muted, letter-spacing .08em. Value: `<span style="font-weight:600;letter-spacing:.08em">EXTERNAL MODELS</span>`.
 
 | Zone | Fill | Stroke | Dash |
 |------|------|--------|------|
@@ -97,8 +92,7 @@ Draw a fence after the zones it overlaps; it has no fill, so it never hides them
 
 ## Boxes
 
-Rounded rectangles, 6px radius, panel fill, text left-aligned 16px in. Title 13px semibold fg; under it a subtitle at
-11.5px muted, or a code line at 11px IBM Plex Mono muted.
+Rounded rectangles, 6px radius, panel fill, text left-aligned 16px in. Title 13px semibold fg; under it a subtitle at 11.5px muted, or a code line at 11px IBM Plex Mono muted.
 
 | Box | Stroke | Width |
 |-----|--------|-------|
@@ -123,9 +117,7 @@ Box title and subtitle (the box's `value`, html-escaped in the XML attribute):
 <span style="font-weight:600">Claude Code</span><br><span style="font-size:11.5px;color:#5a6575">left pane · Anthropic</span>
 ```
 
-A box with a code line instead of a subtitle: the box holds only the title and is top-aligned — replace
-`verticalAlign=middle` with `verticalAlign=top;spacingTop=12` — and the code line is a separate cell 30px below the
-box top, same x and width, 20px high:
+A box with a code line instead of a subtitle: the box holds only the title and is top-aligned — replace `verticalAlign=middle` with `verticalAlign=top;spacingTop=12` — and the code line is a separate cell 30px below the box top, same x and width, 20px high:
 
 ```text
 code label:
@@ -159,13 +151,11 @@ gate:
 edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;endSize=9;strokeColor=#a8681a;strokeWidth=1.6;fontSize=11.5;fontColor=#a8681a;labelBackgroundColor=none;verticalAlign=bottom;spacingBottom=2;fontFamily=IBM Plex Sans;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BSans%3A400%2C600;
 ```
 
-Add the exit and entry points (`exitX=1;exitY=0.5;entryX=0;entryY=0.5;`) after the base string. To leave a zone at a
-point that is not a fraction of its size, use `exitDx` / `exitDy` from a corner, e.g. `exitX=1;exitY=0;exitDy=70`.
+Add the exit and entry points (`exitX=1;exitY=0.5;entryX=0;entryY=0.5;`) after the base string. To leave a zone at a point that is not a fraction of its size, use `exitDx` / `exitDy` from a corner, e.g. `exitX=1;exitY=0;exitDy=70`.
 
 ### Edge labels
 
-The edge's `value` is its label: 11.5px IBM Plex Sans in the edge colour, just above the line, no background. The
-edge styles above already carry it. Variants appended to the edge style:
+The edge's `value` is its label: 11.5px IBM Plex Sans in the edge colour, just above the line, no background. The edge styles above already carry it. Variants appended to the edge style:
 
 ```text
 edge label on a vertical run (just to the right of the line):
@@ -175,8 +165,7 @@ code-like edge label (a flag, a tool name):
 fontSize=11;fontColor=#5a6575;fontFamily=IBM Plex Mono;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BMono%3A400;
 ```
 
-A code-like label replaces the Sans font, so append its fragment after the edge style (later keys win). A label that
-does not land where it should is a free text cell on the grid instead, in the edge colour.
+A code-like label replaces the Sans font, so append its fragment after the edge style (later keys win). A label that does not land where it should is a free text cell on the grid instead, in the edge colour.
 
 ### Free notes and title
 
@@ -202,10 +191,8 @@ For Kafka, Camunda 8 and C4 container diagrams. Same palette, same fonts.
 | chip, deny | same as chip | panel | deny, 1 | 11px IBM Plex Mono in deny |
 | person | pill | panel | line, 1.2 | box title and subtitle, centred |
 
-- A **group** sits inside a zone and holds boxes, chips and data stores: a Kafka or Zeebe cluster, a Kubernetes
-  namespace.
-- A **chip** is a topic, queue, partition or other named channel. A coloured chip colours its text and border
-  together. Chip text is plain (no html spans): the cell's own Mono font renders it.
+- A **group** sits inside a zone and holds boxes, chips and data stores: a Kafka or Zeebe cluster, a Kubernetes namespace.
+- A **chip** is a topic, queue, partition or other named channel. A coloured chip colours its text and border together. Chip text is plain (no html spans): the cell's own Mono font renders it.
 - A **person** is a user or role (C4 person). It sits outside the zones.
 
 ```text
@@ -228,8 +215,7 @@ person:
 rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c3ccd7;strokeWidth=1.2;align=center;verticalAlign=middle;fontSize=13;fontColor=#18202b;fontFamily=IBM Plex Sans;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BSans%3A400%2C600;
 ```
 
-A chip is 30px high and a box is best 50px high next to it: then their centres differ by a whole 10px step, and an edge
-from the box to the chip runs straight.
+A chip is 30px high and a box is best 50px high next to it: then their centres differ by a whole 10px step, and an edge from the box to the chip runs straight.
 
 ### Edge modifiers
 
@@ -267,10 +253,7 @@ exclusive gateway:
 rhombus;html=1;fillColor=#ffffff;strokeColor=#18202b;strokeWidth=1.5;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;spacingBottom=2;fontSize=11.5;fontColor=#5a6575;fontFamily=IBM Plex Sans;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DIBM%2BPlex%2BSans%3A400%2C600;
 ```
 
-Sequence flows are default edges; message flows are default edges with the async modifier. Branch labels ("yes",
-"no") are edge labels; a branch that leads to an error end is a deny edge. Events and the gateway are 40px so their
-centres line up with a 60px task's centre on the 10px grid (task at y, event at y+10). Pools, lanes, intermediate and
-boundary events, and other gateway types are not part of the preset.
+Sequence flows are default edges; message flows are default edges with the async modifier. Branch labels ("yes", "no") are edge labels; a branch that leads to an error end is a deny edge. Events and the gateway are 40px so their centres line up with a 60px task's centre on the 10px grid (task at y, event at y+10). Pools, lanes, intermediate and boundary events, and other gateway types are not part of the preset.
 
 ## Usage: colour meaning in general diagrams
 
@@ -281,10 +264,7 @@ boundary events, and other gateway types are not part of the preset.
 | ok | trusted or explicitly allowed paths, when the diagram contrasts them with others |
 
 - Everything else stays neutral: plain boxes, default edges.
-- A name is not a kind. An API gateway or a Zeebe gateway is a gate box only when the diagram is about what it
-  checks.
-- Kafka: a group for the cluster, plain boxes for brokers with two-way edges between them, chips for topics (a deny
-  chip for a dead-letter topic), async edges for publish and consume, a gate box for a schema registry.
-- Camunda 8: a group for the Zeebe cluster, boxes for brokers and gateways, two-way edges for Raft, data stores for
-  Elasticsearch or OpenSearch.
+- A name is not a kind. An API gateway or a Zeebe gateway is a gate box only when the diagram is about what it checks.
+- Kafka: a group for the cluster, plain boxes for brokers with two-way edges between them, chips for topics (a deny chip for a dead-letter topic), async edges for publish and consume, a gate box for a schema registry.
+- Camunda 8: a group for the Zeebe cluster, boxes for brokers and gateways, two-way edges for Raft, data stores for Elasticsearch or OpenSearch.
 - C4 container level: zones as system boundaries, boxes with a "[Container: tech]" subtitle, person for users.
