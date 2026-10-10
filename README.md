@@ -46,6 +46,7 @@ Generate professional draw.io diagrams in XML format from architectural descript
 - Consistent color schemes
 - Container/swimlane support
 - Multiple architectural patterns (three-tier, event-driven, etc.)
+- "studio" style preset (IBM Plex type, white boxes on tinted zones, colour only for meaning) — ask for "studio style"
 
 **Example**:
 ```
@@ -164,9 +165,14 @@ claude-skills/
     │       │       └── architectures.md          # Reference for 20+ common systems
     │       └── arch-draw/
     │           ├── SKILL.md                      # Skill definition and instructions
-    │           └── references/
-    │               ├── cheatsheet.md             # Quick reference for XML elements
-    │               └── agent-prompt.md           # Prompt templates and validation
+    │           ├── references/
+    │           │   ├── cheatsheet.md             # Quick reference for XML elements
+    │           │   ├── agent-prompt.md           # Prompt templates and validation
+    │           │   └── style-studio.md           # Studio style preset: palette, fonts, styles
+    │           └── assets/
+    │               ├── studio-example.drawio     # Studio example: "Who reads what"
+    │               ├── studio-kafka-example.drawio  # Studio example: Kafka platform
+    │               └── studio-bpmn-example.drawio   # Studio example: BPMN order process
     ├── presentation/                             # plugins/presentation/skills/
     │   ├── .claude-plugin/
     │   │   └── plugin.json                       # Plugin manifest

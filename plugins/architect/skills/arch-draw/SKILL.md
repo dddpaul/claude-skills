@@ -1,6 +1,6 @@
 ---
 name: arch-draw
-description: Generate professional draw.io diagrams in XML format from architectural descriptions. Use when Claude needs to create visual diagrams for (1) System architecture diagrams, (2) Microservices layouts, (3) Workflow/BPMN diagrams, (4) Network topology, (5) Data flow diagrams, (6) Any visual representation requiring boxes, containers, arrows, and connections. Handles arrow routing, collision avoidance, consistent layouts, and architectural patterns like three-tier, event-driven, and Camunda/Zeebe clusters.
+description: Generate professional draw.io diagrams in XML format from architectural descriptions. Use when Claude needs to create visual diagrams for (1) System architecture diagrams, (2) Microservices layouts, (3) Workflow/BPMN diagrams, (4) Network topology, (5) Data flow diagrams, (6) Any visual representation requiring boxes, containers, arrows, and connections. Handles arrow routing, collision avoidance, consistent layouts, and architectural patterns like three-tier, event-driven, and Camunda/Zeebe clusters. Offers a "studio" style preset (white boxes on tinted zones, IBM Plex type, colour only for deny/gate/ok meaning) when the user asks for studio style or the studio preset.
 ---
 
 # Draw.io Diagram Generation Skill
@@ -13,6 +13,7 @@ This skill enables AI agents to generate professional, clean draw.io diagrams in
 
 - **Cheatsheet**: See [references/cheatsheet.md](references/cheatsheet.md) for copy-paste XML snippets, color codes, and common element templates
 - **Agent Prompts**: See [references/agent-prompt.md](references/agent-prompt.md) for system/user prompt templates and validation checklist
+- **Studio preset**: See [references/style-studio.md](references/style-studio.md) for the studio palette, fonts and a style string per element kind, with examples in `assets/studio-*.drawio`
 
 ## File Format Basics
 
@@ -259,6 +260,22 @@ style="endArrow=diamond;endFill=0;html=1;"
 ```xml
 style="...fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#333333;..."
 ```
+
+## Style presets
+
+| Preset | When | Source |
+|--------|------|--------|
+| default | Always, unless the user asks for another preset | The palettes in Color Schemes above (Enterprise/Professional, Workflow/Process) |
+| studio | The user asks for "studio style" or the "studio preset" | [references/style-studio.md](references/style-studio.md) |
+
+Studio is a restrained look: white boxes on lightly tinted zones, IBM Plex type, and colour kept for meaning only (red
+for refused paths and secret holders, amber for gates and masking, green for trusted paths). It replaces the colours,
+fonts and shape styles; the grid, spacing and routing rules in this file stay the same.
+
+With studio, the patterns in this file (Kafka / event-driven, Camunda 8, Workflow/BPMN) are drawn with studio kinds
+instead of the default palette colours: zones and groups for clusters and boundaries, boxes, data stores, chips for
+topics, person for users, async and two-way edge modifiers, and the studio BPMN events, tasks and gateway. Worked
+examples: `assets/studio-example.drawio`, `assets/studio-kafka-example.drawio`, `assets/studio-bpmn-example.drawio`.
 
 ## Common Architectural Patterns
 
