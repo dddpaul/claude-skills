@@ -1,7 +1,28 @@
+# No default on purpose: UV_VERSION comes from devcontainer.json build.args as a
+# concrete X.Y.Z, for the same reason CLAUDE_CODE_VERSION does — a floating tag
+# is resolved once and then frozen in the layer cache, so the image silently
+# ages. It is declared here, before the first FROM, because `COPY --from` cannot
+# expand a build arg ("variable expansion is not supported for --from"); uv
+# therefore arrives through a named stage instead of a direct image reference.
+# BuildKit warns InvalidDefaultArgInFrom here precisely because there is no
+# default — that is the point: a lost build arg must fail, not float. Do not
+# silence it by giving UV_VERSION a default.
+ARG UV_VERSION
+
 ###
-### Stage 1: Language Runtime
+### Stage 0: uv binary
 ###
-FROM python:3.14 AS python-runtime
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-bin
+
+###
+### Stage 1: Language Runtime (none — Python comes from the base image)
+###
+# No separate Python stage: the devcontainer base installs uv and runs
+# `uv python install 3.14`, and this project type drives Python through
+# `uv run`. Copying an official python:* image over the base would drop an
+# interpreter linked against that image's glibc into /usr/local, ahead of the
+# base's own python3 in PATH — and the base is Debian bookworm, so a newer
+# python:* tag yields a python3 that cannot start at all.
 
 ###
 ### Stage 2: DevContainer
@@ -10,8 +31,6 @@ FROM node:20
 
 ARG TZ
 ENV TZ="$TZ"
-
-ARG CLAUDE_CODE_VERSION=latest
 
 # Install basic development tools and networking utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,9 +57,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ---- Language Runtime (from multi-stage) ----
-COPY --from=python-runtime /usr/local /usr/local
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# ---- Language Runtime ----
+# Python comes from the base image: it copies the pinned uv (see the uv stage)
+# and runs `uv python install 3.14`, and this project type drives Python through
+# `uv run`. uv is copied once, in the base, for every language.
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global \
@@ -93,13 +113,44 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -x
 
 # ---- Claude ----
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} backlog.md
+# No default on purpose: the version comes from devcontainer.json build.args,
+# a concrete X.Y.Z. A floating tag like `latest` is resolved once and then
+# frozen in the layer cache, so the image silently ages; the RUN below refuses
+# one. The ARG is declared here, not at the top of the stage: a changed ARG
+# value invalidates the cache of every RUN after its declaration, whether or
+# not the RUN references it. So bumping CLAUDE_CODE_VERSION re-runs this step
+# and everything after it, and nothing before it; keep RUNs out of the gap
+# between this ARG and the npm RUN. The label lets `docker image inspect`
+# report the version.
+ARG CLAUDE_CODE_VERSION
+LABEL dev.ralph.claude-code-version="${CLAUDE_CODE_VERSION}"
+RUN { echo "${CLAUDE_CODE_VERSION}" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+' \
+    || { echo "CLAUDE_CODE_VERSION must be a concrete X.Y.Z, got '${CLAUDE_CODE_VERSION}'" >&2; exit 1; }; } \
+  && npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} backlog.md \
+  && claude --version | grep -qF "${CLAUDE_CODE_VERSION}"
+
+# ---- uv + Python 3.14 (required by Ralph orchestrator regardless of project language) ----
+# Bumping UV_VERSION changes this layer's cache key, so the next build recopies
+# the binary; the label lets `docker image inspect` report the version without
+# starting a container. uv runs the orchestrator, installs the interpreter and
+# executes every PEP 723 script, so a silently stale one is a confusing
+# resolver error rather than an obvious "your uv is old".
+ARG UV_VERSION
+LABEL dev.ralph.uv-version="${UV_VERSION}"
+USER root
+COPY --from=uv-bin /uv /usr/local/bin/uv
+USER node
+RUN { echo "${UV_VERSION}" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+' \
+    || { echo "UV_VERSION must be a concrete X.Y.Z, got '${UV_VERSION}'" >&2; exit 1; }; } \
+  && uv --version | grep -qF "${UV_VERSION}" \
+  && uv python install 3.14
 
 # ---- Firewall script ----
 COPY init-firewall.sh /usr/local/bin/
 USER root
 RUN chmod +x /usr/local/bin/init-firewall.sh \
- && echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh, /bin/chown" > /etc/sudoers.d/node-firewall \
- && chmod 0440 /etc/sudoers.d/node-firewall
+ && echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh, /bin/chown node\:node /workspace/.venv" > /etc/sudoers.d/node-firewall \
+ && chmod 0440 /etc/sudoers.d/node-firewall \
+ && visudo -cf /etc/sudoers.d/node-firewall
 
 USER node
