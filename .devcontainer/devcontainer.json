@@ -4,7 +4,18 @@
     "dockerfile": "Dockerfile",
     "args": {
       "TZ": "${localEnv:TZ:America/Los_Angeles}",
-      "CLAUDE_CODE_VERSION": "latest",
+      // Pinned, never "latest": a floating tag is resolved once and then frozen
+      // in Docker's layer cache, so the container's CLI silently falls behind
+      // (and eventually rejects newer models). Bump deliberately to
+      // `npm view @anthropic-ai/claude-code version`; the changed value
+      // invalidates the npm layer on the next image build.
+      "CLAUDE_CODE_VERSION": "2.1.283",
+      // Pinned for the same reason, and bumped deliberately to a uv release:
+      // uv runs the orchestrator, installs the interpreter and executes every
+      // PEP 723 script, so a frozen copy surfaces as a confusing resolver
+      // error rather than an obvious stale-tool one. `COPY --from` cannot
+      // expand a build arg, so the Dockerfile pins it through a named stage.
+      "UV_VERSION": "0.12.19",
       "ZSH_IN_DOCKER_VERSION": "1.2.0"
     }
   },
@@ -40,25 +51,63 @@
   "mounts": [
     "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
     "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind",
-    // Volume overlay for .claude: disables sandbox without modifying host settings.
-    // postCreateCommand copies host files into the volume and patches sandbox.enabled=false.
-    // bwrap can't create mount namespaces on Docker Desktop macOS, so sandbox must be off.
-    "source=claude-code-project-config-${devcontainerId},target=/workspace/.claude,type=volume",
-    "source=${localWorkspaceFolder}/.claude,target=/workspace-host-claude,type=bind,ro"
+    // NOT a duplicate of the bind above — do not prune it. Claude Code's plugin
+    // registries (plugins/known_marketplaces.json, installed_plugins.json)
+    // record absolute *host* paths, so a marketplace resolves only when that
+    // literal path also exists in the container. Without this second bind every
+    // user plugin fails with "Marketplace <name> failed to load: cache-miss",
+    // the task-reviewer agent from ralph@dddpaul-ralph never registers, and the
+    // Review step silently degrades while still reporting APPROVED.
+    // It is also the path CLAUDE_CONFIG_DIR points at (see containerEnv), so
+    // every absolute path a container run records in those registries is
+    // host-shaped and stays resolvable on the host too.
+    "source=${localEnv:HOME}/.claude,target=${localEnv:HOME}/.claude,type=bind",
+    // Single-file overlay for .claude/settings.local.json: the only file that
+    // must differ inside the container, because bwrap can't create mount
+    // namespaces on Docker Desktop macOS so the sandbox has to be off there.
+    // Everything else under .claude/ stays the shared host bind, so host edits
+    // are visible immediately and the container never commits a stale copy.
+    "source=${localWorkspaceFolder}/.devcontainer/container-settings.local.json,target=/workspace/.claude/settings.local.json,type=bind",
+    // Volume overlay for .venv: keeps the container's Linux virtualenv off the
+    // host bind mount. Without it, `uv sync` in the container writes a
+    // container-only interpreter path into the host's .venv/pyvenv.cfg, leaving
+    // .venv/bin/python3 a broken symlink on the host until `rm -rf .venv`.
+    // postCreateCommand chowns it — a fresh named volume mounts in root-owned.
+    "source=claude-code-project-venv-${devcontainerId},target=/workspace/.venv,type=volume"
   ],
   "containerEnv": {
     "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}",
     "NODE_OPTIONS": "--max-old-space-size=4096",
-    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    // The config root is the HOST path, not /home/node/.claude — both names
+    // are binds of the same directory, but the plugin registries under it
+    // store absolute paths, and Claude Code writes whichever root this points
+    // at. Rooted at /home/node a container run rewrites installLocation /
+    // installPath to a path that does not exist on the host, and the host then
+    // rejects the entry ("corrupted installLocation … expected a path inside
+    // <config>/plugins/marketplaces") for every marketplace, not just ralph's.
+    // Rooted at the host path both machines record and resolve the same shape.
+    "CLAUDE_CONFIG_DIR": "${localEnv:HOME}/.claude",
     "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
     "HTTP_PROXY": "http://host.docker.internal:3128",
     "HTTPS_PROXY": "http://host.docker.internal:3128",
-    "NO_PROXY": "localhost,127.0.0.1,.local",
+    "NO_PROXY": "localhost,127.0.0.1,.local,host.docker.internal",
+    "MCP_GATEWAY_HOST": "host.docker.internal",
+    "MCP_GATEWAY_TOKEN": "${localEnv:MCP_GATEWAY_TOKEN}",
     "TZ": "${localEnv:TZ:America/Los_Angeles}"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "sudo chown node:node /workspace/.claude && cp -a /workspace-host-claude/. /workspace/.claude/ && jq '.sandbox.enabled = false' /workspace/.claude/settings.local.json > /tmp/s.json && mv /tmp/s.json /workspace/.claude/settings.local.json",
+  // Seeds the host .claude/settings.local.json before Docker creates the bind
+  // destination. Without it a fresh clone gets a 0-byte file the host's own
+  // Claude Code cannot parse. Runs through /bin/sh with the working directory
+  // pinned to the workspace folder, and [ -s ] leaves a real file alone.
+  // mkdir -p comes first: with no .claude the redirect fails, sh exits
+  // non-zero, and the devcontainer CLI aborts container creation.
+  "initializeCommand": "sh -c 'mkdir -p .claude && { [ -s .claude/settings.local.json ] || echo {} > .claude/settings.local.json; }'",
+  // /workspace presents as root-owned inside the container while the user is
+  // node, so git refuses the repo with "detected dubious ownership" until the
+  // folder is marked safe. The .venv chown is for the named volume above.
+  "postCreateCommand": "sudo chown node:node /workspace/.venv && git config --global --add safe.directory /workspace",
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
   "forwardPorts": [3000],
   "portsAttributes": {
