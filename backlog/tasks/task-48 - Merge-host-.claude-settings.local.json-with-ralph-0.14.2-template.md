@@ -1,10 +1,10 @@
 ---
 id: TASK-48
 title: Merge host .claude/settings.local.json with ralph 0.14.2 template
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-10 06:20'
-updated_date: '2026-10-10 10:11'
+updated_date: '2026-10-10 10:43'
 labels: []
 dependencies: []
 ordinal: 48000
@@ -35,4 +35,6 @@ Applied on the host with the user's per-change approval: settings.local.json (6 
 Commit: `24ab87f` - task-48: pin Claude Code and uv in the devcontainer Dockerfile, drop the python runtime copy, narrow the sudoers chown
 
 Build verification (host, 2026-10-10): devcontainer build --workspace-folder . -> outcome success; guarded npm step ran npm install -g @anthropic-ai/claude-code@2.1.283 and claude --version matched; guarded uv step matched 0.12.19 and ran uv python install 3.14; only warning InvalidDefaultArgInFrom (expected per Dockerfile.base). docker image inspect labels: claude=2.1.283 uv=0.12.19. In the image: claude --version = 2.1.283 (Claude Code); uv --version = uv 0.12.19; python3 -c '' ok (Debian 3.11.2, no broken /usr/local copy); uv python find 3.14 = /home/node/.local/share/uv/python/cpython-3.14-linux-aarch64-gnu/bin/python3.14; sudo -l = (root) NOPASSWD: /usr/local/bin/init-firewall.sh, /bin/chown node\:node /workspace/.venv. postCreateCommand check on a fresh anonymous volume mounted at /workspace/.venv: before root:root, sudo -n chown node:node /workspace/.venv exit 0, after node:node; sudo -n chown node:node /usr/local/bin/init-firewall.sh refused (a password is required).
+
+task-reviewer round 1: CHANGES REQUESTED (1 blocking R-CORE-6: no AC invoking the build with the new pins; 1 minor: description scope). Fixed in 0ecc764 (AC #5 + observed outputs, description extended). Round 2: APPROVED, score 10, 0 findings. Final: ruff clean; pytest 243 passed, 1 failed (test_helper_renders_canonical_decision_tree, same as master). Next Ralph launch needs rebuild=true so the container is created from the rebuilt image.
 <!-- SECTION:NOTES:END -->
