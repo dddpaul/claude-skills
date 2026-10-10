@@ -4,7 +4,7 @@ title: Add studio style preset to arch-draw
 status: Done
 assignee: []
 created_date: '2026-10-09 05:38'
-updated_date: '2026-10-10 13:36'
+updated_date: '2026-10-10 13:51'
 labels:
   - 'feature:arch-draw-studio'
 dependencies: []
@@ -339,4 +339,6 @@ Done. Added references/style-studio.md (palette, fonts, translation choices, one
 Choices: semibold uses html font-weight:600 spans (Sans fontSource loads 400,600; fontStyle=1 is not used); Mono text always gets its own cell; geometry is on the 10px grid, with the 16px insets coming from spacingLeft; opencode's centre (y=385) is off the grid, so its ok edges exit at exitDy=30 (y=390); the fence label stays muted; the title is 18px (the spec gives no size); Kafka chips are stacked vertically and boxes next to chips are 50px high, so producer and consumer edges run straight.
 Verification: the AC checks (hex set = exactly the 11 palette values; no Helvetica or Courier New; Mono fontSource on every Mono cell; ElementTree parse; per-kind counts; every x/y/width/height incl. waypoints and offsets a multiple of 10) pass; ruff clean; pytest 243 passed, 1 failed (only the master baseline test_helper_renders_canonical_decision_tree). ralph:task-reviewer: first round CHANGES REQUESTED (R-DOCS-3 hard-wrapped prose; 2 minor label/note placements), all fixed in bbc91fe, then APPROVED 10/10.
 NOT RENDERED: draw.io is not installed in the devcontainer. On the host, run /Applications/draw.io.app/Contents/MacOS/draw.io -x -f png -o "$TMPDIR/<name>.png" plugins/architect/skills/arch-draw/assets/<name>.drawio for studio-example, studio-kafka-example and studio-bpmn-example. Check: corner radii (arcSize read as a diameter), arrowhead size (endSize=9), placement of the 'git' label (offset -10,-20) and the bottom-run 'reads config and history raw' label, the 'dead letter' label (offset -80,0), and the muted fence label against the original artifact.
+
+Host render check (2026-10-10, draw.io desktop, -s 2): all three examples render with IBM Plex Sans/Mono loaded through fontSource, palette colours as specified, 10/8/6/4px corners (arcSize as diameter confirmed), filled block arrowheads about 10-11px at 1x (endSize=9 matches the original's ~10.5px), two-line html box labels and the separate Mono cells in place. studio-example matches the original 'Who reads what' layout: 'git' label right of the vertical run, 'reads config and history raw' on the bottom run, both ok edges into Config with credentials and Git history, fence label muted at bottom-left, gate-coloured free note. Kafka and BPMN examples read cleanly (async dashed edges, two-way broker edges, deny chip and dead-letter edge, cylinders, person pill, 40px events, deny 'no' branch to the error end). Cosmetic nits, not fixed: INTERNAL MODEL zone label sits about 3px above the opencode box (grid snap shrank the original 10px gap); 'masked' label starts on the fence's dashed right border (also true in the original); PRODUCERS zone has empty space above its boxes because they align with the chips; BPMN end-event labels touch the export bounding box edge (export framing only).
 <!-- SECTION:NOTES:END -->
