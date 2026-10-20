@@ -178,4 +178,6 @@ All temporary installs and throwaway sessions were removed; the cleanup commands
 Commit: `f8bc9de` - task-51: add the zmx-peer-chat plugin for box-local Claude and Codex peer chat
 
 Review round 1 (CHANGES REQUESTED) fixed: the delivery's partial file is .<name>.part and collect skips dot-files (a collect could take a half-written message, and the sender then crashed on the rename); the detached register child points fds 0-2 at /dev/null and leaves the cwd, so a launcher capturing the output is not held until the bind ends; daemon check compares the exact version token (endswith accepted 10.163.0); a thread seen running a turn at the snapshot or during the bind is never bound (a turn's end also moves updatedAt); cmd_* docstrings. Tests for each, each checked by reverting the fix. These were tested on the Mac only; the design doc says so.
+
+Commit: `ef2dd93` - task-51: fix the mailbox partial-file race, the detached register's output and the version gate
 <!-- SECTION:NOTES:END -->
