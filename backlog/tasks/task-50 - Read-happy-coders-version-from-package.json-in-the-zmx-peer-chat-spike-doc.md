@@ -1,10 +1,10 @@
 ---
 id: TASK-50
 title: Read happy-coder's version from package.json in the zmx peer-chat spike doc
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-20 08:38'
-updated_date: '2026-10-20 08:45'
+updated_date: '2026-10-20 08:54'
 labels: []
 dependencies: []
 priority: medium
@@ -58,10 +58,23 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The happy-coder row of the version table in design/zmx-peer-chat-spike.md shows the command jq -r .version "$(npm root -g)/happy-coder/package.json" and the output 1.1.9
-- [ ] #2 grep -n 'happy --version' design/zmx-peer-chat-spike.md matches only lines of the note under the version table, none inside the table
-- [ ] #3 The note under the version table states that happy --version does not exit (it authenticates and starts a Claude session) and that without HAPPY_SERVER_URL it contacts happy's public default server with the machine's credentials, the 401 seen in the spike
-- [ ] #4 grep -nE '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|/Users/[a-z]' design/zmx-peer-chat-spike.md prints nothing
-- [ ] #5 git diff --stat master..HEAD lists only design/zmx-peer-chat-spike.md and this task's file
-- [ ] #6 uv run ruff check . passes and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree, which already fails on master
+- [x] #1 The happy-coder row of the version table in design/zmx-peer-chat-spike.md shows the command jq -r .version "$(npm root -g)/happy-coder/package.json" and the output 1.1.9
+- [x] #2 grep -n 'happy --version' design/zmx-peer-chat-spike.md matches only lines of the note under the version table, none inside the table
+- [x] #3 The note under the version table states that happy --version does not exit (it authenticates and starts a Claude session) and that without HAPPY_SERVER_URL it contacts happy's public default server with the machine's credentials, the 401 seen in the spike
+- [x] #4 grep -nE '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|/Users/[a-z]' design/zmx-peer-chat-spike.md prints nothing
+- [x] #5 git diff --stat master..HEAD lists only design/zmx-peer-chat-spike.md and this task's file
+- [x] #6 uv run ruff check . passes and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree, which already fails on master
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Handoff checklist: green — design/zmx-peer-chat-spike.md exists, ACs are greps/commands, no dependencies, plugins/ untouched.
+Plan: replace the happy-coder table row with the package.json jq read and 1.1.9; add a note under the table on why happy --version is not used.
+
+Commit: `554961f` - task-50: read happy-coder's version from package.json and note why happy --version is not used
+
+Commit: `bc31a2d` - task-50: keep the happy-coder version note on one line
+
+Replaced the happy-coder version row with the jq read of happy-coder's package.json (1.1.9) and added a one-line note under the table on why happy --version is not used (it does not exit, and without HAPPY_SERVER_URL it sends the machine's credentials to happy's public server, the 401). task-reviewer: APPROVED on the second pass, after the note was joined into one line (R-DOCS-3). pytest: 1 failed, 243 passed; the failure is test_helper_renders_canonical_decision_tree, which also fails on master.
+<!-- SECTION:NOTES:END -->
