@@ -1,10 +1,10 @@
 ---
 id: TASK-53
 title: Add an Architecture section to the zmx-peer-chat design doc
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-20 17:43'
-updated_date: '2026-10-20 17:44'
+updated_date: '2026-10-20 17:53'
 labels: []
 dependencies: []
 ordinal: 53000
@@ -32,4 +32,10 @@ design/zmx-peer-chat.md documents the zmx-peer-chat contract and the box demonst
 Plan: interactive (the user asked to discuss the diagram in this session). Generate both diagrams with a scratch script so the box borders line up, add (!n) risk markers and [prov] ownership marks with a legend, insert ## Architecture after the intro and before ## Versions, list the three risks in prose, then run the width awk check and the AC grep, the task-reviewer, Done and merge.
 
 Commit: `77a7d13` - task-53: add an Architecture section with diagrams and known risks to the zmx-peer-chat design doc
+
+Commit: `cdd68a7` - task-53: name the sessions NAME, say what register and the rules cover, and where bind failures go
+
+Commit: `492a89f` - task-53: list code 3 among the background registration failures
+
+Review: task-reviewer CHANGES REQUESTED in round 1 (Claude side also needs register; session boxes named NAME with a legend; the rules free three commands only; where bind failures surface; the new-id condition in the flow), APPROVED in round 2 with no findings (score 10). Its optional note was applied too: the launcher contract lists code 3 among background failures. Checks: component diagram 32 rows of 100 characters, flow diagram at most 94; the AC #5 grep prints nothing; ruff passes; pytest 342 passed, 1 failed (the known test_helper_renders_canonical_decision_tree); the diff touches only design/zmx-peer-chat.md and the task file.
 <!-- SECTION:NOTES:END -->
