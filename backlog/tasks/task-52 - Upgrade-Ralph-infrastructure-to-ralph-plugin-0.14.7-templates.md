@@ -1,10 +1,10 @@
 ---
 id: TASK-52
 title: Upgrade Ralph infrastructure to ralph plugin 0.14.7 templates
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-20 11:20'
-updated_date: '2026-10-20 12:06'
+updated_date: '2026-10-20 12:08'
 labels: []
 dependencies: []
 priority: medium
@@ -45,10 +45,10 @@ After the merge, the next Ralph launch needs `rebuild=true`, because `runArgs` a
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The ralph-init upgrade flow (U1-U5) from ralph plugin 0.14.7 completed, and bash ~/.claude/plugins/cache/dddpaul-ralph/ralph/0.14.7/skills/ralph-init/scripts/managed-file-drift.sh check . exits 0 or names only files the user skipped
+- [x] #1 The ralph-init upgrade flow (U1-U5) from ralph plugin 0.14.7 completed, and bash ~/.claude/plugins/cache/dddpaul-ralph/ralph/0.14.7/skills/ralph-init/scripts/managed-file-drift.sh check . exits 0 or names only files the user skipped
 - [x] #2 CLAUDE.md from ## Project-Specific to EOF is byte-for-byte unchanged (git diff master..HEAD shows no change in that region)
 - [x] #3 .claude/brainstorm-rules.md from ## Project additions to EOF is byte-for-byte unchanged
-- [ ] #4 The Step 3.10 pptx check prints PASS, and the U5 summary lists every removed dead helper rule or says no dead helper rules were found
+- [x] #4 The Step 3.10 pptx check prints PASS, and the U5 summary lists every removed dead helper rule or says no dead helper rules were found
 - [x] #5 early-claude-arg.sh, floating-uv-copy.sh, stale-runtime-copy.sh and broad-sudoers-chown.sh check .devcontainer/Dockerfile each exit 0, and .devcontainer/devcontainer.json still pins CLAUDE_CODE_VERSION 2.1.283 and UV_VERSION 0.12.19
 - [x] #6 uv run ruff check . passes, and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree, which already fails on master
 <!-- AC:END -->
@@ -67,4 +67,6 @@ U5 summary (in container): CLAUDE.md (generic section) updated (adds transcript-
 After merge, the next Ralph launch needs rebuild=true (runArgs apply only at container creation).
 
 Review: task-reviewer APPROVED (0 blocking, 1 minor). Explicit deferral: AC #1 and #4 stay unchecked and the task stays In Progress until someone runs, on the host: managed-file-drift.sh check . (expect exit 0), the Step 3.10 pptx block (expect PASS), and the dead-helper-rule jq listing/removal from U4 on .claude/settings.local.json. Append the results here, then mark the task Done.
+
+Host checks (2026-10-20, Mac host): managed-file-drift.sh check . exit 0 with no output; Step 3.10 pptx block PASS; dead-helper-rule jq listing on .claude/settings.local.json found none (no dead helper rules found), so nothing removed; /ralph-run preflight now prints OK with no managed-file warnings; .git/hooks/post-commit matches the 0.14.7 template; ruff clean; pytest 243 passed, 1 failed (test_helper_renders_canonical_decision_tree, as on master). Next Ralph launch: rebuild=true.
 <!-- SECTION:NOTES:END -->
