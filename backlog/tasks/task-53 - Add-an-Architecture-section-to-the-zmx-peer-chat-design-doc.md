@@ -23,11 +23,13 @@ design/zmx-peer-chat.md documents the zmx-peer-chat contract and the box demonst
 - [x] #3 The section lists the three known risks: the Codex footer read through zmx history, the undocumented app-server API with zmx-peer-chat daemon check as its gate, and the Codex side's dependence on provisioning; each says what fails and how (refuses, exit code, or error text)
 - [x] #4 Every line inside both diagrams is at most 100 characters, and every row of the component diagram has the same length (checked with awk over the fenced blocks)
 - [x] #5 grep -nE '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|/Users/[a-z]' design/zmx-peer-chat.md prints nothing
-- [ ] #6 git diff master..HEAD --stat lists only design/zmx-peer-chat.md and the task file
+- [x] #6 git diff master..HEAD --stat lists only design/zmx-peer-chat.md and the task file
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: interactive (the user asked to discuss the diagram in this session). Generate both diagrams with a scratch script so the box borders line up, add (!n) risk markers and [prov] ownership marks with a legend, insert ## Architecture after the intro and before ## Versions, list the three risks in prose, then run the width awk check and the AC grep, the task-reviewer, Done and merge.
+
+Commit: `77a7d13` - task-53: add an Architecture section with diagrams and known risks to the zmx-peer-chat design doc
 <!-- SECTION:NOTES:END -->
