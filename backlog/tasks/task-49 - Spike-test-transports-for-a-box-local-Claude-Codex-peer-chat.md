@@ -4,7 +4,7 @@ title: 'Spike: test transports for a box-local Claude-Codex peer chat'
 status: In Progress
 assignee: []
 created_date: '2026-10-20 05:16'
-updated_date: '2026-10-20 06:32'
+updated_date: '2026-10-20 06:41'
 labels: []
 dependencies: []
 priority: medium
@@ -117,4 +117,6 @@ Plan: interactive run on the host over ssh agentbox (Ralph's container has no ss
 Commit: `2d909f7` - task-49: record the zmx peer-chat transport spike on the box
 
 Ran interactively on the host over ssh (Ralph's devcontainer reaches the box's port but has no ssh key or alias). Findings: codex queue delivers through the app-server daemon's queue to the idle TUI (new turn at once) and the busy TUI (next turn after the current one, no steer); random UUID and unknown name exit 1 with nothing queued; by name only after the first turn, by UUID from the start. The launcher learns the UUID from the daemon over codex app-server proxy (JSON-RPC over WebSocket: thread/loaded/list + thread/read, matched on cwd and createdAt), before any rollout exists. After the TUI exits the daemon keeps the thread loaded and runs queued messages headless, so the sender must check the zmx session first. zmx send fallback skipped (AC #4). Mailbox wait wakes Claude under Happy in local and remote mode, but each mode switch kills the wait; messages stay queued until a new wait starts; $PPID in the wait command forces an approval on every start. AC #8: ssh agentbox zmx ls lists only the user's own session after cleanup. AC #9: no plugins diff; ruff clean; pytest 243 passed, 1 failed (test_helper_renders_canonical_decision_tree, as on master).
+
+Review round 1: CHANGES REQUESTED (B1 exact commands for the no-session case; B2 the $PPID approval was observed only in local manual mode, remote-mode approval not recorded; B3 Codex packaging cut contradicted the checklist and TASK-49's assignment of it to the plugin task; B4 createdAt is not the thread start time (it read the first thread/read time), so the UUID rule is the before/after difference of loaded ids with a matching cwd; m1 no trigger restarted the wait after a mode switch, now an open risk; m2 N=10 s; m3 pytest carve-out). Correction to the earlier note: '$PPID in the wait command forces an approval on every start' holds for local manual mode only.
 <!-- SECTION:NOTES:END -->

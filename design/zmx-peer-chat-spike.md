@@ -53,7 +53,7 @@ loaded thread ids: 1
 {"id": "<thread-uuid>", "name": null, "cwd": ".../spike-zmx-peer-chat", "status": {"type": "idle"}, "source": "vscode", "createdAt": 1792476089, "updatedAt": 1792476089, "path": ".../rollout-2026-10-20T08-59-24-<thread-uuid>.jsonl"}
 ```
 
-So the launcher can take a list of loaded threads before it starts Codex, start it, and pick the new id whose `cwd` is the session directory and whose `createdAt` is after the start. `thread/name/set` then gives the thread a deterministic name (`python3 -u rpc.py thread/name/set '{"threadId":"<thread-uuid>","name":"spike-codex-<inc>"}'` returned `{"id": 2, "result": {}}`): the TUI footer showed the name at once and `session_index.jsonl` gained the line. The name is not usable by `codex queue` before the first turn, though (next section), so the launcher should store the UUID, for example as a zmx label, and use the name only for people. After the first turn the same id is also in the rollout's `session_meta` (`payload.id`, with `payload.cwd`).
+`createdAt` is not the thread's start time: the TUI started at 05:59:24Z (the rollout name, in box time UTC+3, and the time recorded just before the launch), while `createdAt` and `updatedAt` both read 06:01:29Z, the moment of this first `thread/read`. For a thread with no rollout yet the daemon apparently reports "now", so it cannot tell a new thread from an older one in the same directory, and a thread whose TUI has exited stays loaded (below). The launcher therefore lists the loaded thread ids before it starts Codex, starts it, lists them again until a new id appears, and takes the new id whose `cwd` is the session directory. `thread/name/set` then gives the thread a deterministic name (`python3 -u rpc.py thread/name/set '{"threadId":"<thread-uuid>","name":"spike-codex-<inc>"}'` returned `{"id": 2, "result": {}}`): the TUI footer showed the name at once and `session_index.jsonl` gained the line. The name is not usable by `codex queue` before the first turn, though (next section), so the launcher should store the UUID, for example as a zmx label, and use the name only for people. After the first turn the same id is also in the rollout's `session_meta` (`payload.id`, with `payload.cwd`).
 
 ## Codex: `codex queue`
 
@@ -95,6 +95,12 @@ Both exited 0 with `Queued message … for thread <thread-uuid>.` While 2a ran, 
 
 ### An id that matches no session
 
+```sh
+U=$(python3 -c "import uuid; print(uuid.uuid4())")
+codex queue --thread "$U" --message "should not arrive"
+codex queue --thread no-such-spike-session --message "should not arrive"
+```
+
 | `--thread` | Exit | Output |
 |------------|------|--------|
 | a random UUID | 1 | `Error: failed to queue session message: thread/queue/add failed: failed to read thread: invalid thread-store request: no rollout found for thread id <random-uuid> (code -32603)` |
@@ -117,7 +123,7 @@ The Mac mailbox script was copied to the scratch directory with its one BSD call
 Two prompts came up that the plugin has to plan for:
 
 - First run in a new directory: the trust dialog, which also lists the pre-approved rules (`This folder pre-approves 2 tool permissions in .claude/settings.local.json`); its default is `No, exit`.
-- Every start of the wait: `Bash command … Contains simple_expansion / Do you want to proceed?`, because of `$PPID`. An allow rule cannot pre-approve a command with a shell variable, so in manual mode each restart waits for a person.
+- Every start of the wait in local mode (Claude's `manual mode`, three times in the spike): `Bash command … Contains simple_expansion / Do you want to proceed?`, because of `$PPID`. An allow rule cannot pre-approve a command with a shell variable, so in local manual mode each restart waits for a person. In remote mode the restarts after R1 and R2 ran within seconds and nothing reached this side; whether the Happy app asked for an approval was not recorded.
 
 | Step | Mode | Waiter | Result |
 |------|------|--------|--------|
@@ -126,21 +132,21 @@ Two prompts came up that the plugin has to plan for:
 | user switches to remote in the Happy app | remote | gone | Happy replaced the interactive `claude` with an SDK one (`…/claude-agent-sdk-linux-x64/claude`); the wait saw its owner exit and ended |
 | R1 delivered | remote | none | stayed in the inbox, `waiting: no` |
 | user asks, from the app, to restart the wait | remote | owner = the SDK `claude` | the new wait collected R1 at once; the transcript shows a `<task-notification>` and `GOT-MAIL: … R1`, then a new wait |
-| R2 delivered, no input from the app | remote | ends with mail | `GOT-MAIL: … R2`; a new wait was running 30 s later |
+| R2 delivered, no message sent from the app | remote | ends with mail | `GOT-MAIL: … R2`; the next wait's shell started 6 s after R2 landed and was running when checked 30 s later |
 | L2 delivered before the switch back took effect | remote | ends with mail | collected in remote mode |
 | switch back with Ctrl-T (typed into the pane) | local | gone | Happy started a new interactive `claude`; Claude printed `Background command "Wait for peer mailbox message in background" was stopped` / `Background shell command didn't finish before the previous session ended` |
 | L3 delivered | local | none | stayed in the inbox |
 | wait restarted (typed, prompt approved) | local | owner = the new `claude` | collected L3 at once: `GOT-MAIL: … L3` |
 | L4 delivered | local | ends with mail | `GOT-MAIL: … L4` |
 
-Verdict: a background wait wakes Claude in local mode and in remote mode alike, but only a wait started in the current mode: every Happy mode switch, in either direction, replaces the `claude` process and kills the wait. Messages are kept in the inbox until the next wait starts. Switching to local from the pane needs two spaces within a short window (`Press space again (or Ctrl-T) to switch to local mode`); a single typed space arms the switch, which confirms that nothing may be typed into Claude's pane in remote mode.
+Verdict: a background wait wakes Claude in local mode and in remote mode alike, but only a wait started in the current mode: every Happy mode switch, in either direction, replaces the `claude` process and kills the wait. Messages are kept in the inbox until the next wait starts. Nothing restarted the wait after a switch on its own: in remote mode the restart was asked for from the app, in local mode it was typed into the pane. Switching to local from the pane needs two spaces within a short window (`Press space again (or Ctrl-T) to switch to local mode`); a single typed space arms the switch, which confirms that nothing may be typed into Claude's pane in remote mode.
 
 ## Recommendation
 
 | Direction | Transport | Conditions |
 |-----------|-----------|------------|
-| Claude to Codex | `codex queue --thread <UUID> --message <text>` | The launcher learns the UUID from the daemon right after it starts Codex and records it on the session (zmx label); the sender queues by UUID, not by name. Before queuing it checks that the Codex zmx session is alive, because the daemon runs queued messages headless once the TUI is gone. A queued message on a busy Codex waits for the current turn to end; it never steers. No typing, no screen reading. |
-| Codex to Claude | the mailbox, collected by Claude's background `wait` | Claude starts a wait at session start and again after every Happy mode switch; the sender reports `queued` unless `waiting` says a wait runs. The wait command must carry no shell variable (the script finds its own `claude` ancestor instead of taking `$PPID`), so one allow rule covers it and no restart waits for a person. Nothing is ever typed into Claude's pane. |
+| Claude to Codex | `codex queue --thread <UUID> --message <text>` | The launcher learns the UUID from the daemon by comparing the loaded thread ids before and after it starts Codex (the new id whose `cwd` is the session directory) and records it on the session (zmx label); the sender queues by UUID, not by name. Before queuing it checks that the Codex zmx session is alive, because the daemon runs queued messages headless once the TUI is gone. A queued message on a busy Codex waits for the current turn to end; it never steers. No typing, no screen reading. |
+| Codex to Claude | the mailbox, collected by Claude's background `wait` | Claude needs a running wait in whichever Happy mode it is in, and every mode switch kills it; the spike found no trigger that restarts it, so the plugin has to provide one (open risks below). The sender reports `queued` unless `waiting` says a wait runs. The wait command must carry no shell variable (the script finds its own `claude` ancestor instead of taking `$PPID`), so one allow rule covers it and a restart in local manual mode does not wait for a person. Nothing is ever typed into Claude's pane. |
 
 ## Distilled for ralph-task
 
@@ -153,36 +159,42 @@ Build a `zmx-peer-chat` plugin in this repo that lets a Claude Code session and 
 | Decision | Rationale |
 |----------|-----------|
 | Claude to Codex goes through `codex queue --thread <UUID>` | Delivered to the idle and the busy TUI in the spike, through the daemon's queue, with no typing and no screen reading. |
-| The UUID comes from the daemon (`thread/loaded/list` + `thread/read`, matched on `cwd` and `createdAt`), stored as a zmx label | A fresh TUI writes no rollout or index line before its first turn, and `codex queue` cannot resolve a name until then. |
+| The UUID comes from the daemon: the id that appears in `thread/loaded/list` after the start and was not there before, with `thread/read` confirming its `cwd`; stored as a zmx label | A fresh TUI writes no rollout or index line before its first turn, and `codex queue` cannot resolve a name until then. `createdAt` is no start time (it read the time of the first `thread/read`), and a thread from an exited TUI stays loaded, so `cwd` alone cannot pick the new thread. |
 | The sender refuses to queue when the Codex zmx session is gone | The daemon keeps the thread loaded after the TUI exits and runs a queued message headless. |
 | Codex to Claude goes only through the mailbox and Claude's background wait | Already decided upstream; the spike confirmed it wakes Claude in both Happy modes and that a typed space in remote mode arms a mode switch. |
-| Claude restarts the wait at session start and after every mode switch | Each switch replaces the `claude` process and kills the wait. |
-| The wait command takes no shell variable | `$PPID` triggers a "simple_expansion" approval on every start, which no allow rule can pre-approve. |
+| Claude needs a running wait in each Happy mode, restarted after every mode switch | Each switch replaces the `claude` process and kills the wait; how the restart is triggered is open (see open risks). |
+| The wait command takes no shell variable | In local manual mode `$PPID` triggers a "simple_expansion" approval on every start, which no allow rule can pre-approve. |
 | Pairing labels are read before any attach | `zmx attach --labels` overwrites the labels of an existing session. |
 | Linux `stat -c %Y` in the mailbox script | The Mac script's `stat -f %m` is BSD-only. |
+| Codex packaging is part of the plugin task: a Codex catalog for this repo, `codex plugin marketplace add`, and skill discovery by Codex | TASK-49 assigned it to the plugin task; the spike did not test it, so the plugin task has to establish how Codex finds the Codex skill. |
 
 ### Scope cuts
 
 - No `zmx send` typing path for either direction (not needed for Codex, forbidden for Claude).
 - No agterm, no `agtermctl`, no socket forwarding, nothing that connects back to the Mac.
-- No Codex packaging (marketplace entry, catalog, skill discovery by Codex) beyond what the plugin task itself names.
 - No changes to the box's launcher or provisioning; the plugin ships its own scripts.
+
+### Open risks
+
+- Nothing restarts Claude's wait after a Happy mode switch. In the spike both restarts were asked for by a person (from the app in remote mode, typed into the pane in local mode). The plugin task has to design the trigger, for example a SessionStart hook if Happy's switch fires one, or the router noticing `waiting: no` and asking for a restart; neither was tested.
+- Whether a wait restart asks for an approval in remote mode was not recorded.
+- How long the Codex daemon keeps a thread loaded after its TUI exits is unknown; the sender's liveness check must not depend on it.
 
 ### Acceptance criteria sketch
 
-1. A launcher script records the Codex thread UUID on the Codex zmx session (label) within N seconds of starting it, demonstrated on the box.
+1. A launcher script records the Codex thread UUID on the Codex zmx session (label) within 10 seconds of starting it, demonstrated on the box.
 2. `send --to codex` queues by UUID and prints `queued`; on a Codex whose zmx session is gone it exits non-zero and queues nothing.
 3. `send --to claude` drops a mailbox file and prints `delivered` when a wait runs, `queued` otherwise.
-4. The Claude skill starts the wait without an approval prompt (no shell variable in the command, covered by one allow rule) and restarts it after a Happy mode switch, demonstrated in both modes.
+4. The Claude skill starts the wait without an approval prompt in local manual mode (no shell variable in the command, covered by one allow rule), and a wait is running again after a Happy mode switch in each direction without a person asking for it, demonstrated on the box.
 5. The mailbox collect is guarded by a lock so two waits cannot both take the same message.
-6. Tests cover the label read-before-attach rule, the UUID match on `cwd` + `createdAt`, the refusal on a dead session, and the mailbox lock; ruff and pytest pass.
+6. Tests cover the label read-before-attach rule, the UUID pick from the before/after difference of loaded thread ids with a matching `cwd`, the refusal on a dead session, and the mailbox lock; `uv run ruff check .` passes and `uv run pytest` has no failures other than `test_helper_renders_canonical_decision_tree`, which already fails on master.
 
 ### Implementation checklist
 
 - [ ] Port `peer-mail.sh` (Linux `stat`, owner found from the process tree, collector lock).
 - [ ] Daemon client for `thread/loaded/list`, `thread/read` and `thread/name/set` over `codex app-server proxy` (WebSocket framing, stdlib only).
-- [ ] Launcher wrapper: read labels, start the session, find and record the Codex UUID, name the thread.
+- [ ] Launcher wrapper: read labels, list the loaded thread ids, start the session, take the new id with a matching `cwd`, record it as a label, name the thread.
 - [ ] Router `send`: liveness check via `zmx ls`/`zmx get`, `codex queue` for Codex, mailbox for Claude, `queued`/`delivered` reporting.
-- [ ] Claude skill: start the wait at session start and after a mode switch; never type into a pane.
-- [ ] Codex skill: how Codex sends to Claude through the router.
-- [ ] Tests, README entry, plugin manifest, marketplace entry.
+- [ ] Claude skill: start the wait at session start; a trigger that restarts it after a mode switch; never type into a pane.
+- [ ] Codex skill: how Codex sends to Claude through the router, and its packaging for Codex (catalog, `codex plugin marketplace add`, discovery), which the spike did not test.
+- [ ] Tests, README entry, plugin manifest, Claude marketplace entry (`.claude-plugin/marketplace.json`).
