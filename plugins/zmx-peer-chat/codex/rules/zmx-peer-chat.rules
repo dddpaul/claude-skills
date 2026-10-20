@@ -1,0 +1,6 @@
+# zmx-peer-chat: show the pairing, and reserve and send peer messages to Claude, without a per-call approval.
+# The router talks to zmx and the mailbox, which Codex's sandbox does not allow, so these commands run outside it.
+# Merge these lines into ~/.codex/rules/default.rules, or copy this file into ~/.codex/rules/.
+prefix_rule(pattern=["zmx-peer-chat", "status"], decision="allow")
+prefix_rule(pattern=["zmx-peer-chat", "prepare-message"], decision="allow")
+prefix_rule(pattern=["zmx-peer-chat", "send", "--to", "claude", "--message-file"], decision="allow")

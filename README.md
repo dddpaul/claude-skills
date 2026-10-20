@@ -146,12 +146,28 @@ read on onedrive
 положи в onedrive
 ```
 
+### zmx-peer-chat
+
+*Plugin: zmx-peer-chat*
+
+Peer chat between a Claude Code session and a Codex session on the same Linux box, each in its own zmx session started by the box launcher, without agterm and without a connection back to the Mac. Claude sends with `codex queue` by the Codex thread's UUID, and only while the Codex pane shows that thread; Codex sends into Claude's private mailbox, and a wait run by the plugin's hooks wakes Claude in both Happy modes. The plugin ships a Claude skill, a Codex skill (installed with `codex plugin marketplace add`), a register helper for the launcher and an example Codex rules file. The contract and the box demonstrations are in `design/zmx-peer-chat.md`.
+
+**Usage**: In a registered pair, ask either agent to chat with the other; messages arrive labelled `Chat from Claude:` / `Chat from Codex:`.
+
+**Example**:
+```
+chat with codex about the failing test
+talk to claude about this diff
+```
+
 ## Project Structure
 
-Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, `plugins/obsidian/skills/`, and `plugins/publish/skills/`:
+Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, `plugins/obsidian/skills/`, `plugins/publish/skills/`, and `plugins/zmx-peer-chat/skills/`:
 
 ```
 claude-skills/
+├── .agents/plugins/
+│   └── marketplace.json                          # Codex catalog (zmx-peer-chat only)
 ├── .claude-plugin/
 │   └── marketplace.json                          # Marketplace manifest
 └── plugins/
@@ -205,6 +221,22 @@ claude-skills/
     │           └── tests/
     │               ├── test_transports.py        # Trigger + vault-root resolver tests
     │               └── test_trigger_collisions.py  # offdesk vs publish vocabulary guard
+    ├── zmx-peer-chat/                            # plugins/zmx-peer-chat/skills/
+    │   ├── .claude-plugin/
+    │   │   └── plugin.json                       # Claude plugin manifest
+    │   ├── .codex-plugin/
+    │   │   └── plugin.json                       # Codex plugin manifest
+    │   ├── bin/zmx-peer-chat                     # The command (register, send, wait, ...)
+    │   ├── hooks/hooks.json                      # Claude hooks that run the wait
+    │   ├── codex/
+    │   │   ├── hooks.json                        # Empty: keeps the Claude hooks out of Codex
+    │   │   └── rules/zmx-peer-chat.rules         # Example Codex prefix rules
+    │   ├── codex-skills/zmx-peer-chat/
+    │   │   └── SKILL.md                          # Codex side
+    │   └── skills/zmx-peer-chat/
+    │       ├── SKILL.md                          # Claude side
+    │       ├── scripts/zpc/                      # Router, mailbox, register helper, daemon client
+    │       └── tests/                            # Pytest suite with zmx and daemon fakes
     └── publish/                                  # plugins/publish/skills/
         ├── .claude-plugin/
         │   └── plugin.json                       # Plugin manifest
@@ -245,7 +277,10 @@ These skills are distributed as Claude Code plugins via a marketplace.
 /plugin install presentation@dddpaul-claude-skills   # pptx-core-style + pptx-arch-style + pptx-compare
 /plugin install obsidian@dddpaul-claude-skills       # offdesk
 /plugin install publish@dddpaul-claude-skills        # pdf + publish
+/plugin install zmx-peer-chat@dddpaul-claude-skills  # zmx-peer-chat (Claude side, Linux box)
 ```
+
+The Codex side of zmx-peer-chat installs from a clone of this repo with `codex plugin marketplace add <clone>` and `codex plugin add zmx-peer-chat@dddpaul-claude-skills`; see `plugins/zmx-peer-chat/README.md` for the `PATH` and rules it also needs.
 
 ### Update later
 
