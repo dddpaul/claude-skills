@@ -1,10 +1,10 @@
 ---
 id: TASK-49
 title: 'Spike: test transports for a box-local Claude-Codex peer chat'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-20 05:16'
-updated_date: '2026-10-20 05:28'
+updated_date: '2026-10-20 05:57'
 labels: []
 dependencies: []
 priority: medium
@@ -108,3 +108,9 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - [ ] #8 ssh agentbox zmx ls lists no session whose name starts with spike-
 - [ ] #9 git diff --stat master -- plugins is empty, uv run ruff check . passes, and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree, which already fails on master
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: interactive run on the host over ssh agentbox (Ralph's container has no ssh key/alias). 1) versions; 2) codex queue --help and thread-id discovery (codex session files / codex resume listing); 3) throwaway spike-codex TUI in a scratch dir via the agent launcher or zmx directly, then codex queue idle / busy / bogus id, observing the TUI with zmx history --vt; 4) zmx send fallback only if queue does not deliver; 5) throwaway spike-claude under Happy with a background mailbox waiter (Linux stat), file drop in local mode and after a remote/local switch by the user; 6) design/zmx-peer-chat-spike.md with placeholders for host/user/paths; 7) kill spike-* sessions, AC greps, ruff, pytest, review, merge.
+<!-- SECTION:NOTES:END -->
