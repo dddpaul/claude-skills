@@ -1,0 +1,14 @@
+{
+  "name": "zmx-peer-chat",
+  "version": "0.1.0",
+  "description": "Box-local peer chat with a Claude Code session in another zmx session on the same Linux box: send to Claude through its mailbox, receive Claude's messages as queued turns.",
+  "author": {
+    "name": "Pavel Derendyaev",
+    "email": "dddpaul@gmail.com"
+  },
+  "homepage": "https://github.com/dddpaul/claude-skills",
+  "repository": "https://github.com/dddpaul/claude-skills",
+  "license": "Apache-2.0",
+  "skills": "./codex-skills/",
+  "hooks": "./codex/hooks.json"
+}

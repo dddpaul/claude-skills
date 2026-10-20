@@ -1,10 +1,10 @@
 ---
 id: TASK-51
 title: 'zmx-peer-chat plugin: box-local Claude-Codex peer chat'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-20 08:38'
-updated_date: '2026-10-20 08:45'
+updated_date: '2026-10-20 17:21'
 labels: []
 dependencies: []
 priority: medium
@@ -148,15 +148,30 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 On the box, the plugin's register helper records the Codex thread UUID as a label on the Codex zmx session within 10 seconds of start, shown with zmx get; command and output recorded in design/zmx-peer-chat.md
-- [ ] #2 On the box, send --to codex queues by UUID and prints queued; with the Codex zmx session gone it exits non-zero and queues nothing; recorded in design/zmx-peer-chat.md
-- [ ] #3 On the box, after /new and after /resume in the Codex TUI, send --to codex never starts a turn on a thread that no TUI shows (it refuses, or re-binds to the shown thread); commands and observed behaviour recorded in design/zmx-peer-chat.md
-- [ ] #4 send --to claude drops a mailbox file and prints delivered when a wait runs and queued otherwise
-- [ ] #5 On the box, the Claude-side wait starts without an approval prompt in Claude Code's local manual mode (no shell variable in the command; one allow rule or a hook covers it); recorded in design/zmx-peer-chat.md
-- [ ] #6 On the box, after a Happy mode switch to remote and another back to local, a wait is running again in each mode without a person asking for it (remote mode runs happy-coder's bundled SDK claude 2.1.141); commands and output recorded in design/zmx-peer-chat.md
-- [ ] #7 On the box, with the plugin installed from the scratch copy through codex plugin marketplace add (or a fallback documented in the plugin README), codex plugin list shows the plugin and skills/list for the scratch directory, sent through the plugin's daemon client, lists the plugin's Codex skill; commands and output recorded in design/zmx-peer-chat.md
-- [ ] #8 Tests cover label read-before-attach, the UUID pick (before/after difference of loaded thread ids with a matching cwd), refusal on zero or several candidates, refusal on a dead Codex session, the mailbox lock, protocol-version mismatch, quarantine of earlier-incarnation mail, and fail-closed handling of an unexpected daemon response; uv run ruff check . passes and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree
-- [ ] #9 plugins/zmx-peer-chat/.claude-plugin/plugin.json exists with version 0.1.0, the plugin ships an example Codex rules file whose prefix_rule lines allow the router's send commands, .claude-plugin/marketplace.json and README.md list the plugin, and design/zmx-peer-chat.md documents the label keys, the register helper's CLI and exit codes, the protocol version, the mailbox layout and the codex-cli version the daemon client was tested with
-- [ ] #10 grep -rnE '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|/Users/[a-z]' design/zmx-peer-chat.md plugins/zmx-peer-chat prints nothing
-- [ ] #11 At the end, ssh agentbox zmx ls lists none of the throwaway sessions and the temporary Claude and Codex plugin installs on the box are removed; the removal commands and a listing after them are recorded in design/zmx-peer-chat.md
+- [x] #1 On the box, the plugin's register helper records the Codex thread UUID as a label on the Codex zmx session within 10 seconds of start, shown with zmx get; command and output recorded in design/zmx-peer-chat.md
+- [x] #2 On the box, send --to codex queues by UUID and prints queued; with the Codex zmx session gone it exits non-zero and queues nothing; recorded in design/zmx-peer-chat.md
+- [x] #3 On the box, after /new and after /resume in the Codex TUI, send --to codex never starts a turn on a thread that no TUI shows (it refuses, or re-binds to the shown thread); commands and observed behaviour recorded in design/zmx-peer-chat.md
+- [x] #4 send --to claude drops a mailbox file and prints delivered when a wait runs and queued otherwise
+- [x] #5 On the box, the Claude-side wait starts without an approval prompt in Claude Code's local manual mode (no shell variable in the command; one allow rule or a hook covers it); recorded in design/zmx-peer-chat.md
+- [x] #6 On the box, after a Happy mode switch to remote and another back to local, a wait is running again in each mode without a person asking for it (remote mode runs happy-coder's bundled SDK claude 2.1.141); commands and output recorded in design/zmx-peer-chat.md
+- [x] #7 On the box, with the plugin installed from the scratch copy through codex plugin marketplace add (or a fallback documented in the plugin README), codex plugin list shows the plugin and skills/list for the scratch directory, sent through the plugin's daemon client, lists the plugin's Codex skill; commands and output recorded in design/zmx-peer-chat.md
+- [x] #8 Tests cover label read-before-attach, the UUID pick (before/after difference of loaded thread ids with a matching cwd), refusal on zero or several candidates, refusal on a dead Codex session, the mailbox lock, protocol-version mismatch, quarantine of earlier-incarnation mail, and fail-closed handling of an unexpected daemon response; uv run ruff check . passes and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree
+- [x] #9 plugins/zmx-peer-chat/.claude-plugin/plugin.json exists with version 0.1.0, the plugin ships an example Codex rules file whose prefix_rule lines allow the router's send commands, .claude-plugin/marketplace.json and README.md list the plugin, and design/zmx-peer-chat.md documents the label keys, the register helper's CLI and exit codes, the protocol version, the mailbox layout and the codex-cli version the daemon client was tested with
+- [x] #10 grep -rnE '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|/Users/[a-z]' design/zmx-peer-chat.md plugins/zmx-peer-chat prints nothing
+- [x] #11 At the end, ssh agentbox zmx ls lists none of the throwaway sessions and the temporary Claude and Codex plugin installs on the box are removed; the removal commands and a listing after them are recorded in design/zmx-peer-chat.md
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: interactive on the host, box over ssh. Probes done before coding (no quota): Codex 0.163.0 reads .codex-plugin/plugin.json and honours "skills": "./codex-skills/" (a scratch CODEX_HOME listed only the Codex-side skill through skills/list); repo marketplace for Codex at .agents/plugins/marketplace.json; zmx 0.8.1 set merges labels (k= removes), ls prints labels as tab-separated fields, sessions carry ZMX_SESSION. Design: one stdlib Python CLI (bin/zmx-peer-chat, Python 3.12 on the box) with register (snapshot of loaded thread ids under a per-directory lock, then a bind that labels the new session via zmx set and never attaches), send (peer from labels: exactly one session with the same zpc.pair and the other zpc.role; proto check; codex queue by UUID after a liveness and shown-thread check; mailbox for Claude), mailbox (private /tmp root per uid, atomic writes, flock-guarded collect, quarantine for earlier incarnations and proto mismatch), wait and waiting, and a daemon client (WebSocket over codex app-server proxy, fail-closed). Claude side: plugin SessionStart and Stop hooks with asyncRewake run the wait (no Bash approval; exit 2 hands the mail to Claude as a system reminder); probe this on the box first and stop and ask if the restart criterion cannot pass. Codex side: codex-skills/zmx-peer-chat with file-backed sends and an example rules file. Then box demos for every box AC, contract doc design/zmx-peer-chat.md, README and marketplace entries, tests, review.
+
+Implemented: plugins/zmx-peer-chat (bin/zmx-peer-chat over the stdlib zpc package: register helper, router, mailbox, hook-run wait, fail-closed daemon client), Claude and Codex skills, example Codex rules, Claude and Codex manifests, Codex catalog .agents/plugins/marketplace.json, README and marketplace entries, design/zmx-peer-chat.md (contract and box record), 89 tests.
+Box findings that shaped the code (details in design/zmx-peer-chat.md):
+- Claude wait: SessionStart, UserPromptSubmit, Stop and StopFailure hooks with asyncRewake run hook-wait; a wait ran again after Happy switches to remote (SDK claude 2.1.141, SessionStart:resume) and back to local (claude.exe) with nobody asking, and exit 2 woke the idle session in both modes. No Bash approval in local manual mode.
+- Codex loads a plugin's hooks/hooks.json by default and stopped a fresh TUI at a hooks-review dialog; the Codex manifest now points hooks at an empty codex/hooks.json ("hooks": [] falls back to the default). The daemon cached the old hooks per plugin version.
+- Codex runs commands in its app-server daemon: PATH comes from a login-shell snapshot, and ZMX_SESSION is the daemon's. The router finds the Codex side by CODEX_THREAD_ID against zpc.thread; zmx-peer-chat must be on the login PATH; the rules (status, prepare-message, send --to claude --message-file) let it run outside the sandbox, where zmx ls fails.
+- The launcher runs codex resume --last in a directory with history: the register helper binds a newly loaded id created after the snapshot, or a thread whose updatedAt moved past it; a thread the starting TUI only loads again keeps its old times (a wrong pick seen once on the box, now a regression test). The sender's footer check refuses any thread the TUI does not show.
+- A killed wait left a fresh heartbeat, so a send said delivered for up to 10 s; the heartbeat now carries the wait's pid and waiting checks it.
+All temporary installs and throwaway sessions were removed; the cleanup commands and listings are in the design doc.
+<!-- SECTION:NOTES:END -->

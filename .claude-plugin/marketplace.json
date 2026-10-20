@@ -21,6 +21,11 @@
       "name": "publish",
       "source": "./plugins/publish",
       "description": "Publish a file to a transport provider: markdown is rendered to PDF (weasyprint + IBM Plex via the pdf skill), while ready-made artifacts (.pdf/.pptx/.key/.docx) are copied verbatim (passthrough, no conversion). pdf renders MD → PDF; publish layers transport providers on top (v1.4 ships icloud, google-drive, and onedrive)."
+    },
+    {
+      "name": "zmx-peer-chat",
+      "source": "./plugins/zmx-peer-chat",
+      "description": "Box-local peer chat between Claude Code and Codex, each in its own zmx session on the same Linux box: Claude sends with codex queue by thread UUID, Codex sends into Claude's mailbox, and a hook-run wait wakes Claude in both Happy modes. Ships a Claude skill, a Codex skill, the launcher's register helper and example Codex rules."
     }
   ]
 }

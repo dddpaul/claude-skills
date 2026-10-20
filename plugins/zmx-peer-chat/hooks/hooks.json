@@ -1,0 +1,53 @@
+{
+  "description": "Keep one wait for peer mail running in every Claude process of a registered zmx-peer-chat pair: at session start (including the new process Happy starts on each mode switch), when a prompt is submitted, and when a turn ends or fails. An interrupted turn fires no Stop hook, so the next prompt re-arms the wait. asyncRewake hands the mail to Claude as a system reminder and wakes it even when idle. Outside a registered Claude session the command exits at once, and a second wait in the same pair exits at once too.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/zmx-peer-chat\" hook-wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/zmx-peer-chat\" hook-wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/zmx-peer-chat\" hook-wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/zmx-peer-chat\" hook-wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ]
+  }
+}
