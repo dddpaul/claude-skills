@@ -123,7 +123,7 @@ The Mac mailbox script was copied to the scratch directory with its one BSD call
 Two prompts came up that the plugin has to plan for:
 
 - First run in a new directory: the trust dialog, which also lists the pre-approved rules (`This folder pre-approves 2 tool permissions in .claude/settings.local.json`); its default is `No, exit`.
-- Every start of the wait in local mode (Claude's `manual mode`, three times in the spike): `Bash command … Contains simple_expansion / Do you want to proceed?`, because of `$PPID`. An allow rule cannot pre-approve a command with a shell variable, so in local manual mode each restart waits for a person. In remote mode the restarts after R1 and R2 ran within seconds and nothing reached this side; whether the Happy app asked for an approval was not recorded.
+- Every start of the wait in local mode (Claude's `manual mode`; all five local starts in the spike prompted): `Bash command … Contains simple_expansion / Do you want to proceed?`, because of `$PPID`. An allow rule cannot pre-approve a command with a shell variable, so in local manual mode each restart waits for a person. In remote mode the restarts after R1 and R2 ran within seconds and nothing reached this side; whether the Happy app asked for an approval was not recorded.
 
 | Step | Mode | Waiter | Result |
 |------|------|--------|--------|
@@ -176,7 +176,7 @@ Build a `zmx-peer-chat` plugin in this repo that lets a Claude Code session and 
 
 ### Open risks
 
-- Nothing restarts Claude's wait after a Happy mode switch. In the spike both restarts were asked for by a person (from the app in remote mode, typed into the pane in local mode). The plugin task has to design the trigger, for example a SessionStart hook if Happy's switch fires one, or the router noticing `waiting: no` and asking for a restart; neither was tested.
+- Nothing restarts Claude's wait after a Happy mode switch. In the spike both restarts were asked for by a person (from the app in remote mode, typed into the pane in local mode). The plugin task has to design the trigger, for example a SessionStart hook if Happy's switch fires one, or the router noticing `waiting: no` and telling the person through a channel that does not type into Claude's pane (a terminal notification or the Happy app), who then asks Claude to restart it; neither was tested.
 - Whether a wait restart asks for an approval in remote mode was not recorded.
 - How long the Codex daemon keeps a thread loaded after its TUI exits is unknown; the sender's liveness check must not depend on it.
 
