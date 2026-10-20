@@ -37,7 +37,7 @@ The Codex manifest points `hooks` at the empty `codex/hooks.json`: otherwise Cod
 
 ### The launcher
 
-Call the register helper for `claude` and `codex` sessions only, right before the session is created, and start one session per directory at a time; no other Codex TUI may start or resume a thread in that directory while the helper binds. It returns at once and labels the session from a detached child within about two seconds; failures are logged to `register.log` in the mail root (`/tmp/zmx-peer-chat-<uid>`). See the exit codes in `design/zmx-peer-chat.md`.
+Call the register helper for `claude` and `codex` sessions only, right before the session is created, and start one session per directory at a time; no other Codex TUI may start or resume a thread in that directory while the helper binds (up to its `--timeout`, 10 seconds by default). It returns at once and labels the session from a detached child within about two seconds; failures are logged to `register.log` in the mail root (`/tmp/zmx-peer-chat-<uid>`). See the exit codes in `design/zmx-peer-chat.md`.
 
 ## Checks
 
