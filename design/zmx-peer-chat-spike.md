@@ -13,10 +13,7 @@ Spike for TASK-49: which delivery paths work for a Claude Code and Codex pair th
 
 All four match the versions the task expected.
 
-happy-coder's version is read from its `package.json` because that runs nothing. `happy --version` prints the version
-and then does not exit: it carries on into authentication and a Claude session. Without `HAPPY_SERVER_URL`, as in a
-non-login `ssh <box> '...'` shell, it contacts happy's public default server with the machine's credentials, which
-produced the `Error: Request failed with status code 401` seen in the spike.
+happy-coder's version is read from its `package.json` because that runs nothing. `happy --version` prints the version and then does not exit: it carries on into authentication and a Claude session. Without `HAPPY_SERVER_URL`, as in a non-login `ssh <box> '...'` shell, it contacts happy's public default server with the machine's credentials, which produced the `Error: Request failed with status code 401` seen in the spike.
 
 ## Setup
 
