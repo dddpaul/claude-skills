@@ -1,10 +1,10 @@
 ---
 id: TASK-51
 title: 'zmx-peer-chat plugin: box-local Claude-Codex peer chat'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-20 08:38'
-updated_date: '2026-10-20 17:31'
+updated_date: '2026-10-20 17:35'
 labels: []
 dependencies: []
 priority: medium
@@ -102,7 +102,7 @@ Build a `zmx-peer-chat` plugin in this repo that lets a Claude Code session and 
 ## How to run it
 
 - Interactive only: Ralph's devcontainer has no ssh access to the box.
-- The box: Linux (WSL2 Ubuntu 24.04), reached with `ssh agentbox` from the Mac. The `agent <dir> [claude|codex|shell] [-n NAME]` launcher in `/usr/local/bin` starts a tool in a zmx session; claude runs under Happy.
+- The box: Linux (WSL2 Ubuntu 24.04), reached with `ssh <box>` from the Mac. The `agent <dir> [claude|codex|shell] [-n NAME]` launcher in `/usr/local/bin` starts a tool in a zmx session; claude runs under Happy.
 - Ask the user for an explicit OK before starting any Claude or Codex session on the box (it spends their quota). Happy mode switches need the user to act from the Happy phone app.
 - Use only throwaway zmx sessions with a recognisable prefix in a scratch directory. Never type into, queue to or kill the user's own sessions (`zmx ls` shows them). Kill the throwaway sessions at the end, and leave the transcripts.
 - Get the plugin onto the box by copying the working tree into the scratch directory over ssh; do not push to GitHub for it. For the demonstrations, install it from that copy temporarily: for Claude at project scope inside the scratch directory where that works, for Codex with `codex plugin marketplace add <scratch copy>`. Remove every such install at the end and record the install and removal commands in `design/zmx-peer-chat.md`.
@@ -129,11 +129,11 @@ Out of scope:
 - `plugins/zmx-peer-chat/` (to-create) - `.claude-plugin/plugin.json`, the Claude and Codex skills, scripts (router, mailbox, register helper, daemon client), hooks and tests, following the existing `plugins/<domain>/skills/<name>/{scripts,tests}` layout.
 - `design/zmx-peer-chat.md` (to-create) - the contract (label keys, register helper CLI and exit codes, protocol version, mailbox layout) and the box demonstrations.
 - Mac reference implementation, read-only and outside this repo: `~/.config/agterm/scripts/peer-chat-route.sh`, `peer-mail.sh`, `peer-chat.py`, `~/.claude/skills/peer-chat/SKILL.md`, `~/.codex/skills/peer-chat/SKILL.md`, `~/.codex/rules/default.rules`.
-- `~/Private/Projects/mycloud/ansible/roles/agentbox/README.md` (exists, outside this repo, read-only) - the box, the `agent` launcher and zmx sessions ("Agents in zmx sessions").
+- `<source repo>/ansible/roles/<box>/README.md` (exists, outside this repo, read-only) - the box, the `agent` launcher and zmx sessions ("Agents in zmx sessions").
 
 ## Source
 
-Source: ~/Private/Projects/mycloud@c15c84b40276
+Source: <source repo>@c15c84b40276
 
 ## Before starting (destination Claude validation checklist)
 
@@ -158,7 +158,7 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - [x] #8 Tests cover label read-before-attach, the UUID pick (before/after difference of loaded thread ids with a matching cwd), refusal on zero or several candidates, refusal on a dead Codex session, the mailbox lock, protocol-version mismatch, quarantine of earlier-incarnation mail, and fail-closed handling of an unexpected daemon response; uv run ruff check . passes and uv run pytest has no failures other than test_helper_renders_canonical_decision_tree
 - [x] #9 plugins/zmx-peer-chat/.claude-plugin/plugin.json exists with version 0.1.0, the plugin ships an example Codex rules file whose prefix_rule lines allow the router's send commands, .claude-plugin/marketplace.json and README.md list the plugin, and design/zmx-peer-chat.md documents the label keys, the register helper's CLI and exit codes, the protocol version, the mailbox layout and the codex-cli version the daemon client was tested with
 - [x] #10 grep -rnE '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|/Users/[a-z]' design/zmx-peer-chat.md plugins/zmx-peer-chat prints nothing
-- [x] #11 At the end, ssh agentbox zmx ls lists none of the throwaway sessions and the temporary Claude and Codex plugin installs on the box are removed; the removal commands and a listing after them are recorded in design/zmx-peer-chat.md
+- [x] #11 At the end, ssh <box> zmx ls lists none of the throwaway sessions and the temporary Claude and Codex plugin installs on the box are removed; the removal commands and a listing after them are recorded in design/zmx-peer-chat.md
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -180,4 +180,8 @@ Commit: `f8bc9de` - task-51: add the zmx-peer-chat plugin for box-local Claude a
 Review round 1 (CHANGES REQUESTED) fixed: the delivery's partial file is .<name>.part and collect skips dot-files (a collect could take a half-written message, and the sender then crashed on the rename); the detached register child points fds 0-2 at /dev/null and leaves the cwd, so a launcher capturing the output is not held until the bind ends; daemon check compares the exact version token (endswith accepted 10.163.0); a thread seen running a turn at the snapshot or during the bind is never bound (a turn's end also moves updatedAt); cmd_* docstrings. Tests for each, each checked by reverting the fix. These were tested on the Mac only; the design doc says so.
 
 Commit: `ef2dd93` - task-51: fix the mailbox partial-file race, the detached register's output and the version gate
+
+Commit: `dbad7c1` - task-51: say which code the register demo ran and how long a bind may last
+
+Review: task-reviewer APPROVED in round 3 (score 9); round 1 asked for the mailbox partial-file, detached-register and version-gate fixes, round 2 for one doc wording fix. At the user's request the box ssh alias and the source repo path in this task are now placeholders (<box>, <source repo>). Final checks: uv run ruff check . passes; uv run pytest 342 passed, 1 failed (the carved-out test_helper_renders_canonical_decision_tree); the AC #10 grep prints nothing.
 <!-- SECTION:NOTES:END -->
