@@ -63,13 +63,13 @@ Build a `zmx-peer-chat` plugin in this repo that lets a Claude Code session and 
 
 ### Implementation checklist
 
-- [ ] Port `peer-mail.sh` (Linux `stat`, owner found from the process tree, collector lock).
-- [ ] Daemon client for `thread/loaded/list`, `thread/read` and `thread/name/set` over `codex app-server proxy` (WebSocket framing, stdlib only).
-- [ ] Launcher wrapper: read labels, list the loaded thread ids, start the session, take the new id with a matching `cwd`, record it as a label, name the thread.
-- [ ] Router `send`: liveness check via `zmx ls`/`zmx get`, `codex queue` for Codex, mailbox for Claude, `queued`/`delivered` reporting.
-- [ ] Claude skill: start the wait at session start; a trigger that restarts it after a mode switch; never type into a pane.
-- [ ] Codex skill: how Codex sends to Claude through the router, and its packaging for Codex (catalog, `codex plugin marketplace add`, discovery), which the spike did not test.
-- [ ] Tests, README entry, plugin manifest, Claude marketplace entry (`.claude-plugin/marketplace.json`).
+- [x] Port `peer-mail.sh` (Linux `stat`, owner found from the process tree, collector lock).
+- [x] Daemon client for `thread/loaded/list`, `thread/read` and `thread/name/set` over `codex app-server proxy` (WebSocket framing, stdlib only).
+- [x] Launcher wrapper: read labels, list the loaded thread ids, start the session, take the new id with a matching `cwd`, record it as a label, name the thread.
+- [x] Router `send`: liveness check via `zmx ls`/`zmx get`, `codex queue` for Codex, mailbox for Claude, `queued`/`delivered` reporting.
+- [x] Claude skill: start the wait at session start; a trigger that restarts it after a mode switch; never type into a pane.
+- [x] Codex skill: how Codex sends to Claude through the router, and its packaging for Codex (catalog, `codex plugin marketplace add`, discovery), which the spike did not test.
+- [x] Tests, README entry, plugin manifest, Claude marketplace entry (`.claude-plugin/marketplace.json`).
 
 ## Decisions carried from the design discussion (do not reopen)
 
@@ -184,4 +184,6 @@ Commit: `ef2dd93` - task-51: fix the mailbox partial-file race, the detached reg
 Commit: `dbad7c1` - task-51: say which code the register demo ran and how long a bind may last
 
 Review: task-reviewer APPROVED in round 3 (score 9); round 1 asked for the mailbox partial-file, detached-register and version-gate fixes, round 2 for one doc wording fix. At the user's request the box ssh alias and the source repo path in this task are now placeholders (<box>, <source repo>). Final checks: uv run ruff check . passes; uv run pytest 342 passed, 1 failed (the carved-out test_helper_renders_canonical_decision_tree); the AC #10 grep prints nothing.
+
+Ticked the implementation checklist quoted from the spike in the description: every item is done (the launcher wrapper is the plugin's register helper, which the launcher calls).
 <!-- SECTION:NOTES:END -->
