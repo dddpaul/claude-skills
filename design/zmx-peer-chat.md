@@ -8,11 +8,11 @@ Placeholders: `<box>` is the ssh alias, `<home>` the box user's home, `<uid>` it
 
 Everything runs on the box under one login uid. The launcher starts each agent in its own zmx session and, just before that, calls the plugin's register helper, which labels the session; two sessions with the same pair id and different roles are a pair. Claude sends with `codex queue`, which the shared Codex app-server daemon runs as the next turn of the bound thread. Codex sends into Claude's private mailbox, where a wait that Claude's plugin hooks keep running in every `claude` process picks the mail up and wakes Claude.
 
-The first diagram shows the pieces, the second the flows. `P` is the pair id, `I1` and `I2` the incarnations, `T` the Codex thread UUID, and `.` in a footer stands for the TUI's middle dot `·`. `[prov]` marks what the provisioning repo sets up, and `(!n)` points at known risk n below.
+The first diagram shows the pieces, the second the flows. `NAME` is a session's zmx name (the launcher's `-n NAME`, by default `<basename of dir>-<tool>`), `<dir>` the session directory, `P` the pair id, `I1` and `I2` the incarnations, `T` the Codex thread UUID, and `.` in a footer stands for the TUI's middle dot `·`. `[prov]` marks what the provisioning repo sets up, and `(!n)` points at known risk n below.
 
 ```text
 +----------------------------------- Linux box, one login uid -------------------------------------+
-| +-- zmx session <dir>-claude --------------+        +-- zmx session <dir>-codex ---------------+ |
+| +-- zmx session NAME, role claude ---------+        +-- zmx session NAME, role codex ----------+ |
 | | labels  zpc.pair=P   zpc.role=claude     |        | labels  zpc.pair=P   zpc.role=codex      | |
 | |         zpc.inc=I1   zpc.proto=1         |        |         zpc.inc=I2   zpc.proto=1         | |
 | |                                          |        |         zpc.thread=T                     | |
@@ -34,7 +34,7 @@ The first diagram shows the pieces, the second the flows. `P` is the pair id, `I
 | |   P/quarantine/   P/waiter (heartbeat)   |        | runs Codex's shell commands with         | |
 | |   P/waiter.lock   P/collect.lock         |        |   login-shell PATH + link [prov] (!3)    | |
 | |   outbox/<name>   register.log           |        |   CODEX_THREAD_ID=T, in the sandbox;     | |
-| |                                          |        |   rules [prov] exempt zmx-peer-chat (!3) | |
+| |                                          |        |   rules [prov] free 3 commands (!3)      | |
 | +------------------------------------------+        +------------------------------------------+ |
 |                                                                                                  |
 | zmx-peer-chat = the plugin's bin/, stdlib Python: register, send, prepare-message,               |
@@ -54,8 +54,8 @@ Registration                       (the launcher [prov], just before the session
                fork a detached bind, return at once
   launcher   zmx attach NAME codex            -> the TUI starts or resumes thread T
   bind         wait for NAME to appear in zmx ls
-               poll the daemon for the one thread in <dir> that was created after S,  (!2)
-                 or whose updatedAt moved past S, and was never seen running a turn
+               poll the daemon for the one thread in <dir>: a new id created after S, (!2)
+                 or one whose updatedAt moved past S; never one seen running a turn
                thread/name/set T "zpc-I2"     -> the footer shows zpc-I2
                zmx set NAME zpc.pair=P zpc.role=codex zpc.inc=I2 zpc.proto=1 zpc.thread=T
 
@@ -89,11 +89,11 @@ Claude's wait across a Happy mode switch
 ### Known risks
 
 1. **Sends to Codex read the Codex TUI's screen.** TASK-51's probes found no daemon call that tells which thread a TUI shows, so before every `codex queue` the router reads the Codex session's screen with `zmx history` and requires the footer to end with `· zpc-<inc>`. A Codex release that changes the footer, or a dialog over it, makes every send to Codex refuse with exit 1 and `nothing was queued`; it never starts a turn on a thread the TUI does not show. After a Codex upgrade, try one send on a live pair.
-2. **Registration uses an undocumented Codex API.** The register helper reaches the daemon through `codex app-server proxy` and calls `thread/loaded/list`, `thread/read` and `thread/name/set`, internal JSON-RPC methods of codex-cli; its thread pick also relies on how codex-cli 0.163.0 sets `createdAt` and `updatedAt`. The client fails closed: an unexpected handshake, frame or answer exits 3 (`codex daemon: …`) and sets no label, and a thread it cannot single out exits 4 or 5. Run `zmx-peer-chat daemon check` after every Codex upgrade: it exits 1 when the installed codex-cli is not the tested one and 3 when the daemon does not answer as expected. A new version needs a box run of the register demonstrations before the launcher relies on it.
-3. **The Codex side works only after provisioning.** The Claude side is self-contained: installing the plugin gives Claude Code the hooks, the skill and `zmx-peer-chat` on its Bash `PATH`. Three things marked `[prov]` are outside the plugin's reach:
-   - The launcher must call `zmx-peer-chat register` before it creates each `claude` and `codex` session. Without it the session has no labels, and sends refuse: an unregistered Claude gets `zmx session NAME is not registered with zmx-peer-chat`, a Claude whose Codex is unregistered gets `no codex session is paired with NAME; nothing was sent`, and an unregistered Codex gets `no zmx session is bound to this Codex thread (…)`.
-   - `zmx-peer-chat` must be on the login shell's `PATH`, which the daemon snapshots for Codex's commands. Without it Codex got `zmx-peer-chat: command not found` (exit 127) on the box.
-   - The lines of `codex/rules/zmx-peer-chat.rules` must be in `~/.codex/rules/`. Without them the command runs inside Codex's sandbox, where it failed on the box with `zmx ls failed: error: ReadOnlyFileSystem`.
+2. **Registration uses an undocumented Codex API.** The register helper reaches the daemon through `codex app-server proxy` and calls `thread/loaded/list`, `thread/read` and `thread/name/set`, internal JSON-RPC methods of codex-cli; its thread pick also relies on how codex-cli 0.163.0 sets `createdAt` and `updatedAt`. The client fails closed: an unexpected handshake, frame or answer is code 3 (`codex daemon: …`) and sets no label, and a thread it cannot single out is code 4 or 5. Only a failure during the snapshot, before the helper returns, reaches the launcher as an exit code; once the detached bind runs, failures go to `register.log` in the mail root. Run `zmx-peer-chat daemon check` after every Codex upgrade: it exits 1 when the installed codex-cli is not the tested one and 3 when the daemon does not answer as expected. A new version needs a box run of the register demonstrations before the launcher relies on it.
+3. **The pair works only after provisioning, and the Codex side needs most of it.** Installing the plugin gives Claude Code the hooks, the skill and `zmx-peer-chat` on its Bash `PATH`, so apart from the register call, which both sides need, the Claude side is self-contained. Three things marked `[prov]` are outside the plugin's reach:
+   - Both sides: the launcher must call `zmx-peer-chat register` before it creates each `claude` and `codex` session. Without it the session has no labels, and sends refuse: an unregistered Claude gets `zmx session NAME is not registered with zmx-peer-chat`, a Claude whose Codex is unregistered gets `no codex session is paired with NAME; nothing was sent`, and an unregistered Codex gets `no zmx session is bound to this Codex thread (…)`.
+   - Codex: `zmx-peer-chat` must be on the login shell's `PATH`, which the daemon snapshots for Codex's commands. Without it Codex got `zmx-peer-chat: command not found` (exit 127) on the box.
+   - Codex: the lines of `codex/rules/zmx-peer-chat.rules` must be in `~/.codex/rules/`. They let exactly three commands run outside Codex's sandbox: `zmx-peer-chat status`, `prepare-message` and `send --to claude --message-file`. Without them those commands run inside it, where `status` failed on the box with `zmx ls failed: error: ReadOnlyFileSystem`; any other form, such as `send --to claude --stdin`, stays inside it even with the rules.
 
 ## Versions
 
