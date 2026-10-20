@@ -9,9 +9,14 @@ Spike for TASK-49: which delivery paths work for a Claude Code and Codex pair th
 | codex-cli | `codex --version` | `codex-cli 0.163.0` |
 | zmx | `zmx version` | `zmx		0.8.1` (then `ghostty_vt	ghostty-1.3.2-dev-5UdBC4FtYAV-PdFOt-gceWieTHLri0H4ztHtd6Tr4dGj`, `socket_dir	/run/user/<uid>/zmx`, `log_dir		<home>/.local/state/zmx/logs`) |
 | claude-code | `claude --version` | `2.1.280 (Claude Code)` |
-| happy-coder | `happy --version` | `happy version: 1.1.9` (followed by `Error: Request failed with status code 401`, which does not affect the version) |
+| happy-coder | `jq -r .version "$(npm root -g)/happy-coder/package.json"` | `1.1.9` |
 
 All four match the versions the task expected.
+
+happy-coder's version is read from its `package.json` because that runs nothing. `happy --version` prints the version
+and then does not exit: it carries on into authentication and a Claude session. Without `HAPPY_SERVER_URL`, as in a
+non-login `ssh <box> '...'` shell, it contacts happy's public default server with the machine's credentials, which
+produced the `Error: Request failed with status code 401` seen in the spike.
 
 ## Setup
 
