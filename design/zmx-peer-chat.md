@@ -238,7 +238,7 @@ Codex loads a plugin's `hooks/hooks.json` unless the manifest's `hooks` names an
 
 1. Before `zmx attach NAME <tool>` creates a session, run `zmx-peer-chat register --role <tool> --session NAME --dir <dir>` (only for `claude` and `codex`), from any directory.
 2. A non-zero exit means no label will be set; the launcher may start the session anyway, and its sends then refuse.
-3. A registration that fails in the background (codes 4 and 5) is logged to `register.log` in the mail root and leaves the session unlabelled.
+3. A registration that fails in the background (codes 3, 4 and 5) is logged to `register.log` in the mail root and leaves the session unlabelled.
 4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (usually under two seconds); one that only runs a turn there is ignored.
 
 ## Box demonstrations
