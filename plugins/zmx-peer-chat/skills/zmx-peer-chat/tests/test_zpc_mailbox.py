@@ -220,3 +220,51 @@ def test_mail_root_must_be_private(
     root.chmod(0o755)
     with pytest.raises(ZpcError, match="not a private directory"):
         mail_root()
+
+
+def test_a_delivery_in_progress_is_not_mail(tmp_path: Path) -> None:
+    box = _box(tmp_path)
+    (box.inbox / ".1-2-abcd.msg.part").write_text('{"proto": "1", "pa')
+    (box.inbox / ".hidden.msg").write_text("not mail")
+    box.deliver("hello", "codex", "inc1")
+    got = box.collect("inc1")
+    assert got.messages == ["hello"] and got.quarantined == []
+    assert sorted(p.name for p in box.inbox.iterdir()) == [
+        ".1-2-abcd.msg.part",
+        ".hidden.msg",
+    ]
+
+
+def test_deliveries_and_collects_race_without_loss(tmp_path: Path) -> None:
+    _box(tmp_path)  # create the mailbox before the threads start
+    sent = [f"m{i:03d}" for i in range(300)]
+    taken: list[str] = []
+    quarantined: list[str] = []
+    errors: list[BaseException] = []
+    done = threading.Event()
+
+    def writer(part: list[str]) -> None:
+        try:
+            for text in part:
+                _box(tmp_path).deliver(text, "codex", "inc1")
+        except BaseException as exc:  # noqa: BLE001 - reported below
+            errors.append(exc)
+
+    def reader() -> None:
+        other = _box(tmp_path)
+        while not done.is_set() or any(other.inbox.glob("*.msg")):
+            got = other.collect("inc1")
+            taken.extend(got.messages)
+            quarantined.extend(got.quarantined)
+
+    writers = [threading.Thread(target=writer, args=(sent[i::3],)) for i in range(3)]
+    readers = [threading.Thread(target=reader) for _ in range(2)]
+    for t in readers + writers:
+        t.start()
+    for t in writers:
+        t.join()
+    done.set()
+    for t in readers:
+        t.join()
+    assert errors == [] and quarantined == []
+    assert sorted(taken) == sent

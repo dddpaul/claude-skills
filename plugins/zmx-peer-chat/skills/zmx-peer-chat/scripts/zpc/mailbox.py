@@ -91,7 +91,8 @@ class Mailbox:
             "text": text,
         }
         name = f"{time.time_ns()}-{os.getpid()}-{secrets.token_hex(2)}.msg"
-        tmp = self.inbox / f".tmp-{name}"
+        # The partial file must not look like mail: a collect takes "*.msg".
+        tmp = self.inbox / f".{name}.part"
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(body, f)
@@ -133,7 +134,8 @@ class Mailbox:
         got = Collected()
         with open(self.dir / "collect.lock", "a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
-            for path in sorted(self.inbox.glob("*.msg")):
+            mail = (p for p in self.inbox.glob("*.msg") if not p.name.startswith("."))
+            for path in sorted(mail):
                 text, why = self._verdict(path, inc)
                 if why is None:
                     got.messages.append(text or "")

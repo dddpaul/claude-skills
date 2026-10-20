@@ -4,7 +4,7 @@ title: 'zmx-peer-chat plugin: box-local Claude-Codex peer chat'
 status: In Progress
 assignee: []
 created_date: '2026-10-20 08:38'
-updated_date: '2026-10-20 17:21'
+updated_date: '2026-10-20 17:31'
 labels: []
 dependencies: []
 priority: medium
@@ -174,4 +174,8 @@ Box findings that shaped the code (details in design/zmx-peer-chat.md):
 - The launcher runs codex resume --last in a directory with history: the register helper binds a newly loaded id created after the snapshot, or a thread whose updatedAt moved past it; a thread the starting TUI only loads again keeps its old times (a wrong pick seen once on the box, now a regression test). The sender's footer check refuses any thread the TUI does not show.
 - A killed wait left a fresh heartbeat, so a send said delivered for up to 10 s; the heartbeat now carries the wait's pid and waiting checks it.
 All temporary installs and throwaway sessions were removed; the cleanup commands and listings are in the design doc.
+
+Commit: `f8bc9de` - task-51: add the zmx-peer-chat plugin for box-local Claude and Codex peer chat
+
+Review round 1 (CHANGES REQUESTED) fixed: the delivery's partial file is .<name>.part and collect skips dot-files (a collect could take a half-written message, and the sender then crashed on the rename); the detached register child points fds 0-2 at /dev/null and leaves the cwd, so a launcher capturing the output is not held until the bind ends; daemon check compares the exact version token (endswith accepted 10.163.0); a thread seen running a turn at the snapshot or during the bind is never bound (a turn's end also moves updatedAt); cmd_* docstrings. Tests for each, each checked by reverting the fix. These were tested on the Mac only; the design doc says so.
 <!-- SECTION:NOTES:END -->

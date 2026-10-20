@@ -18,7 +18,9 @@ in a directory with history) resumes one:
 
 Being newly loaded is not enough: a starting TUI can load an older thread of
 the directory that it does not show, and that thread keeps its old times.
-An exiting TUI moves neither time, and a thread running a turn is never taken.
+An exiting TUI moves neither time. A turn that ends moves ``updatedAt`` too, so
+a thread seen running a turn at the snapshot or while the bind polls is never
+taken; the polls are 0.3 seconds apart, shorter than any turn.
 """
 
 from __future__ import annotations
@@ -65,6 +67,9 @@ class Registration:
     before: dict[str, int | None] = field(default_factory=dict)
     # The snapshot's time, in whole epoch seconds like the daemon's timestamps.
     since: int = 0
+    # Threads seen running a turn since the snapshot: a turn that ends also
+    # moves updatedAt, so these are never taken for a resume.
+    busy: set[str] = field(default_factory=set)
     lock: IO[str] | None = None
 
 
@@ -118,7 +123,7 @@ def prepare(
         if role == "codex":
             reg.since = int(wall())
             with open_daemon() as d:
-                reg.before = _snapshot(d, real)
+                _snapshot(d, reg)
     except BaseException:
         reg.lock.close()
         raise
@@ -129,12 +134,13 @@ def _in_dir(info: ThreadInfo, directory: str) -> bool:
     return os.path.realpath(info.cwd) == directory
 
 
-def _snapshot(d: Daemon, directory: str) -> dict[str, int | None]:
-    before: dict[str, int | None] = {}
+def _snapshot(d: Daemon, reg: Registration) -> None:
     for t in d.loaded_threads():
         info = d.read_thread(t)
-        before[t] = info.updated_at if _in_dir(info, directory) else None
-    return before
+        in_dir = _in_dir(info, reg.directory)
+        reg.before[t] = info.updated_at if in_dir else None
+        if in_dir and info.status == "active":
+            reg.busy.add(t)
 
 
 def _candidates(d: Daemon, reg: Registration) -> list[str]:
@@ -147,7 +153,9 @@ def _candidates(d: Daemon, reg: Registration) -> list[str]:
         if not _in_dir(info, reg.directory):
             continue
         if info.status == "active":
-            continue  # running a turn: no TUI has just opened it
+            reg.busy.add(t)
+        if t in reg.busy:
+            continue  # ran a turn in the window: no TUI has just opened it
         started = t not in reg.before and info.created_at >= reg.since
         old = reg.before.get(t)
         resumed = info.updated_at >= reg.since and (
@@ -221,8 +229,11 @@ def bind_in_background(
 ) -> None:
     """Run ``run`` (the bind) in a detached grandchild that logs its outcome.
 
-    The grandchild keeps the registration lock until it is done.
+    The grandchild keeps the registration lock until it is done. It lets go of
+    the caller's stdin, stdout and stderr, so a launcher that captures the
+    helper's output gets end-of-file as soon as the helper returns.
     """
+    log = log.resolve()
     child = os.fork()
     if child:
         os.waitpid(child, 0)
@@ -230,6 +241,11 @@ def bind_in_background(
     os.setsid()
     if os.fork():
         os._exit(0)
+    null = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        os.dup2(null, fd)
+    os.close(null)
+    os.chdir("/")
     code = 0
     try:
         labels = run()
