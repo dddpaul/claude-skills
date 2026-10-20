@@ -1,10 +1,10 @@
 ---
 id: TASK-49
 title: 'Spike: test transports for a box-local Claude-Codex peer chat'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-20 05:16'
-updated_date: '2026-10-20 06:41'
+updated_date: '2026-10-20 06:44'
 labels: []
 dependencies: []
 priority: medium
@@ -121,4 +121,8 @@ Ran interactively on the host over ssh (Ralph's devcontainer reaches the box's p
 Review round 1: CHANGES REQUESTED (B1 exact commands for the no-session case; B2 the $PPID approval was observed only in local manual mode, remote-mode approval not recorded; B3 Codex packaging cut contradicted the checklist and TASK-49's assignment of it to the plugin task; B4 createdAt is not the thread start time (it read the first thread/read time), so the UUID rule is the before/after difference of loaded ids with a matching cwd; m1 no trigger restarted the wait after a mode switch, now an open risk; m2 N=10 s; m3 pytest carve-out). Correction to the earlier note: '$PPID in the wait command forces an approval on every start' holds for local manual mode only.
 
 Commit: `0995507` - task-49: correct the spike's UUID rule, approval scope and Codex packaging, add open risks
+
+Commit: `5035b30` - task-49: count every local wait prompt and name the router's channel for a restart request
+
+task-reviewer round 2: APPROVED, score 8, 0 blocking; both minor notes fixed (five local prompts, not three; the router's restart request goes through a non-typing channel to the person). Final: AC #7 grep prints nothing; no plugins diff; ruff clean; pytest 243 passed, 1 failed (test_helper_renders_canonical_decision_tree, as on master). Box: no spike-* sessions; scratch dir, transcripts, the scratch trust entry and the spike thread name remain as the task allows. Next: create the zmx-peer-chat plugin task from the doc's 'Distilled for ralph-task' section (ralph-task).
 <!-- SECTION:NOTES:END -->
