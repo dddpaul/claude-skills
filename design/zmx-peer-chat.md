@@ -60,7 +60,7 @@ A peer is the one other session with the same `zpc.pair` and the other `zpc.role
 zmx-peer-chat register --role claude|codex --session NAME [--dir DIR] [--pair ID] [--timeout SECONDS] [--foreground]
 ```
 
-The launcher runs it just before it creates the session with `zmx attach NAME <tool>`, in the same directory. It returns at once and binds in a detached child that logs one line to `register.log` in the mail root; `--foreground` binds in the foreground and prints the labels. `--timeout` (default 10 seconds) bounds the wait for the session and its thread.
+The launcher runs it just before it creates the session with `zmx attach NAME <tool>`, in the same directory. It returns at once and binds in a detached child that logs one line to `register.log` in the mail root; the child lets go of the caller's stdin, stdout and stderr, so a launcher may capture the helper's output. `--foreground` binds in the foreground and prints the labels. `--timeout` (default 10 seconds) bounds the wait for the session and its thread.
 
 1. If session `NAME` already exists, it changes nothing and exits 0 (`register: session NAME exists; its labels are left as they are`): the launcher attaches to the live session as before.
 2. It takes a per-directory lock (`register-<hash>.lock` in the mail root), held until the bind ends.
@@ -74,7 +74,7 @@ The Codex thread pick, in `zpc/register.py`:
 | starts a thread (`codex`) | a loaded id that was not in the snapshot, with `createdAt` at or after the snapshot time |
 | resumes one (`codex resume --last`, which the launcher runs in a directory with an interactive rollout) | `updatedAt` at or after the snapshot time and later than in the snapshot; resuming moves `updatedAt` to the resume time, whether or not the daemon still had the thread loaded |
 
-A thread that is running a turn is never taken. Being newly loaded is not enough: during a resume the starting TUI loaded an older thread of the same directory that it does not show, and that thread kept its old times (see "Register" under the demonstrations). An exiting TUI moves neither time. The spike saw `createdAt` read the time of the first `thread/read` for a thread without a rollout; the rule uses `createdAt` only for ids that were not loaded at the snapshot, and the sender's footer check (below) refuses any send to a thread the TUI does not show, so a wrong pick cannot start a turn.
+A thread seen running a turn, at the snapshot or at any of the bind's polls 0.3 seconds apart, is never taken: a turn that ends moves `updatedAt` too. Being newly loaded is not enough: during a resume the starting TUI loaded an older thread of the same directory that it does not show, and that thread kept its old times (see "Register" under the demonstrations). An exiting TUI moves neither time. The spike saw `createdAt` read the time of the first `thread/read` for a thread without a rollout; the rule uses `createdAt` only for ids that were not loaded at the snapshot, and the sender's footer check (below) refuses any send to a thread the TUI does not show, so a wrong pick cannot start a turn.
 
 ### Exit codes
 
@@ -127,7 +127,7 @@ The mail root is `$ZPC_MAIL_DIR` or `/tmp/zmx-peer-chat-<uid>`, created mode 070
 <root>/register-<hash>.lock                    the per-directory registration lock
 ```
 
-A message is written to a temporary file opened with `O_EXCL` and renamed into the inbox. A collect takes the inbox oldest first under `collect.lock`. Mail for another incarnation of the Claude session, in another protocol version, for another pair, or unreadable moves to `quarantine/` and is reported as `zmx-peer-chat: quarantined <file>: <why>`. `waiting` is true only while the heartbeat is under 5 seconds old and both pids in it are alive, so a killed wait reads as no wait at once.
+A message is written to `.<name>.part`, opened with `O_EXCL`, and renamed to `<name>` in the inbox. A collect takes the `*.msg` files whose names do not start with a dot, oldest first, under `collect.lock`, so it never sees a message that is still being written. Mail for another incarnation of the Claude session, in another protocol version, for another pair, or unreadable moves to `quarantine/` and is reported as `zmx-peer-chat: quarantined <file>: <why>`. `waiting` is true only while the heartbeat is under 5 seconds old and both pids in it are alive, so a killed wait reads as no wait at once.
 
 ### Claude side: the wait
 
@@ -148,11 +148,11 @@ Codex loads a plugin's `hooks/hooks.json` unless the manifest's `hooks` names an
 1. Before `zmx attach NAME <tool>` creates a session, run `zmx-peer-chat register --role <tool> --session NAME --dir <dir>` (only for `claude` and `codex`), from any directory.
 2. A non-zero exit means no label will be set; the launcher may start the session anyway, and its sends then refuse.
 3. A registration that fails in the background (codes 4 and 5) is logged to `register.log` in the mail root and leaves the session unlabelled.
-4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4.
+4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind (about two seconds); one that only runs a turn there is ignored.
 
 ## Box demonstrations
 
-Every command ran from the Mac as `ssh <box> 'bash -l'` with a script on stdin. Throwaway sessions were named `zpc-*`; the scratch directory was `~/zpc-scratch`, and the session directories were `~/zpc-scratch/pair`, `~/zpc-scratch/fresh` and `~/zpc-scratch/fresh2`. Sessions were started through the box's own launcher with `script` supplying the terminal, as in the spike: `timeout 12 script -qfc "agent zpc-scratch/pair codex -n zpc-codex" /dev/null`. `Z` below is the scratch copy's `bin/zmx-peer-chat`.
+Every command ran from the Mac as `ssh <box> 'bash -l'` with a script on stdin. Three changes made after the review were tested on the Mac only, not on the box: the delivery's partial file is named `.<name>.part`, the detached register child lets go of the caller's output, and a thread seen running a turn is never bound. Throwaway sessions were named `zpc-*`; the scratch directory was `~/zpc-scratch`, and the session directories were `~/zpc-scratch/pair`, `~/zpc-scratch/fresh` and `~/zpc-scratch/fresh2`. Sessions were started through the box's own launcher with `script` supplying the terminal, as in the spike: `timeout 12 script -qfc "agent zpc-scratch/pair codex -n zpc-codex" /dev/null`. `Z` below is the scratch copy's `bin/zmx-peer-chat`.
 
 ### Temporary installs
 

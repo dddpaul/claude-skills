@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import os
 import stat
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -32,6 +35,8 @@ from zpc.common import ZpcError, pair_id
 from zpc.register import Registration, bind, prepare
 from zpc.zmx import Session, Zmx
 
+
+BIN = Path(__file__).resolve().parents[3] / "bin" / "zmx-peer-chat"
 
 # The wall clock at the snapshot; the fake threads' times are on the same scale.
 SINCE = 1000
@@ -175,6 +180,53 @@ def test_a_running_turn_is_no_resume(tmp_path: Path) -> None:
         _register(tmp_path, daemon, zmx, Clock())
     assert err.value.code == 5
     assert zmx.set_calls == [] and daemon.names == {}
+
+
+def test_a_thread_that_ran_a_turn_is_no_resume(tmp_path: Path) -> None:
+    # Another TUI's thread in the same directory: running a turn at the
+    # snapshot, or seen running one while the bind polls, then idle with a
+    # fresh updatedAt. Only the new TUI's thread, which comes later, is bound.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    snap = {
+        THREAD_A: thread(THREAD_A, work, 5, status="active"),
+        THREAD_B: thread(THREAD_B, work, 7),
+    }
+    turn = {
+        THREAD_A: thread(THREAD_A, work, 5, status="active"),
+        THREAD_B: thread(THREAD_B, work, 7, status="active"),
+    }
+    ended = {
+        THREAD_A: thread(THREAD_A, work, SINCE + 1),
+        THREAD_B: thread(THREAD_B, work, SINCE + 1),
+    }
+    opened = dict(ended)
+    opened[THREAD_C] = thread(THREAD_C, work, SINCE + 2, created=SINCE + 2)
+    daemon = FakeDaemon([snap, turn, ended, ended, opened])
+    reg, got = _register(tmp_path, daemon, FakeZmx(), Clock())
+    assert got["zpc.thread"] == THREAD_C
+    assert daemon.names == {THREAD_C: f"zpc-{reg.inc}"}
+
+
+def test_detached_register_lets_go_of_the_callers_output(tmp_path: Path) -> None:
+    # A launcher may capture the helper's output; it must get end-of-file when
+    # the helper returns, not when the background bind ends.
+    exe, _ = _fake_zmx_exe(tmp_path, [])
+    mail = tmp_path / "mail"
+    env = dict(os.environ, ZPC_ZMX=str(exe), ZPC_MAIL_DIR=str(mail))
+    env.pop("CODEX_THREAD_ID", None)
+    argv = [sys.executable, str(BIN), "register", "--role", "claude"]
+    argv += ["--session", "w-late", "--dir", str(tmp_path), "--timeout", "3"]
+    start = time.monotonic()
+    done = subprocess.run(argv, env=env, capture_output=True, text=True, timeout=10)
+    assert time.monotonic() - start < 2
+    assert done.returncode == 0 and "in the background" in done.stdout
+    log = mail / "register.log"
+    for _ in range(100):
+        if log.exists() and "did not appear" in log.read_text():
+            break
+        time.sleep(0.1)
+    assert "w-late: session w-late did not appear; no label set" in log.read_text()
 
 
 def test_zero_candidates_set_no_label(tmp_path: Path) -> None:

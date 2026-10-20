@@ -50,6 +50,7 @@ def _owner() -> int:
 
 
 def cmd_register(a: argparse.Namespace) -> int:
+    """Label a new session, in the background unless --foreground."""
     zmx, root = Zmx(), mail_root()
     reg = prepare(a.role, a.session, a.dir, a.pair, zmx, root, Daemon.open)
     if reg is None:
@@ -69,6 +70,7 @@ def cmd_register(a: argparse.Namespace) -> int:
 
 
 def cmd_send(a: argparse.Namespace) -> int:
+    """Send one message to the peer and print queued or delivered."""
     root = mail_root()
     raw = take_message(root, a.message_file) if a.message_file else sys.stdin.read()
     print(send(a.to, raw, a.session, Zmx(), root))
@@ -76,11 +78,13 @@ def cmd_send(a: argparse.Namespace) -> int:
 
 
 def cmd_prepare_message(a: argparse.Namespace) -> int:
+    """Create a private, empty message file and print its path."""
     print(prepare_message(mail_root(), a.name))
     return 0
 
 
 def cmd_wait(a: argparse.Namespace) -> int:
+    """Wait in the foreground for peer mail and print it."""
     box, inc = _claude_side(a.session)
     result = box.wait(inc, _owner(), a.seconds)
     if result.outcome == "mail" and result.collected:
@@ -93,6 +97,7 @@ def cmd_wait(a: argparse.Namespace) -> int:
 
 
 def cmd_hook_wait(a: argparse.Namespace) -> int:
+    """The hooks' wait: exit 2 with the mail on stderr, else 0."""
     sys.stdin.read()  # the hook's JSON input; nothing in it is needed
     try:
         box, inc = _claude_side(None)
@@ -109,6 +114,7 @@ def cmd_hook_wait(a: argparse.Namespace) -> int:
 
 
 def cmd_waiting(a: argparse.Namespace) -> int:
+    """Print whether a wait runs; exit 0 for yes, 1 for no."""
     box, _ = _claude_side(a.session)
     running = box.waiting()
     print("waiting: yes" if running else "waiting: no")
@@ -116,6 +122,7 @@ def cmd_waiting(a: argparse.Namespace) -> int:
 
 
 def cmd_collect(a: argparse.Namespace) -> int:
+    """Take and print the mail now."""
     box, inc = _claude_side(a.session)
     got = box.collect(inc)
     if got:
@@ -124,6 +131,7 @@ def cmd_collect(a: argparse.Namespace) -> int:
 
 
 def cmd_status(a: argparse.Namespace) -> int:
+    """Print this session's labels, its peer and whether a wait runs."""
     sessions = Zmx().sessions()
     me = find_me(sessions, a.session)
     pair = me.labels[LABEL_PAIR]
@@ -139,6 +147,7 @@ def cmd_status(a: argparse.Namespace) -> int:
 
 
 def cmd_daemon(a: argparse.Namespace) -> int:
+    """Check the Codex daemon and its version, or list skills for a cwd."""
     if a.what == "check":
         codex = os.environ.get("ZPC_CODEX", "codex").split()
         try:
@@ -153,11 +162,17 @@ def cmd_daemon(a: argparse.Namespace) -> int:
             f"{version} (tested with codex-cli {TESTED_CODEX_CLI}); daemon ok, "
             f"{loaded} loaded thread(s); protocol {PROTO}"
         )
-        return 0 if version.endswith(TESTED_CODEX_CLI) else 1
+        return 0 if is_tested_codex(version) else 1
     with Daemon.open() as d:
         for name in d.skills(os.path.realpath(a.cwd)):
             print(name)
     return 0
+
+
+def is_tested_codex(version: str) -> bool:
+    """Tell whether ``codex --version`` output names the tested codex-cli version."""
+    words = version.split()
+    return bool(words) and words[-1] == TESTED_CODEX_CLI
 
 
 def _parser() -> argparse.ArgumentParser:
