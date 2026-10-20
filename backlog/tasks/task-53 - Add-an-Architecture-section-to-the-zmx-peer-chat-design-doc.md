@@ -1,9 +1,10 @@
 ---
 id: TASK-53
 title: Add an Architecture section to the zmx-peer-chat design doc
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-20 17:43'
+updated_date: '2026-10-20 17:44'
 labels: []
 dependencies: []
 ordinal: 53000
@@ -17,10 +18,16 @@ design/zmx-peer-chat.md documents the zmx-peer-chat contract and the box demonst
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 design/zmx-peer-chat.md has a ## Architecture section placed before ## Versions, holding a component diagram and a flow diagram, each in a fenced text code block
-- [ ] #2 The diagrams mark the pieces the provisioning repo sets up (the launcher, the PATH link, the rules) and point at the known risks with markers that a legend explains
-- [ ] #3 The section lists the three known risks: the Codex footer read through zmx history, the undocumented app-server API with zmx-peer-chat daemon check as its gate, and the Codex side's dependence on provisioning; each says what fails and how (refuses, exit code, or error text)
-- [ ] #4 Every line inside both diagrams is at most 100 characters, and every row of the component diagram has the same length (checked with awk over the fenced blocks)
-- [ ] #5 grep -nE '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|/Users/[a-z]' design/zmx-peer-chat.md prints nothing
+- [x] #1 design/zmx-peer-chat.md has a ## Architecture section placed before ## Versions, holding a component diagram and a flow diagram, each in a fenced text code block
+- [x] #2 The diagrams mark the pieces the provisioning repo sets up (the launcher, the PATH link, the rules) and point at the known risks with markers that a legend explains
+- [x] #3 The section lists the three known risks: the Codex footer read through zmx history, the undocumented app-server API with zmx-peer-chat daemon check as its gate, and the Codex side's dependence on provisioning; each says what fails and how (refuses, exit code, or error text)
+- [x] #4 Every line inside both diagrams is at most 100 characters, and every row of the component diagram has the same length (checked with awk over the fenced blocks)
+- [x] #5 grep -nE '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|/Users/[a-z]' design/zmx-peer-chat.md prints nothing
 - [ ] #6 git diff master..HEAD --stat lists only design/zmx-peer-chat.md and the task file
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: interactive (the user asked to discuss the diagram in this session). Generate both diagrams with a scratch script so the box borders line up, add (!n) risk markers and [prov] ownership marks with a legend, insert ## Architecture after the intro and before ## Versions, list the three risks in prose, then run the width awk check and the AC grep, the task-reviewer, Done and merge.
+<!-- SECTION:NOTES:END -->
