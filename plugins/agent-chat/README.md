@@ -80,7 +80,7 @@ Codex has no hook that can block and then hand it a message, so each host runs `
 
 Each batch of mail for one room becomes one `codex queue --thread <id> --message <text>`. The text is the same note Claude gets: the sender's authority for each message, and how to reply from Codex. The addressing rule, the own-sender guard and "the first run starts from now" are Claude's. The history a server sends with a newly joined room is skipped. When no registered session matches a room, when several do, or when the match has no bound thread, the watcher logs the reason and queues nothing; it never queues to any other thread, and it never starts, registers, types into or kills a session.
 
-The cursor is saved before the delivery, so a crash never delivers a message twice, and a failed `codex queue` is logged and not retried. Every delivery, refusal and failure is one line in the account's `log` and on stderr. One watcher runs per cursor (`watch-codex.cursor`, or `watch-codex-<room>.cursor` with `--thread`); a second one exits with an error. SIGTERM or SIGINT abandons a sync in progress and lets a delivery in progress finish, then the watcher exits 0. Under systemd, use `KillMode=mixed`, so that SIGTERM reaches only the watcher and not a `codex queue` it is running. A refused token ends the watcher with exit 1; a network outage is retried for as long as it lasts.
+The cursor is saved before the delivery, so a crash never delivers a message twice, and a failed `codex queue` is logged and not retried. Every delivery, refusal and failure, a failure to start included, is one line in the account's `log` and on stderr; only a bad `--thread` or a missing config or token, found before there is an account to log for, shows on stderr alone. One watcher runs per cursor (`watch-codex.cursor`, or `watch-codex-<room>.cursor` with `--thread`); a second one exits with an error. SIGTERM or SIGINT abandons a sync in progress and lets a delivery in progress finish, then the watcher exits 0. Under systemd, use `KillMode=mixed`, so that SIGTERM reaches only the watcher and not a `codex queue` it is running. A refused token ends the watcher with exit 1; a network outage is retried for as long as it lasts.
 
 A supervisor's `PATH` may lack `codex` or `zmx`: `AGENT_CHAT_CODEX` and `AGENT_CHAT_ZMX` name the binaries. The token never reaches a command line; the message text on `codex queue`'s command line is room content, not a secret.
 
@@ -88,7 +88,7 @@ A supervisor's `PATH` may lack `codex` or `zmx`: `AGENT_CHAT_CODEX` and `AGENT_C
 
 ```sh
 agent-chat status             # the account, the project room, whether a wait listens
-agent-chat status --as codex  # the same for the Codex account
+agent-chat status --as codex  # the same for the Codex account, and whether watch-codex runs
 uv run pytest plugins/agent-chat
 ```
 

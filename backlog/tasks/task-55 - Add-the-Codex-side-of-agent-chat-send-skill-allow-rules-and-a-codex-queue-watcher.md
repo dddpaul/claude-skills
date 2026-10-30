@@ -103,4 +103,6 @@ $ codex execpolicy check --rules codex/rules/agent-chat.rules agent-chat send --
 {"matchedRules":[{"prefixRuleMatch":{"matchedPrefix":["agent-chat","send","--as","codex","--message-file"],"decision":"allow"}}],"decision":"allow"}
 $ codex execpolicy check --rules codex/rules/agent-chat.rules agent-chat send --as codex --stdin
 {"matchedRules":[]}
+
+Commit: `8e9d6b8` - task-55: add the Codex side of agent-chat: two-step send, allow rules and a codex queue watcher
 <!-- SECTION:NOTES:END -->

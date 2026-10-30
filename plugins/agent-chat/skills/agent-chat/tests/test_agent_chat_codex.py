@@ -212,7 +212,8 @@ CODEX_BIN = shutil.which("codex")
     [
         (["agent-chat", "prepare-message", "ac-codex-1.txt"], "allow"),
         (
-            "agent-chat send --as codex --message-file ac-codex-1.txt --to claude-b".split(),
+            ["agent-chat", "send", "--as", "codex", "--message-file", "m.txt"]
+            + ["--to", "claude-b"],
             "allow",
         ),
         (["agent-chat", "send", "--as", "codex", "--stdin"], None),
@@ -554,6 +555,9 @@ def test_watch_codex_refuses_a_bad_thread_or_a_project_without_a_room(
     host.hs.aliases.clear()
     code, _, err, _ = f.run(capsys, monkeypatch, "watch-codex", "--thread", THREAD)
     assert code == 1 and "not onboarded" in err.splitlines()[-1]
+    # A failure to start is in the account's log too, once there is an account.
+    log = (host.state(f.CODEX_A) / "log").read_text()
+    assert f"watch-codex: this project has no room {f.ALIAS} (not onboarded)" in log
 
 
 def _spawn(host: Host, tmp_path: Path, *args: str) -> tuple[subprocess.Popen, Path]:
@@ -575,14 +579,20 @@ def _cursor(host: Host) -> Path:
 def test_sigterm_ends_the_watcher_with_the_cursor_saved(
     host: Host, fakes: Fakes, tmp_path: Path, capsys, monkeypatch
 ) -> None:
+    code, out, _, _ = f.run(capsys, monkeypatch, "status", "--as", "codex")
+    assert code == 0 and "watch-codex: not running" in out
     proc, err = _spawn(host, tmp_path, "--thread", THREAD)
     try:
         until(_cursor(host).exists)
-        # One watcher per cursor: a second one refuses.
+        code, out, _, _ = f.run(capsys, monkeypatch, "status", "--as", "codex")
+        assert code == 0 and "watch-codex: running" in out
+        # One watcher per cursor: a second one refuses, and says so in the log.
         code, _, second, _ = f.run(
             capsys, monkeypatch, "watch-codex", "--thread", THREAD
         )
         assert code == 1 and "another watch-codex already runs" in second
+        log = (host.state(f.CODEX_A) / "log").read_text()
+        assert "watch-codex: another watch-codex already runs" in log
         at = len(host.hs.events)
         host.hs.post(f.ROOM, f.HUMAN, "@codex-a: before the stop")
         until(lambda: len(fakes.calls()) == 1)
