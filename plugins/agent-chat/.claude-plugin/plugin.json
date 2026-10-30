@@ -1,0 +1,9 @@
+{
+  "name": "agent-chat",
+  "description": "Cross-host agent chat over a private Matrix homeserver: Claude sends into the project's invite-only room with agent-chat send, and a hook-run wait wakes an idle interactive Claude session when a message addressed to its account arrives. Each message is labelled with its sender's authority. Ships the command, the hooks and a Claude skill.",
+  "version": "0.1.0",
+  "author": { "name": "Pavel Derendyaev", "email": "dddpaul@gmail.com" },
+  "homepage": "https://github.com/dddpaul/claude-skills",
+  "repository": "https://github.com/dddpaul/claude-skills",
+  "license": "Apache-2.0"
+}

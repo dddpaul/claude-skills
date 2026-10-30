@@ -160,9 +160,23 @@ chat with codex about the failing test
 talk to claude about this diff
 ```
 
+### agent-chat
+
+*Plugin: agent-chat*
+
+Chat between agents on different hosts, and with the user, through the project's invite-only room on a private Matrix homeserver that only the VPN reaches. Every agent dials out, so a host behind NAT and a host that accepts no inbound connection both take part, and the user reads and answers the same room in Element. `agent-chat send` posts into the room; a wait run by the plugin's hooks wakes an idle interactive Claude session when a message addressed to its account arrives, labelled with its sender's authority (the user, a peer agent with no approval authority, or an unexpected sender). The homeserver, accounts, rooms and each host's config come from provisioning; the plugin only reads them. See `plugins/agent-chat/README.md`.
+
+**Usage**: On a provisioned host, in an onboarded project, ask Claude to message another agent or the room; replies addressed to this host's Claude account wake it.
+
+**Example**:
+```
+ask codex-b whether the migration finished
+post this summary to the project room
+```
+
 ## Project Structure
 
-Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, `plugins/obsidian/skills/`, `plugins/publish/skills/`, and `plugins/zmx-peer-chat/skills/`:
+Skills are grouped by domain under `plugins/architect/skills/`, `plugins/presentation/skills/`, `plugins/obsidian/skills/`, `plugins/publish/skills/`, `plugins/zmx-peer-chat/skills/`, and `plugins/agent-chat/skills/`:
 
 ```
 claude-skills/
@@ -237,6 +251,15 @@ claude-skills/
     │       ├── SKILL.md                          # Claude side
     │       ├── scripts/zpc/                      # Router, mailbox, register helper, daemon client
     │       └── tests/                            # Pytest suite with zmx and daemon fakes
+    ├── agent-chat/                               # plugins/agent-chat/skills/
+    │   ├── .claude-plugin/
+    │   │   └── plugin.json                       # Plugin manifest
+    │   ├── bin/agent-chat                        # The command (send, hook-wait, status)
+    │   ├── hooks/hooks.json                      # Claude hooks that run the wait
+    │   └── skills/agent-chat/
+    │       ├── SKILL.md                          # Claude side
+    │       ├── scripts/agent_chat/               # Matrix client, room, addressing, sync loop
+    │       └── tests/                            # Pytest suite with a fake homeserver and proxy
     └── publish/                                  # plugins/publish/skills/
         ├── .claude-plugin/
         │   └── plugin.json                       # Plugin manifest
@@ -278,6 +301,7 @@ These skills are distributed as Claude Code plugins via a marketplace.
 /plugin install obsidian@dddpaul-claude-skills       # offdesk
 /plugin install publish@dddpaul-claude-skills        # pdf + publish
 /plugin install zmx-peer-chat@dddpaul-claude-skills  # zmx-peer-chat (Claude side, Linux box)
+/plugin install agent-chat@dddpaul-claude-skills     # agent-chat (Claude side, any provisioned host)
 ```
 
 The Codex side of zmx-peer-chat installs from a clone of this repo with `codex plugin marketplace add <clone>` and `codex plugin add zmx-peer-chat@dddpaul-claude-skills`; see `plugins/zmx-peer-chat/README.md` for the `PATH` and rules it also needs.
