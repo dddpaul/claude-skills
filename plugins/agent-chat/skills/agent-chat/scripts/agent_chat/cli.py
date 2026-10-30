@@ -149,6 +149,19 @@ def cmd_watch_codex(a: argparse.Namespace) -> int:
         print(f"agent-chat watch-codex: {line}", file=sys.stderr, flush=True)
 
     w = watch.CodexWatcher(client, cfg, account, state, say, thread, alias)
+    try:
+        return _serve(w, state)
+    except AuthError as exc:
+        say(f"{account} was refused ({exc}); stopping")
+        return 1
+    except Exception as exc:  # noqa: BLE001 - logged here, reported by main()
+        why = exc if isinstance(exc, AgentChatError) else repr(exc)
+        log(state, f"watch-codex: {why}")
+        raise
+
+
+def _serve(w: watch.CodexWatcher, state: Path) -> int:
+    """Run ``w`` under its lock, with SIGTERM and SIGINT handled, until it stops."""
     lock = WaitLock(state, w.lock_name)
     if not lock.try_acquire():
         raise AgentChatError(f"another watch-codex already runs ({lock.path})")
@@ -159,9 +172,6 @@ def cmd_watch_codex(a: argparse.Namespace) -> int:
     try:
         lock.record(os.getpid())
         return w.run()
-    except AuthError as exc:
-        say(f"{account} was refused ({exc}); stopping")
-        return 1
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
@@ -236,6 +246,10 @@ def cmd_status(a: argparse.Namespace) -> int:
     print(f"{LISTEN_ENV}: {os.environ.get(LISTEN_ENV, 'unset')}")
     waiting = WaitLock(state, alias_slug(alias)).held()
     print(f"waiting: {'yes' if waiting else 'no'}")
+    if a.as_ == "codex":
+        locks = ("watch-codex", f"watch-codex-{alias_slug(alias)}")
+        watching = any(WaitLock(state, name).held() for name in locks)
+        print(f"watch-codex: {'running' if watching else 'not running'}")
     print(f"state: {state}")
     return 0
 
