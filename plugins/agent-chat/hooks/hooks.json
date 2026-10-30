@@ -1,0 +1,53 @@
+{
+  "description": "Keep one wait for room mail running while an interactive Claude session lives: at session start (including the new process Happy starts on each mode switch), when a prompt is submitted, and when a turn ends or fails. asyncRewake hands a message addressed to this host's Claude account to Claude as a system reminder and wakes it even when idle. Without AGENT_CHAT_LISTEN=1, a config, a token or a project room the command exits at once, and a second wait for the same account and room exits at once too.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/agent-chat\" hook-wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/agent-chat\" hook-wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/agent-chat\" hook-wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/agent-chat\" hook-wait",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ]
+  }
+}
