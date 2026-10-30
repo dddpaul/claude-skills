@@ -66,7 +66,22 @@ class PsProcs:
         fields = out.stdout.strip().split(None, 1)
         if out.returncode != 0 or not fields or not fields[0].isdigit():
             return None
-        return int(fields[0]), (fields[1].split() or [""])[0] if len(fields) > 1 else ""
+        return int(fields[0]), _argv0(fields[1] if len(fields) > 1 else "")
+
+
+def _argv0(args: str) -> str:
+    """Return argv[0] from a ``ps`` args column, which joins argv with spaces.
+
+    The shortest leading run of words that names an existing file is argv[0],
+    so a binary under a path with a space is still found; otherwise the first
+    word is.
+    """
+    words = args.split(" ")
+    for n in range(1, len(words) + 1):
+        candidate = " ".join(words[:n])
+        if os.sep in candidate and os.path.isfile(candidate):
+            return candidate
+    return args.split()[0] if args.split() else ""
 
 
 def system_table() -> ProcTable:

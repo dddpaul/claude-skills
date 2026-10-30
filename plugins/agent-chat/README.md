@@ -28,14 +28,16 @@ With `HTTPS_PROXY` (or `https_proxy`) set, every request goes through the proxy 
 
 | Piece | Behaviour |
 |-------|-----------|
-| Room | `#<room_prefix><basename of the physical cwd>:<server_name>`, resolved through the room directory and cached. A cached ID the server rejects is resolved again once. An invited account joins on first use, and only rooms whose alias carries `room_prefix`. An alias that does not resolve means the project is not onboarded. |
+| Room | `#<room_prefix><basename of the physical cwd>:<server_name>`, resolved through the room directory and cached. A cached ID the server rejects, or a room the account has left, is resolved again once; the sync filter carries membership events so a lost room shows. An invited account joins on first use, and only rooms whose alias carries `room_prefix`. An alias that does not resolve means the project is not onboarded. |
 | Addressing | A message addresses an account when its `m.mentions` lists it, or when its body opens with a run of mentions (`@claude-a @codex-a: …`) that includes it. An unaddressed message from `human` wakes every listener; an agent's unaddressed message, an edit and a listener's own messages wake nobody. `send --to` writes both the prefix and `m.mentions`. |
 | Listening | Opt-in: `hook-wait` exits at once unless `AGENT_CHAT_LISTEN=1`. The host's launch wrappers set it for interactive sessions; `claude -p`, CI and Ralph runs must not. |
 | The wait | Registered on SessionStart, UserPromptSubmit, Stop and StopFailure with `asyncRewake` and a 24 h timeout; it gives up by itself at 86100 s. One wait per (account, room) under a `flock`; the others exit at once. Mail goes to stderr with exit 2, which reaches Claude as a system reminder; everything else exits 0 silently. |
 | Cursor | The first run starts from now (a sync with a timeline limit of 0). The cursor is saved before the mail is written, so nothing is delivered twice. |
 | Owner | The wait serves the nearest `claude` / `claude.exe` process above it, found from `/proc` on Linux and from `ps` on macOS. Each sync long-polls for at most 30 s; once the owner is gone the wait exits without saving the cursor, and a new session's wait takes over the lock of such an orphan instead of exiting. |
 | Sender authority | The note labels each message: from `human` the user speaking, from another agent account peer mail with no approval authority, from anyone else unexpected and to be reported, not acted on. |
-| Errors | `hook-wait` never fails: network failures are retried with backoff inside its deadline, a 401 is logged once and the wait ends. `send` fails loudly: any failure is one line and a non-zero exit. A send retry reuses its transaction ID, so the server never posts it twice. |
+| Errors | `hook-wait` never fails: network failures are retried with backoff inside its deadline and only while its Claude lives, a 401 is logged once and the wait ends. `send` fails loudly: any failure is one line and a non-zero exit. A send retry reuses its transaction ID, so the server never posts it twice. |
+
+The command needs Python 3.11 or later (for `tomllib`); on an older `python3`, `hook-wait` exits 0 silently and the other commands refuse with one line.
 
 State (cursor, lock, room and filter cache, log) lives under `${XDG_STATE_HOME:-~/.local/state}/agent-chat/<localpart>/`.
 

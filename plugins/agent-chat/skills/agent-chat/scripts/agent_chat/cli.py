@@ -44,10 +44,13 @@ LISTEN_ENV = "AGENT_CHAT_LISTEN"
 
 
 def log(state: Path, line: str) -> None:
-    """Append one timestamped line to the account's log."""
+    """Append one timestamped line to the account's log; a failure is ignored."""
     stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with open(state / "log", "a", encoding="utf-8") as f:
-        f.write(f"{stamp} pid={os.getpid()} {line}\n")
+    try:
+        with open(state / "log", "a", encoding="utf-8") as f:
+            f.write(f"{stamp} pid={os.getpid()} {line}\n")
+    except OSError:
+        pass
 
 
 def log_auth_once(state: Path, account: str, exc: AuthError) -> None:
@@ -64,7 +67,10 @@ def log_auth_once(state: Path, account: str, exc: AuthError) -> None:
     except OSError:
         pass
     log(state, f"hook-wait: {account} was refused ({exc}); listening stops")
-    marker.write_text(version, encoding="utf-8")
+    try:
+        marker.write_text(version, encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _setup(tool: str) -> tuple[Config, str, Client]:
@@ -118,8 +124,8 @@ def cmd_hook_wait(a: argparse.Namespace) -> int:
     try:
         cfg, account, client = _setup(a.as_)
         state = state_dir(account)
-    except AgentChatError:
-        return 0  # an unconfigured host has nothing to listen to
+    except Exception:  # noqa: BLE001 - an unconfigured host has nothing to listen to
+        return 0
     try:
         return _hook_wait(cfg, account, client, state, a.seconds)
     except AuthError as exc:

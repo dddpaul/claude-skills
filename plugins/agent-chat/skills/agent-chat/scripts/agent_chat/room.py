@@ -66,7 +66,9 @@ class Rooms:
         if cached.pop(alias, None) is not None:
             write_json(self.cache, cached)
 
-    def room_id(self, alias: str, deadline: float, refresh: bool = False) -> str | None:
+    def room_id(
+        self, alias: str, deadline: float, refresh: bool = False, verify: bool = False
+    ) -> str | None:
         """Return the joined room behind ``alias``, or None when it does not resolve.
 
         An account that is invited but has not joined joins here, and only for
@@ -76,10 +78,13 @@ class Rooms:
             alias: The room alias.
             deadline: When retries stop.
             refresh: Ignore the cache and ask the homeserver.
+            verify: Use a cached ID only while the account is still in that room.
         """
         cached = read_json(self.cache)
-        if not refresh and isinstance(cached.get(alias), str):
-            return cached[alias]
+        hit = cached.get(alias) if not refresh else None
+        if isinstance(hit, str):
+            if not verify or hit in self.client.joined_rooms(deadline):
+                return hit
         room = self.client.resolve_alias(alias, deadline)
         if room is None:
             self.forget(alias)

@@ -56,3 +56,12 @@ def test_a_zombie_counts_as_gone(tmp_path: Path) -> None:
     stat = tmp_path / "proc" / "20" / "stat"
     stat.write_text(stat.read_text().replace(" S ", " Z "))
     assert not alive(table, 20)
+
+
+def test_ps_form_finds_a_claude_under_a_path_with_a_space(tmp_path: Path) -> None:
+    binary = tmp_path / "Claude Tools" / "claude"
+    binary.parent.mkdir()
+    binary.write_text("")
+    table = mac(tmp_path, {20: (1, f"{binary} --resume x"), 40: (20, "sh")})
+    assert table.entry(20) == (1, str(binary))
+    assert claude_ancestor(table, 40) == 20
