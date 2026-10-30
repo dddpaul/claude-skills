@@ -58,6 +58,8 @@ class FakeHomeserver:
         self.invited: dict[str, set[str]] = {}
         self.events: list[tuple[str, dict[str, Any]]] = []
         self.left: dict[tuple[str, str], int] = {}
+        self.joined_at: dict[tuple[str, str], int] = {}
+        self.canonical: dict[str, str] = {}
         self.filters: dict[str, Any] = {}
         self.txns: dict[tuple[str, str], str] = {}
         self.requests: list[tuple[str, str, dict[str, list[str]], Any]] = []
@@ -82,8 +84,9 @@ class FakeHomeserver:
     def room(
         self, alias: str, room_id: str, joined: set[str], invited: set[str]
     ) -> None:
-        """Create a room with ``alias``, its joined and its invited accounts."""
+        """Create a room with ``alias`` (also its canonical alias), its members."""
         self.aliases[alias] = room_id
+        self.canonical[room_id] = alias
         self.joined[room_id] = set(joined)
         self.invited[room_id] = set(invited)
 
@@ -176,6 +179,11 @@ class FakeHomeserver:
                 if user not in members:
                     continue
                 first = 0 if start is None else start
+                # Like a real server, the first sync after a join carries some
+                # of the room's history, the join event last.
+                at = self.joined_at.get((user, room_id))
+                if start is not None and at is not None and start <= at < end:
+                    first = 0
                 events = [
                     e for r, e in self.events[first:end] if r == room_id and shown(e)
                 ]
@@ -210,9 +218,30 @@ class FakeHomeserver:
                 or user not in self.invited[room_id] | self.joined[room_id]
             ):
                 raise _Answer(403, "M_FORBIDDEN", "not invited")
-            self.joined[room_id].add(user)
-            self.left.pop((user, room_id), None)
+            with self.cond:
+                self.joined[room_id].add(user)
+                self.left.pop((user, room_id), None)
+                self.joined_at[(user, room_id)] = len(self.events)
+                self.events.append(
+                    (
+                        room_id,
+                        {
+                            "type": "m.room.member",
+                            "sender": user,
+                            "state_key": user,
+                            "content": {"membership": "join"},
+                        },
+                    )
+                )
+                self.cond.notify_all()
             return {"room_id": room_id}
+        if method == "GET" and path.endswith("/state/m.room.canonical_alias"):
+            room_id = unquote(path.split("/")[5])
+            if user not in self.joined.get(room_id, set()):
+                raise _Answer(403, "M_FORBIDDEN", "not in room")
+            if room_id not in self.canonical:
+                raise _Answer(404, "M_NOT_FOUND", "Event not found")
+            return {"alias": self.canonical[room_id]}
         if method == "POST" and path.endswith("/filter"):
             fid = f"f{len(self.filters)}"
             self.filters[fid] = body

@@ -1,5 +1,7 @@
-"""The agent-chat command line: ``send``, ``hook-wait`` and ``status``.
+"""The agent-chat command line.
 
+``send``, ``hook-wait`` and ``status`` serve Claude; ``prepare-message``,
+``send --as codex --message-file`` and ``watch-codex`` serve Codex.
 ``send`` fails loudly: any failure is one line on stderr and a non-zero exit,
 so the agent knows nothing was sent. ``hook-wait`` never fails: it exits 2
 with mail on stderr, else 0.
@@ -10,14 +12,16 @@ from __future__ import annotations
 import argparse
 import os
 import secrets
+import signal
 import sys
+import threading
 import time
 import traceback
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from . import procs
+from . import outbox, procs, watch
 from .config import (
     AgentChatError,
     Config,
@@ -86,10 +90,19 @@ def message_content(body: str, to: list[str]) -> dict[str, Any]:
 
 
 def cmd_send(a: argparse.Namespace) -> int:
-    """Post stdin into the project's room and print the event ID."""
-    body = sys.stdin.read()
+    """Post stdin, or a prepared message file, into the project's room.
+
+    A prepared file is removed once the homeserver has confirmed the post;
+    after a failure it stays, so the same send can run again.
+    """
+    if a.message_file is None:
+        prepared, body = None, sys.stdin.read()
+        empty = "the message on stdin is empty; nothing was sent"
+    else:
+        prepared, body = outbox.read_message(a.message_file)
+        empty = f"the prepared message {a.message_file} is empty; nothing was sent"
     if not body.strip():
-        raise AgentChatError("the message on stdin is empty; nothing was sent", 2)
+        raise AgentChatError(empty, 2)
     cfg, account, client = _setup(a.as_)
     to = list(dict.fromkeys(cfg.user_id(t) for t in a.to or []))
     content = message_content(body.rstrip("\n"), to)
@@ -112,8 +125,47 @@ def cmd_send(a: argparse.Namespace) -> int:
             if attempt == 2 or exc.status not in (403, 404):
                 raise
             rooms.forget(alias)  # the cached room was rejected: resolve once more
+    if prepared is not None:
+        prepared.unlink(missing_ok=True)
     print(f"sent to {alias} as {account}: {event}")
     return 0
+
+
+def cmd_prepare_message(a: argparse.Namespace) -> int:
+    """Create an empty private message file and print its absolute path."""
+    print(outbox.prepare_message(a.name))
+    return 0
+
+
+def cmd_watch_codex(a: argparse.Namespace) -> int:
+    """Deliver mail for the Codex account with ``codex queue`` until stopped."""
+    thread = None if a.thread is None else watch.check_thread(a.thread)
+    cfg, account, client = _setup("codex")
+    state = state_dir(account)
+    alias = None if thread is None else project_alias(cfg)
+
+    def say(line: str) -> None:
+        log(state, f"watch-codex: {line}")
+        print(f"agent-chat watch-codex: {line}", file=sys.stderr, flush=True)
+
+    w = watch.CodexWatcher(client, cfg, account, state, say, thread, alias)
+    lock = WaitLock(state, w.lock_name)
+    if not lock.try_acquire():
+        raise AgentChatError(f"another watch-codex already runs ({lock.path})")
+    previous = {}
+    if threading.current_thread() is threading.main_thread():
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            previous[sig] = signal.signal(sig, w.on_signal)
+    try:
+        lock.record(os.getpid())
+        return w.run()
+    except AuthError as exc:
+        say(f"{account} was refused ({exc}); stopping")
+        return 1
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+        lock.release()
 
 
 def cmd_hook_wait(a: argparse.Namespace) -> int:
@@ -194,7 +246,25 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("send", help="post stdin into the project's room")
     s.add_argument("--to", action="append", help="an account to address (repeatable)")
+    s.add_argument(
+        "--message-file",
+        metavar="NAME",
+        help="post the file prepare-message NAME created instead of stdin",
+    )
     s.set_defaults(func=cmd_send)
+
+    m = sub.add_parser("prepare-message", help="create an empty private message file")
+    m.add_argument("name", help="a fresh name: letters, digits, _ . -")
+    m.set_defaults(func=cmd_prepare_message)
+
+    w = sub.add_parser(
+        "watch-codex", help="queue mail for the Codex account to a Codex thread"
+    )
+    w.add_argument(
+        "--thread",
+        help="queue to this thread, for the working directory's room only",
+    )
+    w.set_defaults(func=cmd_watch_codex)
 
     h = sub.add_parser("hook-wait", help="the plugin hooks' wait (asyncRewake)")
     h.add_argument("--seconds", type=float, default=HOOK_WAIT_SECONDS)

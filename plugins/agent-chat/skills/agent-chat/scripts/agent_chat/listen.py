@@ -1,15 +1,16 @@
-"""The sync loop: wait for messages that address one account in one room.
+"""The sync loop: wait for messages that address one account.
 
-Claude's ``hook-wait`` and the Codex watcher share it. The cursor is saved
-before the messages are returned, so a crash after reading never replays
-them; it is not saved when the owner is gone, so the next wait delivers them.
+Claude's ``hook-wait`` (one room, :class:`Listener`) and the Codex watcher
+(every agent room) share :class:`SyncLoop`. The cursor is saved before a batch
+is handed on, so a crash after reading never replays it; it is not saved when
+the owner is gone, so the next wait delivers that batch.
 """
 
 from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,33 @@ def filter_definition(limit: int = TIMELINE_LIMIT) -> dict[str, Any]:
     }
 
 
+def _joins(event: Any, account: str) -> bool:
+    """Tell whether ``event`` is ``account`` joining (not a profile change)."""
+    if not isinstance(event, dict) or event.get("type") != MEMBER:
+        return False
+    if event.get("state_key") != account:
+        return False
+    content = event.get("content") or {}
+    prev = (event.get("unsigned") or {}).get("prev_content") or {}
+    return content.get("membership") == "join" and prev.get("membership") != "join"
+
+
+def since_join(events: list[Any], account: str) -> list[Any]:
+    """Drop the events up to ``account``'s own join in this timeline.
+
+    The first sync after a join carries some of the room's history; those
+    messages were posted before the account was there and are not mail.
+    """
+    last = max((i for i, e in enumerate(events) if _joins(e, account)), default=-1)
+    return events[last + 1 :]
+
+
+def timeline(rooms: dict[str, Any], room: str) -> list[Any]:
+    """Return the timeline events of joined ``room`` in a sync's ``rooms``."""
+    joined = (rooms.get("join") or {}).get(room) or {}
+    return (joined.get("timeline") or {}).get("events") or []
+
+
 @dataclass
 class WaitResult:
     """How a wait ended: ``mail``, ``timeout``, ``owner-gone`` or ``no-room``."""
@@ -54,27 +82,26 @@ class WaitResult:
     messages: list[Message] = field(default_factory=list)
 
 
-class Listener:
-    """Waits for mail to ``account`` in the room behind ``alias``.
+class SyncLoop:
+    """One account's sync loop with a persisted cursor.
 
     Args:
         client: The account's homeserver client.
         cfg: The host's configuration.
         account: The listening account's full ID.
         state: The account's state directory.
-        alias: The project room's alias.
+        cursor_name: The cursor file's name, without ``.cursor``.
     """
 
     def __init__(
-        self, client: Client, cfg: Config, account: str, state: Path, alias: str
+        self, client: Client, cfg: Config, account: str, state: Path, cursor_name: str
     ) -> None:
         self.client = client
         self.cfg = cfg
         self.account = account
         self.state = state
-        self.alias = alias
-        self.rooms = Rooms(client, cfg, state)
-        self.cursor_file = state / f"{alias_slug(alias)}.cursor"
+        self.cursor_file = state / f"{cursor_name}.cursor"
+        self.owner_gone = False
 
     def _filter(self, deadline: float, fresh: bool = False) -> str:
         path = self.state / "filter.json"
@@ -98,48 +125,41 @@ class Listener:
     def _start(self, deadline: float) -> str:
         """First run: a sync with a timeline limit of 0 gives "now" as the cursor."""
         first = json.dumps(filter_definition(limit=0), separators=(",", ":"))
-        token = str(self.client.sync(None, first, 0, deadline)["next_batch"])
+        token = str(self._sync(None, first, 0, deadline)["next_batch"])
         self._save(token)
         return token
 
-    def _mail(self, events: list[dict[str, Any]]) -> list[Message]:
+    def _sync(
+        self, since: str | None, filt: str, seconds: float, deadline: float
+    ) -> dict[str, Any]:
+        """One ``/sync``; a subclass may wrap it."""
+        return self.client.sync(since, filt, seconds, deadline)
+
+    def mail(self, events: list[Any]) -> list[Message]:
+        """Return the messages among ``events`` that wake this account."""
         return [
             Message(str(e["sender"]), str(e["content"]["body"]))
-            for e in events
+            for e in since_join(events, self.account)
             if isinstance(e, dict) and wakes(e, self.account, self.cfg)
         ]
 
-    def _left(self, room: str, rooms: dict[str, Any]) -> bool:
-        """Tell whether this sync shows the account out of ``room``."""
-        if room in (rooms.get("leave") or {}):
-            return True
-        joined = (rooms.get("join") or {}).get(room) or {}
-        return any(
-            isinstance(e, dict)
-            and e.get("type") == MEMBER
-            and e.get("state_key") == self.account
-            and (e.get("content") or {}).get("membership") in ("leave", "ban")
-            for e in (joined.get("timeline") or {}).get("events") or []
-        )
-
-    def wait(
+    def batches(
         self,
         deadline: float,
         owner_alive: Callable[[], bool],
         now: Callable[[], float] = time.monotonic,
-    ) -> WaitResult:
-        """Wait until mail arrives, ``deadline`` passes or the owner is gone."""
-        room = self.rooms.room_id(self.alias, deadline, verify=True)
-        if room is None:
-            return WaitResult("no-room")
+    ) -> Iterator[dict[str, Any]]:
+        """Yield each sync's ``rooms``, its cursor already saved.
+
+        Stops at ``deadline``, or once ``owner_alive`` says no; then
+        :attr:`owner_gone` is set and that last batch's cursor is not saved.
+        """
         fid = self._filter(deadline)
         since = self.cursor() or self._start(deadline)
-        rejoined, recovered = False, 0
+        recovered = 0
         while (remaining := deadline - now()) > 0:
             try:
-                got = self.client.sync(
-                    since, fid, min(SYNC_SECONDS, remaining), deadline
-                )
+                got = self._sync(since, fid, min(SYNC_SECONDS, remaining), deadline)
             except MatrixError as exc:
                 # A rejected filter is registered again; a rejected cursor
                 # restarts from now. Each once.
@@ -152,8 +172,55 @@ class Listener:
                     since = self._start(deadline)
                 continue
             if not owner_alive():
-                return WaitResult("owner-gone")
-            rooms = got.get("rooms") or {}
+                self.owner_gone = True
+                return
+            since = str(got["next_batch"])
+            self._save(since)
+            yield got.get("rooms") or {}
+
+
+class Listener(SyncLoop):
+    """Waits for mail to ``account`` in the room behind ``alias``.
+
+    Args:
+        client: The account's homeserver client.
+        cfg: The host's configuration.
+        account: The listening account's full ID.
+        state: The account's state directory.
+        alias: The project room's alias.
+    """
+
+    def __init__(
+        self, client: Client, cfg: Config, account: str, state: Path, alias: str
+    ) -> None:
+        super().__init__(client, cfg, account, state, alias_slug(alias))
+        self.alias = alias
+        self.rooms = Rooms(client, cfg, state)
+
+    def _left(self, room: str, rooms: dict[str, Any]) -> bool:
+        """Tell whether this sync shows the account out of ``room``."""
+        if room in (rooms.get("leave") or {}):
+            return True
+        return any(
+            isinstance(e, dict)
+            and e.get("type") == MEMBER
+            and e.get("state_key") == self.account
+            and (e.get("content") or {}).get("membership") in ("leave", "ban")
+            for e in timeline(rooms, room)
+        )
+
+    def wait(
+        self,
+        deadline: float,
+        owner_alive: Callable[[], bool],
+        now: Callable[[], float] = time.monotonic,
+    ) -> WaitResult:
+        """Wait until mail arrives, ``deadline`` passes or the owner is gone."""
+        room = self.rooms.room_id(self.alias, deadline, verify=True)
+        if room is None:
+            return WaitResult("no-room")
+        rejoined = False
+        for rooms in self.batches(deadline, owner_alive, now):
             if not rejoined and self._left(room, rooms):
                 # The cached room is gone for this account: resolve the alias again.
                 self.rooms.forget(self.alias)
@@ -163,10 +230,7 @@ class Listener:
                 )
                 if room is None:
                     return WaitResult("no-room")
-            joined = (rooms.get("join") or {}).get(room) or {}
-            mail = self._mail((joined.get("timeline") or {}).get("events") or [])
-            since = str(got["next_batch"])
-            self._save(since)
+            mail = self.mail(timeline(rooms, room))
             if mail:
                 return WaitResult("mail", mail)
-        return WaitResult("timeout")
+        return WaitResult("owner-gone" if self.owner_gone else "timeout")

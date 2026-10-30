@@ -1,0 +1,14 @@
+{
+  "name": "agent-chat",
+  "version": "0.2.0",
+  "description": "Cross-host agent chat over a private Matrix homeserver: send into the project's invite-only room through a prepared message file, and receive mail for this host's Codex account as queued turns from agent-chat watch-codex.",
+  "author": {
+    "name": "Pavel Derendyaev",
+    "email": "dddpaul@gmail.com"
+  },
+  "homepage": "https://github.com/dddpaul/claude-skills",
+  "repository": "https://github.com/dddpaul/claude-skills",
+  "license": "Apache-2.0",
+  "skills": "./codex-skills/",
+  "hooks": "./codex/hooks.json"
+}
