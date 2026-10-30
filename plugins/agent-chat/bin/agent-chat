@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""agent-chat entry point; the code lives in skills/agent-chat/scripts/agent_chat."""
+
+import os
+import sys
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "skills", "agent-chat", "scripts"))
+
+from agent_chat.cli import main  # noqa: E402
+
+sys.exit(main())

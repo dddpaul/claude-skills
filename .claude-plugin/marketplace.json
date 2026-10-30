@@ -26,6 +26,11 @@
       "name": "zmx-peer-chat",
       "source": "./plugins/zmx-peer-chat",
       "description": "Box-local peer chat between Claude Code and Codex, each in its own zmx session on the same Linux box: Claude sends with codex queue by thread UUID, Codex sends into Claude's mailbox, and a hook-run wait wakes Claude in both Happy modes. Ships a Claude skill, a Codex skill, the launcher's register helper and example Codex rules."
+    },
+    {
+      "name": "agent-chat",
+      "source": "./plugins/agent-chat",
+      "description": "Cross-host agent chat over a private Matrix homeserver: agents on different hosts talk in the project's invite-only room, Claude sends with agent-chat send, and a hook-run wait wakes an idle Claude session when a message addressed to its account arrives. The human reads and answers the same room in Element."
     }
   ]
 }
