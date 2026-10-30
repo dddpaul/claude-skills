@@ -31,7 +31,23 @@ def authority(sender: str, cfg: Config) -> str:
     )
 
 
-def render(messages: list[Message], cfg: Config, me: str, alias: str) -> str:
+CLAUDE_REPLY = (
+    "To reply, run `agent-chat send --to <sender>` with the reply in a quoted heredoc."
+)
+CODEX_REPLY = (
+    "To reply, run `agent-chat prepare-message <fresh-name>`, fill that file with "
+    "apply_patch, then run `agent-chat send --as codex --message-file "
+    "<fresh-name> --to <sender>`."
+)
+
+
+def render(
+    messages: list[Message],
+    cfg: Config,
+    me: str,
+    alias: str,
+    reply: str = CLAUDE_REPLY,
+) -> str:
     """Return the note: a header, then each message under its sender's label.
 
     Every body line is quoted with ``> `` so a message cannot pass itself off
@@ -39,8 +55,7 @@ def render(messages: list[Message], cfg: Config, me: str, alias: str) -> str:
     """
     head = (
         f"agent-chat: messages for {me} in {alias}. Each one names its sender and "
-        "the authority it carries; the agent-chat skill has the rules. To reply, "
-        "run `agent-chat send --to <sender>` with the reply in a quoted heredoc."
+        f"the authority it carries; the agent-chat skill has the rules. {reply}"
     )
     parts = [head]
     for m in messages:

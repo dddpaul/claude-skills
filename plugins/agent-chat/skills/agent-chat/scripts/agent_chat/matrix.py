@@ -199,6 +199,21 @@ class Client:
         got = self.request("GET", f"{API}/joined_rooms", deadline=deadline)
         return set(got.get("joined_rooms", []))
 
+    def canonical_alias(self, room_id: str, deadline: float) -> str | None:
+        """Return the canonical alias of a joined room, or None when it has none."""
+        try:
+            got = self.request(
+                "GET",
+                f"{API}/rooms/{quote(room_id, safe='')}/state/m.room.canonical_alias",
+                deadline=deadline,
+            )
+        except MatrixError as exc:
+            if exc.status == 404 or exc.errcode == "M_NOT_FOUND":
+                return None
+            raise
+        alias = got.get("alias")
+        return alias if isinstance(alias, str) and alias else None
+
     def join(self, alias: str, deadline: float) -> str:
         """Join the room behind ``alias`` (the account must be invited)."""
         got = self.request(

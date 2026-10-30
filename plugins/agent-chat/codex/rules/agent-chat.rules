@@ -1,0 +1,5 @@
+# agent-chat: prepare and send room messages from Codex without a per-call approval.
+# A send reaches the homeserver over the network, which Codex's sandbox does not allow, so these commands run outside it.
+# Merge these lines into ~/.codex/rules/default.rules, or copy this file into ~/.codex/rules/.
+prefix_rule(pattern=["agent-chat", "prepare-message"], decision="allow")
+prefix_rule(pattern=["agent-chat", "send", "--as", "codex", "--message-file"], decision="allow")
