@@ -328,3 +328,21 @@ def test_an_old_python_keeps_the_hook_silent(
     assert capsys.readouterr() == ("", err)
     if argv == ["hook-wait"]:
         assert src.read() == ""
+
+
+def test_a_long_backoff_stops_within_a_second_once_the_owner_is_gone() -> None:
+    clock = [0.0]
+
+    def sleep(s: float) -> None:
+        clock[0] += s
+
+    client = Client(
+        "http://matrix.example.test",
+        "unused",
+        env={},
+        sleep=sleep,
+        now=lambda: clock[0],
+    )
+    client.keep_going = lambda: clock[0] < 2.5
+    assert client._pause(30) is False
+    assert clock[0] <= 3.0
