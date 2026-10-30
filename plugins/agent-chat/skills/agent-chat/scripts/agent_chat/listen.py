@@ -24,15 +24,21 @@ from .room import Rooms, alias_slug, read_json, write_json
 SYNC_SECONDS = 30.0
 TIMELINE_LIMIT = 50
 _NONE = {"not_types": ["*"]}
+MEMBER = "m.room.member"
 
 
 def filter_definition(limit: int = TIMELINE_LIMIT) -> dict[str, Any]:
-    """Room messages only; state, ephemeral, presence and account data excluded."""
+    """Room messages, and membership so a lost room shows; nothing else.
+
+    State, ephemeral, presence and account data are excluded. Membership
+    events ride in the timeline because a server may leave a room the account
+    was removed from out of a sync whose filter lets none of its events through.
+    """
     return {
         "presence": _NONE,
         "account_data": _NONE,
         "room": {
-            "timeline": {"types": ["m.room.message"], "limit": limit},
+            "timeline": {"types": ["m.room.message", MEMBER], "limit": limit},
             "state": _NONE,
             "ephemeral": _NONE,
             "account_data": _NONE,
@@ -103,6 +109,19 @@ class Listener:
             if isinstance(e, dict) and wakes(e, self.account, self.cfg)
         ]
 
+    def _left(self, room: str, rooms: dict[str, Any]) -> bool:
+        """Tell whether this sync shows the account out of ``room``."""
+        if room in (rooms.get("leave") or {}):
+            return True
+        joined = (rooms.get("join") or {}).get(room) or {}
+        return any(
+            isinstance(e, dict)
+            and e.get("type") == MEMBER
+            and e.get("state_key") == self.account
+            and (e.get("content") or {}).get("membership") in ("leave", "ban")
+            for e in (joined.get("timeline") or {}).get("events") or []
+        )
+
     def wait(
         self,
         deadline: float,
@@ -110,29 +129,38 @@ class Listener:
         now: Callable[[], float] = time.monotonic,
     ) -> WaitResult:
         """Wait until mail arrives, ``deadline`` passes or the owner is gone."""
-        room = self.rooms.room_id(self.alias, deadline)
+        room = self.rooms.room_id(self.alias, deadline, verify=True)
         if room is None:
             return WaitResult("no-room")
         fid = self._filter(deadline)
         since = self.cursor() or self._start(deadline)
-        rejoined = refiltered = False
+        rejoined, recovered = False, 0
         while (remaining := deadline - now()) > 0:
             try:
                 got = self.client.sync(
                     since, fid, min(SYNC_SECONDS, remaining), deadline
                 )
             except MatrixError as exc:
-                if refiltered or exc.status not in (400, 404):
+                # A rejected filter is registered again; a rejected cursor
+                # restarts from now. Each once.
+                if exc.status not in (400, 404) or recovered == 2:
                     raise
-                fid, refiltered = self._filter(deadline, fresh=True), True
+                recovered += 1
+                if recovered == 1:
+                    fid = self._filter(deadline, fresh=True)
+                else:
+                    since = self._start(deadline)
                 continue
             if not owner_alive():
                 return WaitResult("owner-gone")
             rooms = got.get("rooms") or {}
-            if room in (rooms.get("leave") or {}) and not rejoined:
+            if not rejoined and self._left(room, rooms):
                 # The cached room is gone for this account: resolve the alias again.
                 self.rooms.forget(self.alias)
-                room, rejoined = self.rooms.room_id(self.alias, deadline, True), True
+                room, rejoined = (
+                    self.rooms.room_id(self.alias, deadline, refresh=True),
+                    True,
+                )
                 if room is None:
                     return WaitResult("no-room")
             joined = (rooms.get("join") or {}).get(room) or {}

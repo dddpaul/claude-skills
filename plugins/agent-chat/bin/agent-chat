@@ -4,6 +4,14 @@
 import os
 import sys
 
+if sys.version_info < (3, 11):
+    # tomllib arrived in 3.11. The hooks must stay silent on an older python3.
+    if sys.argv[1:2] == ["hook-wait"]:
+        sys.stdin.read()
+        sys.exit(0)
+    sys.stderr.write("agent-chat: needs Python 3.11 or later\n")
+    sys.exit(1)
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "skills", "agent-chat", "scripts"))
 

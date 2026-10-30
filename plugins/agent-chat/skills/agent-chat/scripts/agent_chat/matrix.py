@@ -163,12 +163,22 @@ class Client:
             if 400 <= status < 500 and status != 429:
                 raise MatrixError(status, errcode, error)
             if status == 429 and isinstance(answer.get("retry_after_ms"), int):
-                pause = max(pause, answer["retry_after_ms"] / 1000)
+                pause = min(max(pause, answer["retry_after_ms"] / 1000), BACKOFF_MAX)
             late = deadline is None or self._now() + pause > deadline
             if late or not self.keep_going():
                 raise NetworkError(f"homeserver unreachable ({why})")
-            self._sleep(pause)
+            if not self._pause(pause):
+                raise NetworkError(f"homeserver unreachable ({why}); retries stopped")
             pause = min(pause * 2, BACKOFF_MAX)
+
+    def _pause(self, seconds: float) -> bool:
+        """Sleep ``seconds`` in slices of at most one; False once keep_going says no."""
+        end = self._now() + seconds
+        while (left := end - self._now()) > 0:
+            self._sleep(min(left, 1.0))
+            if not self.keep_going():
+                return False
+        return True
 
     def resolve_alias(self, alias: str, deadline: float) -> str | None:
         """Return the room ID behind ``alias``, or None when it does not resolve."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.client
+import json
 import os
 import socket
 import subprocess
@@ -244,3 +245,86 @@ def test_status_shows_the_account_room_and_wait(
     assert f"room: {f.ALIAS} -> {f.ROOM}" in out
     assert "waiting: no" in out
     assert f.TOKENS[f.CLAUDE_A] not in out
+
+
+def test_a_room_lost_while_no_wait_ran_is_resolved_again_at_the_start(
+    host: Host, owner: Owner, capsys, monkeypatch
+) -> None:
+    f.run(capsys, monkeypatch, "hook-wait", "--seconds", "0.1")
+    new_room = "!room0003:example.test"
+    host.hs.kick(f.ROOM, f.CLAUDE_A)
+    host.hs.room(f.ALIAS, new_room, joined={f.HUMAN}, invited={f.CLAUDE_A})
+    # The cursor is already past the kick: no sync will show it.
+    cursor = host.state() / f"agents-{f.PROJECT}.cursor"
+    cursor.write_text(json.dumps({"next_batch": f"s{len(host.hs.events)}"}))
+    codes: list[int] = []
+    wait = threading.Thread(
+        target=lambda: codes.append(cli.main(["hook-wait", "--seconds", "10"]))
+    )
+    wait.start()
+    join = f"/_matrix/client/v3/join/%23agents-{f.PROJECT}%3A{f.SERVER}"
+    end = time.monotonic() + 5
+    while join not in host.hs.paths("POST"):
+        assert time.monotonic() < end
+        time.sleep(0.02)
+    host.hs.post(new_room, f.HUMAN, "@claude-a: found you")
+    wait.join(15)
+    assert codes == [2]
+    assert "found you" in capsys.readouterr().err
+
+
+def test_the_sync_filter_lets_membership_through(host: Host) -> None:
+    from agent_chat.listen import filter_definition
+
+    timeline = filter_definition()["room"]["timeline"]
+    assert timeline["types"] == ["m.room.message", "m.room.member"]
+
+
+def test_a_rejected_cursor_restarts_from_now(
+    host: Host, owner: Owner, capsys, monkeypatch
+) -> None:
+    host.state().mkdir(parents=True)
+    cursor = host.state() / f"agents-{f.PROJECT}.cursor"
+    cursor.write_text('{"next_batch": "garbage"}')
+    assert f.run(capsys, monkeypatch, "hook-wait", "--seconds", "1")[:3] == (0, "", "")
+    assert host.cursor() != '{"next_batch": "garbage"}'
+    host.hs.post(f.ROOM, f.HUMAN, "@claude-a: back on track")
+    code, _, err, _ = f.run(capsys, monkeypatch, "hook-wait", "--seconds", "5")
+    assert code == 2 and "back on track" in err
+
+
+def test_hook_wait_exits_0_when_its_state_cannot_be_written(
+    host: Host, owner: Owner, tmp_path: Path, capsys, monkeypatch
+) -> None:
+    if os.geteuid() == 0:
+        pytest.skip("root writes anywhere")
+    ro = tmp_path / "ro"
+    ro.mkdir(mode=0o500)
+    monkeypatch.setenv("XDG_STATE_HOME", str(ro))
+    host.hs.post(f.ROOM, f.HUMAN, "@claude-a: x")
+    assert f.run(capsys, monkeypatch, "hook-wait", "--seconds", "1")[:3] == (0, "", "")
+
+
+@pytest.mark.parametrize(
+    ("argv", "code", "err"),
+    [
+        (["hook-wait"], 0, ""),
+        (["send"], 1, "agent-chat: needs Python 3.11 or later\n"),
+    ],
+)
+def test_an_old_python_keeps_the_hook_silent(
+    capsys, monkeypatch, argv: list[str], code: int, err: str
+) -> None:
+    import io
+    import runpy
+
+    src = io.StringIO('{"hook_event_name": "Stop"}')
+    monkeypatch.setattr(sys, "stdin", src)
+    monkeypatch.setattr(sys, "version_info", (3, 9, 6))
+    monkeypatch.setattr(sys, "argv", [str(BIN), *argv])
+    with pytest.raises(SystemExit) as done:
+        runpy.run_path(str(BIN), run_name="__main__")
+    assert done.value.code == code
+    assert capsys.readouterr() == ("", err)
+    if argv == ["hook-wait"]:
+        assert src.read() == ""

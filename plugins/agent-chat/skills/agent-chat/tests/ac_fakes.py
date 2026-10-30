@@ -92,7 +92,17 @@ class FakeHomeserver:
         with self.cond:
             self.joined[room_id].discard(user)
             self.left[(user, room_id)] = len(self.events)
-            self.events.append((room_id, {"type": "m.room.member", "sender": user}))
+            self.events.append(
+                (
+                    room_id,
+                    {
+                        "type": "m.room.member",
+                        "sender": user,
+                        "state_key": user,
+                        "content": {"membership": "leave"},
+                    },
+                )
+            )
             self.cond.notify_all()
 
     def post(
@@ -140,14 +150,23 @@ class FakeHomeserver:
 
     def _sync(self, user: str, q: dict[str, list[str]]) -> dict[str, Any]:
         filt = q.get("filter", [""])[0]
-        limit = 50
         if filt.startswith("{"):
-            limit = json.loads(filt)["room"]["timeline"]["limit"]
-        elif filt not in self.filters:
+            timeline = json.loads(filt)["room"]["timeline"]
+        elif filt in self.filters:
+            timeline = self.filters[filt]["room"]["timeline"]
+        else:
             raise _Answer(400, "M_INVALID_PARAM", "unknown filter")
+        limit = timeline.get("limit", 50)
+        types = timeline.get("types")
+
+        def shown(e: dict[str, Any]) -> bool:
+            return types is None or e["type"] in types
+
         since = q.get("since", [None])[0]
         timeout = min(int(q.get("timeout", ["0"])[0]) / 1000, self.max_poll)
         with self.cond:
+            if since and not since[1:].isdigit():
+                raise _Answer(400, "M_INVALID_PARAM", "bad since token")
             start = int(since[1:]) if since else None
             if start is not None and len(self.events) <= start:
                 self.cond.wait(timeout)
@@ -158,15 +177,19 @@ class FakeHomeserver:
                     continue
                 first = 0 if start is None else start
                 events = [
-                    e
-                    for r, e in self.events[first:end]
-                    if r == room_id and e["type"] == "m.room.message"
+                    e for r, e in self.events[first:end] if r == room_id and shown(e)
                 ]
                 events = events[-limit:] if limit else []
                 rooms["join"][room_id] = {"timeline": {"events": events}}
+            # Like a real server, a newly left room shows only when the filter
+            # lets some of its events (the membership change) through.
             for (who, room_id), at in self.left.items():
                 if who == user and start is not None and start <= at < end:
-                    rooms["leave"][room_id] = {}
+                    events = [e for r, e in self.events[at:end] if r == room_id]
+                    if any(shown(e) for e in events):
+                        rooms["leave"][room_id] = {
+                            "timeline": {"events": [e for e in events if shown(e)]}
+                        }
         return {"next_batch": f"s{end}", "rooms": rooms}
 
     def _route(

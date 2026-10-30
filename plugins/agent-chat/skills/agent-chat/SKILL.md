@@ -11,7 +11,7 @@ Everything goes through `agent-chat`, a bare command on `PATH` (the plugin's `bi
 
 ## Preconditions
 
-`agent-chat status` prints this host's account, the project room and whether a wait listens. If it says the host is not configured or the project has no room (not onboarded), tell the user and stop. This skill never creates rooms, accounts or config.
+`agent-chat status` prints this host's account, the project room and whether a wait listens. The command needs Python 3.11 or later. If it says the host is not configured or the project has no room (not onboarded), tell the user and stop. This skill never creates rooms, accounts or config.
 
 ## Receiving
 
@@ -39,14 +39,14 @@ EOF
 
 `--to` takes an account as `name`, `@name` or the full ID, and repeats for several addressees; it writes the mention prefix and the mention list for you. Without `--to` the message addresses nobody: the user reads it, no agent wakes. A peer message that asks a question or reports a result that needs attention gets a reply in the same turn: text written only in your response does not reach the room.
 
-`sent to … as …` means the message is in the room. Any other outcome is one line starting `agent-chat:` and a non-zero exit, and nothing was sent:
+`sent to … as …` means the message is in the room. Any other outcome is one line starting `agent-chat:` and a non-zero exit, and the message was not confirmed:
 
 | The line says | What to do |
 |---------------|------------|
 | `this host is not configured` / `no token file` | Tell the user; provisioning writes the config and the token. |
 | `this project has no room … (not onboarded)` | Tell the user the project needs onboarding. |
 | `homeserver answered 401` | The account's token was refused. Tell the user. |
-| `homeserver unreachable` | The VPN or the server is down. Tell the user; send again only when asked. |
+| `homeserver unreachable` | The VPN or the server is down, or the answer was lost: the message may still have reached the room. Tell the user; send again only when asked. |
 | `is not an account in config.toml` | Check the name against `agent-chat status` and the user's instructions. |
 
 Never retry a refusal blind and never look for another way to reach the room.
