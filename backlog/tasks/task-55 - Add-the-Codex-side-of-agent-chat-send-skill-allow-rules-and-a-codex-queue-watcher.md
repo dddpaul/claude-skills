@@ -3,10 +3,10 @@ id: TASK-55
 title: >-
   Add the Codex side of agent-chat: send skill, allow rules and a codex queue
   watcher
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-29T15:37:00Z'
-updated_date: '2026-10-30T07:18:00Z'
+updated_date: '2026-10-30T07:36:00Z'
 labels: []
 dependencies:
   - TASK-54
@@ -105,4 +105,8 @@ $ codex execpolicy check --rules codex/rules/agent-chat.rules agent-chat send --
 {"matchedRules":[]}
 
 Commit: `8e9d6b8` - task-55: add the Codex side of agent-chat: two-step send, allow rules and a codex queue watcher
+
+Commit: `0d768cb` - task-55: log watcher start failures, show the watcher in status --as codex, keep test lines within 88 characters
+
+Done. agent-chat 0.2.0 gains the Codex side: prepare-message plus send --as codex --message-file (outbox /tmp/agent-chat-<uid>/outbox, 0700/0600, file removed only after a confirmed post), codex/rules/agent-chat.rules (exactly the two prefixes; codex execpolicy check above), the Codex manifest with an empty codex/hooks.json, the Codex skill, the .agents catalog entry, and agent-chat watch-codex. The watcher reuses the sync loop, now split out of Listener as listen.SyncLoop: --thread serves the working directory's room; without it every joined room whose alias carries room_prefix, the thread taken from the one zpc.role=codex zmx session whose cwd= names the room's directory (its zpc.thread); none, several or an unbound match are logged and nothing is queued. Beyond the task text: the history a server sends with a newly joined room is dropped (listen.since_join, also guarding Claude's wait); in all-rooms mode the watcher joins the rooms of registered Codex sessions every 5 minutes, since a Codex account that never sent would otherwise get no mail; SIGTERM abandons only an in-flight sync and lets a delivery finish; status --as codex shows the watcher; start failures go to the account log. Tests: 33 new (110 in the plugin) against the fake homeserver, now with history on join and canonical aliases, fake codex and zmx binaries recording argv, and real subprocesses for SIGTERM. Gate: ruff clean; full pytest 452 passed, 1 failed (the carved-out test_helper_renders_canonical_decision_tree). Review: task-reviewer APPROVED round 1 (score 7, 3 minor: a 93-character test line, start failures missing from the log, status not showing the watcher), all fixed in 0d768cb, then APPROVED round 2 (score 10, no findings).
 <!-- SECTION:NOTES:END -->
