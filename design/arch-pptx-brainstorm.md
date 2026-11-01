@@ -124,3 +124,9 @@ Extends the parent block below; everything else there is unchanged.
 **Implementation checklist:**
 
 - Add the fences and the one-line bank note to `SKILL.md`; keep the reference free of layer-model vocabulary; one boundary sentence in the README subsection.
+
+---
+
+## Addendum: neighbour names renamed (added 2026-11-01)
+
+The renaming scheme in `design/skill-renaming-brainstorm.md` renames the neighbours this design fences. Read throughout the sections above: `arch-draw` as `arch-drawio`, `arch-slide` as `abs-slide`, `arch-puml` as `abs-puml`, `pptx-arch-style` as `ak-style`. The implementation task distilled below uses the new names.
