@@ -25,7 +25,7 @@ Describe the architecture of a Kafka cluster
 
 Includes reference documentation for 20+ common systems including Kafka, Kubernetes, PostgreSQL HA, Redis Cluster, Elasticsearch, and more.
 
-### arch-draw
+### arch-drawio
 
 *Plugin: architect*
 
@@ -53,7 +53,7 @@ Generate professional draw.io diagrams in XML format from architectural descript
 Create a draw.io diagram for a microservices architecture with API Gateway, 3 services, message bus, and databases
 ```
 
-### pptx-core-style
+### core-style
 
 *Plugin: presentation*
 
@@ -63,10 +63,10 @@ Corporate presentation style guide for core principles architecture slides. Prov
 
 **Example**:
 ```
-Create an architecture slide using pptx-core-style with three numbered content blocks and a comparison table
+Create an architecture slide using core-style with three numbered content blocks and a comparison table
 ```
 
-### pptx-arch-style
+### ak-style
 
 *Plugin: presentation*
 
@@ -76,7 +76,7 @@ Architectural presentation style guide for architecture committee reviews. Defin
 
 **Example**:
 ```
-Create an architecture review deck using pptx-arch-style with a title slide, status tracker table, and flow diagram
+Create an architecture review deck using ak-style with a title slide, status tracker table, and flow diagram
 ```
 
 ### pptx-compare
@@ -193,7 +193,7 @@ claude-skills/
     │       │   ├── SKILL.md                      # Skill definition and instructions
     │       │   └── references/
     │       │       └── architectures.md          # Reference for 20+ common systems
-    │       └── arch-draw/
+    │       └── arch-drawio/
     │           ├── SKILL.md                      # Skill definition and instructions
     │           ├── references/
     │           │   ├── cheatsheet.md             # Quick reference for XML elements
@@ -207,9 +207,9 @@ claude-skills/
     │   ├── .claude-plugin/
     │   │   └── plugin.json                       # Plugin manifest
     │   └── skills/
-    │       ├── pptx-core-style/
+    │       ├── core-style/
     │       │   └── SKILL.md                      # Style guide for core architecture slides
-    │       ├── pptx-arch-style/
+    │       ├── ak-style/
     │       │   └── SKILL.md                      # Style guide for architecture committee decks
     │       └── pptx-compare/
     │           ├── SKILL.md                      # Skill definition and instructions
@@ -303,8 +303,8 @@ These skills are distributed as Claude Code plugins via a marketplace.
 ### Install the plugins you want
 
 ```
-/plugin install architect@dddpaul-claude-skills      # arch-describe + arch-draw
-/plugin install presentation@dddpaul-claude-skills   # pptx-core-style + pptx-arch-style + pptx-compare
+/plugin install architect@dddpaul-claude-skills      # arch-describe + arch-drawio
+/plugin install presentation@dddpaul-claude-skills   # core-style + ak-style + pptx-compare
 /plugin install obsidian@dddpaul-claude-skills       # offdesk
 /plugin install publish@dddpaul-claude-skills        # pdf + publish
 /plugin install zmx-peer-chat@dddpaul-claude-skills  # zmx-peer-chat (Claude side, Linux box)

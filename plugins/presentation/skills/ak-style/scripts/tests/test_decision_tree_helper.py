@@ -4,7 +4,7 @@ Runs a tiny Node script that requires decision-tree.js, builds a 1-slide
 deck via drawDecisionTree(), writes it to a tmp file, and asserts:
 
   1. node exits 0 (helper does not throw on the canonical SKILL.md spec)
-  2. the produced .pptx lints clean under the full pptx-arch-style ruleset
+  2. the produced .pptx lints clean under the full ak-style ruleset
      (no errors, no warnings) — in particular, all final-segment connectors
      emit endArrowType/beginArrowType so decision-tree-connector-arrowhead-
      missing does NOT fire

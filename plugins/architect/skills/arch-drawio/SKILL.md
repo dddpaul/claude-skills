@@ -1,6 +1,6 @@
 ---
-name: arch-draw
-description: Generate professional draw.io diagrams in XML format from architectural descriptions. Use when Claude needs to create visual diagrams for (1) System architecture diagrams, (2) Microservices layouts, (3) Workflow/BPMN diagrams, (4) Network topology, (5) Data flow diagrams, (6) Any visual representation requiring boxes, containers, arrows, and connections. Handles arrow routing, collision avoidance, consistent layouts, and architectural patterns like three-tier, event-driven, and Camunda/Zeebe clusters. Offers a "studio" style preset (white boxes on tinted zones, IBM Plex type, colour only for deny/gate/ok meaning) when the user asks for studio style or the studio preset.
+name: arch-drawio
+description: Generate professional draw.io diagrams in XML format from architectural descriptions. Use when Claude needs to create visual diagrams for (1) System architecture diagrams, (2) Microservices layouts, (3) Workflow/BPMN diagrams, (4) Network topology, (5) Data flow diagrams, (6) Any visual representation requiring boxes, containers, arrows, and connections. Handles arrow routing, collision avoidance, consistent layouts, and architectural patterns like three-tier, event-driven, and Camunda/Zeebe clusters. Offers a "studio" style preset (white boxes on tinted zones, IBM Plex type, colour only for deny/gate/ok meaning) when the user asks for studio style or the studio preset. Triggers when told to use "arch-drawio" or by the skill's previous name, "arch-draw".
 ---
 
 # Draw.io Diagram Generation Skill
