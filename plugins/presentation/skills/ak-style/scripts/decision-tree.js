@@ -1,4 +1,4 @@
-// decision-tree.js — pptx-arch-style decision-tree helper (Path B).
+// decision-tree.js — ak-style decision-tree helper (Path B).
 //
 // Single public function: drawDecisionTree(slide, spec). Renders diamonds,
 // terminals, and direction-aware orthogonal connectors per the canonical

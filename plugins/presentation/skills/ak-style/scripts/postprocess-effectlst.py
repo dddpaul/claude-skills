@@ -11,12 +11,12 @@
 Why this exists: ``pptxgenjs`` v4.0.1 emits ``slide.background = { color: ... }``
 as a ``<p:bg>/<p:bgPr>/<a:solidFill>`` block without an ``<a:effectLst/>``
 sibling, so the theme's shadow inherits and Rule #11 in SKILL.md fires in the
-pptx-arch-style linter. Until pptxgenjs ships an ``effectOverride`` option this
+ak-style linter. Until pptxgenjs ships an ``effectOverride`` option this
 script is the canonical post-process step — invoke it after every generation,
 before linting.
 
 Usage:
-    uv run plugins/presentation/skills/pptx-arch-style/scripts/postprocess-effectlst.py deck.pptx
+    uv run plugins/presentation/skills/ak-style/scripts/postprocess-effectlst.py deck.pptx
 
 The script rewrites the file in place (the input deck is replaced).
 Exit codes:
