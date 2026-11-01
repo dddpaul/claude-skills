@@ -1,6 +1,6 @@
 ---
-name: pptx-arch-style
-description: Architectural presentation style guide. Apply this style when creating or editing PPTX presentations for architecture committee reviews. Defines colors, fonts, layouts, tables, and visual patterns extracted from the approved presentation. Triggers on requests to create architectural slides, AK presentations, or when told to use "pptx-arch-style" or "arch-style".
+name: ak-style
+description: Architectural presentation style guide. Apply this style when creating or editing PPTX presentations for architecture committee reviews. Defines colors, fonts, layouts, tables, and visual patterns extracted from the approved presentation. Triggers on requests to create architectural slides, AK presentations, or when told to use "ak-style" (this skill's previous name, "pptx-arch-style") or "arch-style".
 ---
 
 # Alfa Architecture Presentation Style Guide
@@ -557,7 +557,7 @@ terminal(slide, 6.60, 4.10, "Outcome 3", GF, GB);
 
 ```javascript
 const { drawDecisionTree } = require(
-  '<plugin-root>/plugins/presentation/skills/pptx-arch-style/scripts/decision-tree.js'
+  '<plugin-root>/plugins/presentation/skills/ak-style/scripts/decision-tree.js'
 );
 
 drawDecisionTree(slide, {
@@ -719,13 +719,13 @@ After every generation or edit of an arch-style `.pptx`, gate the deck through t
 
 1. **Inject `<a:effectLst/>` overrides** (only required when the generator is pptxgenjs):
    ```
-   uv run plugins/presentation/skills/pptx-arch-style/scripts/postprocess-effectlst.py <deck.pptx>
+   uv run plugins/presentation/skills/ak-style/scripts/postprocess-effectlst.py <deck.pptx>
    ```
    The script rewrites the deck in place, adding an empty `<a:effectLst/>` sibling to every `<p:bgPr>` that is missing one. Skip this step for python-pptx or hand-authored decks that already emit the override. See Rule #11 above for the upstream gap that makes this step necessary.
 
 2. Run the linter:
    ```
-   uv run plugins/presentation/skills/pptx-arch-style/scripts/lint.py <deck.pptx>
+   uv run plugins/presentation/skills/ak-style/scripts/lint.py <deck.pptx>
    ```
    Add `--json` for machine-readable output. Add `--rules <path>` to override the rules file.
 

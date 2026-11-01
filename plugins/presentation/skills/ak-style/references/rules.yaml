@@ -1,4 +1,4 @@
-# pptx-arch-style linter rules
+# ak-style linter rules
 #
 # All coordinates and sizes are inches.
 # Colors are RGB hex without leading "#" (case insensitive).
