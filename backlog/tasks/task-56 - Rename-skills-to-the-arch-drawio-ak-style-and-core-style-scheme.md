@@ -1,10 +1,10 @@
 ---
 id: TASK-56
 title: 'Rename skills to the arch-drawio, ak-style and core-style scheme'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-01T20:03:00Z'
-updated_date: '2026-11-01 20:09'
+updated_date: '2026-11-01 20:15'
 labels:
   - 'feature:skill-renaming'
 dependencies: []
@@ -84,4 +84,6 @@ Plan: git mv the three skill dirs; rewrite SKILL.md names + add quoted old names
 Note on AC #6: the literal grep also hits historical backlog task files (task-1/2/21-31/43-46) and design/; those are immutable records of past work, not live code or live docs, so per the implementation checklist (fix live-code/live-doc hits only) they were left untouched. Outside design/ and backlog/, the only remaining hits are the three quoted transition trigger phrases in the renamed SKILL.md descriptions. pytest: 448 passed, 1 failed = known baseline test_helper_renders_canonical_decision_tree (vendored node_modules absent).
 
 Commit: `0e9e2fd` - task-56: rename arch-draw to arch-drawio, pptx-arch-style to ak-style, pptx-core-style to core-style; bump both plugins to 1.0.0
+
+task-reviewer verdict: APPROVED (score 9). Renamed arch-draw->arch-drawio, pptx-arch-style->ak-style, pptx-core-style->core-style; old names kept as quoted trigger phrases; architect+presentation plugin.json -> 1.0.0; marketplace.json, README, .gitignore, pptx-compare cross-refs updated. ruff clean; pytest 448 passed / 1 known baseline failure.
 <!-- SECTION:NOTES:END -->
