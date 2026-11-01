@@ -8,7 +8,7 @@ pair the ``--fold-engine-artefacts`` tests reduce to zero.
 
 ``compare_decks`` is imported as a plain module — putting its directory on
 ``sys.path`` is enough, because the scripts here are named with underscores.
-The sibling pptx-arch-style tests need an ``importlib`` file loader instead,
+The sibling ak-style tests need an ``importlib`` file loader instead,
 because the scripts there are hyphenated and so cannot be imported by name.
 That loader must not be copied into this tree.
 """

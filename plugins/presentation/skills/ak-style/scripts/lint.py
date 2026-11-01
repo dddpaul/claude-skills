@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""pptx-arch-style linter.
+"""ak-style linter.
 
 Reads a .pptx file with python-pptx, classifies every slide via a speaker-notes
 tag (``<!--arch-style:content|title|section-->``), then evaluates rules from
 ``references/rules.yaml`` against the produced XML.
 
 Usage:
-    uv run plugins/presentation/skills/pptx-arch-style/scripts/lint.py deck.pptx
-    uv run plugins/presentation/skills/pptx-arch-style/scripts/lint.py deck.pptx --json
-    uv run plugins/presentation/skills/pptx-arch-style/scripts/lint.py deck.pptx --rules path/to/rules.yaml
+    uv run plugins/presentation/skills/ak-style/scripts/lint.py deck.pptx
+    uv run plugins/presentation/skills/ak-style/scripts/lint.py deck.pptx --json
+    uv run plugins/presentation/skills/ak-style/scripts/lint.py deck.pptx --rules path/to/rules.yaml
 
 Exit codes:
     0 — all checks passed (no errors, warnings allowed)
@@ -552,7 +552,7 @@ def load_rules(rules_path: Path) -> list[dict]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Lint a .pptx file against pptx-arch-style.")
+    ap = argparse.ArgumentParser(description="Lint a .pptx file against ak-style.")
     ap.add_argument("deck", type=Path, help="Path to .pptx file")
     ap.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     ap.add_argument(

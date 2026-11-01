@@ -12,7 +12,7 @@
  *   fixtures/edge/<case>.pptx                     (tolerance boundaries)
  *
  * Run (from repo root):
- *   node plugins/presentation/skills/pptx-arch-style/scripts/tests/gen_fixtures.js
+ *   node plugins/presentation/skills/ak-style/scripts/tests/gen_fixtures.js
  *
  * Requires: pptxgenjs, jszip (both already vendored under node_modules/).
  */

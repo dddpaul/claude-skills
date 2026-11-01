@@ -5,12 +5,12 @@
     {
       "name": "architect",
       "source": "./plugins/architect",
-      "description": "Architecture documentation and diagramming skills — describe IT systems with ASCII diagrams (arch-describe) and generate draw.io XML diagrams (arch-draw)."
+      "description": "Architecture documentation and diagramming skills — describe IT systems with ASCII diagrams (arch-describe) and generate draw.io XML diagrams (arch-drawio)."
     },
     {
       "name": "presentation",
       "source": "./plugins/presentation",
-      "description": "PPTX tooling — two style guides for the pptx skill (corporate core-style, architecture-committee arch-style) plus pptx-compare, a diagnostic harness that diffs two decks structurally, by rendered pixels, or one slide at a time."
+      "description": "PPTX tooling — two style guides for the pptx skill (corporate core-style, architecture-committee ak-style) plus pptx-compare, a diagnostic harness that diffs two decks structurally, by rendered pixels, or one slide at a time."
     },
     {
       "name": "obsidian",

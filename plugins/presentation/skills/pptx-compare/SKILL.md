@@ -7,7 +7,7 @@ description: Compare two PPTX decks — structurally (shape by shape, with exact
 
 Three scripts that measure the gap between two decks. They are diagnostic and opinion-free: they parse
 any two `.pptx` files and consider neither of them correct. Nothing here encodes a house style — for
-that, see the sibling `pptx-arch-style` skill.
+that, see the sibling `ak-style` skill.
 
 ## When to apply
 
@@ -30,13 +30,13 @@ their report and, with `--render`, their images. Expect to run compare → chang
 ## Skill independence
 
 **The plugin's skills are mutually independent; the consumer does the wiring.** `pptx-compare` must not
-call `lint.py` or `postprocess-effectlst.py` from `pptx-arch-style`, and `pptx-arch-style` must not call
+call `lint.py` or `postprocess-effectlst.py` from `ak-style`, and `ak-style` must not call
 anything here. A build pipeline that wants generate → post-process → lint → compare assembles those
 four steps itself.
 
 The temptation is to have the comparison run the style check too, "for completeness". Resist it: that
 would tie the two skills' versions together and stop the plugin from updating them piecemeal. The two
-differ in nature — `pptx-arch-style` is **normative** (`references/rules.yaml` plus a conformance
+differ in nature — `ak-style` is **normative** (`references/rules.yaml` plus a conformance
 check, with a verdict), `pptx-compare` is **diagnostic** (two decks in, a list of differences out, no
 verdict).
 

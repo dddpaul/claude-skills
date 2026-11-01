@@ -1,6 +1,6 @@
 ---
-name: pptx-core-style
-description: "Corporate presentation style guide for core principles architecture slides. Use this skill alongside pptx when creating or editing any architectural presentation. Provides the canonical color palette, typography, layout grid, and component styles (badges, layer blocks, tables, distribution bars). Trigger when a task references 'pptx-core-style' or 'core-style' in its description."
+name: core-style
+description: "Corporate presentation style guide for core principles architecture slides. Use this skill alongside pptx when creating or editing any architectural presentation. Provides the canonical color palette, typography, layout grid, and component styles (badges, layer blocks, tables, distribution bars). Trigger when a task references 'core-style' or this skill's previous name 'pptx-core-style' in its description."
 ---
 
 # Core Style — Core Architecture Presentations

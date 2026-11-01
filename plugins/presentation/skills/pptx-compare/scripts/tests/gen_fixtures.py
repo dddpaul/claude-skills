@@ -27,7 +27,7 @@ exactly one thing to say about them and it is an engine artefact — the pair a
 ``--fold-engine-artefacts`` run has to reduce to zero.
 
 All four decks are built with python-pptx rather than the JS generator the sibling
-``pptx-arch-style`` skill uses for its fixtures: python-pptx is already a dev
+``ak-style`` skill uses for its fixtures: python-pptx is already a dev
 dependency of this repository, so the tests need neither Node nor a vendored
 ``node_modules``.
 
