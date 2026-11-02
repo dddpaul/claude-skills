@@ -1,7 +1,7 @@
 {
   "name": "architect",
-  "description": "Architecture documentation and diagramming skills",
-  "version": "1.0.0",
+  "description": "Architecture documentation and diagramming skills — ASCII descriptions (arch-describe), draw.io XML diagrams (arch-drawio) and studio-preset diagrams as native PPTX shapes (arch-pptx)",
+  "version": "1.1.0",
   "author": { "name": "Pavel Derendyaev", "email": "dddpaul@gmail.com" },
   "homepage": "https://github.com/dddpaul/claude-skills",
   "repository": "https://github.com/dddpaul/claude-skills",

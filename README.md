@@ -53,6 +53,29 @@ Generate professional draw.io diagrams in XML format from architectural descript
 Create a draw.io diagram for a microservices architecture with API Gateway, 3 services, message bus, and databases
 ```
 
+### arch-pptx
+
+*Plugin: architect*
+
+Render a free-form architecture diagram in the studio preset as native, editable PowerPoint shapes on a 16:9 slide.
+Claude writes a small build script on top of the shipped python-pptx helper (`scripts/studio_pptx.py`), checks it with
+the helper's `qa()` and a LibreOffice PNG render, and fixes what the render shows. A 2× draw.io PNG placed full-bleed is
+the fallback when pixel-exactness matters more than editable shapes.
+
+**Usage**: Ask for a studio-style architecture diagram in PPTX or PowerPoint, or a "studio slide".
+
+**Boundary**: arch-pptx is the personal/generic studio look for free-form diagrams; draw.io files go to arch-drawio, AK
+committee decks to ak-style, and bank-standard material — sequence diagrams to abs-puml, a bank layer landscape, topic ×
+function matrix or AS IS / TO BE systems map to abs-slide.
+
+**Preconditions**: python-pptx, IBM Plex Sans / Mono / Sans Condensed installed (python-pptx cannot embed fonts), and
+LibreOffice for the QA render.
+
+**Example**:
+```
+Draw our order platform as a studio-style diagram in PowerPoint
+```
+
 ### core-style
 
 *Plugin: presentation*
@@ -193,16 +216,27 @@ claude-skills/
     │       │   ├── SKILL.md                      # Skill definition and instructions
     │       │   └── references/
     │       │       └── architectures.md          # Reference for 20+ common systems
-    │       └── arch-drawio/
-    │           ├── SKILL.md                      # Skill definition and instructions
+    │       ├── arch-drawio/
+    │       │   ├── SKILL.md                      # Skill definition and instructions
+    │       │   ├── references/
+    │       │   │   ├── cheatsheet.md             # Quick reference for XML elements
+    │       │   │   ├── agent-prompt.md           # Prompt templates and validation
+    │       │   │   └── style-studio.md           # Studio style preset: palette, fonts, styles
+    │       │   └── assets/
+    │       │       ├── studio-example.drawio     # Studio example: "Who reads what"
+    │       │       ├── studio-kafka-example.drawio  # Studio example: Kafka platform
+    │       │       └── studio-bpmn-example.drawio   # Studio example: BPMN order process
+    │       └── arch-pptx/
+    │           ├── SKILL.md                      # Skill definition, boundaries, build → QA loop
     │           ├── references/
-    │           │   ├── cheatsheet.md             # Quick reference for XML elements
-    │           │   ├── agent-prompt.md           # Prompt templates and validation
-    │           │   └── style-studio.md           # Studio style preset: palette, fonts, styles
-    │           └── assets/
-    │               ├── studio-example.drawio     # Studio example: "Who reads what"
-    │               ├── studio-kafka-example.drawio  # Studio example: Kafka platform
-    │               └── studio-bpmn-example.drawio   # Studio example: BPMN order process
+    │           │   └── style-studio-pptx.md      # Studio preset in PPTX: values and translations
+    │           ├── scripts/
+    │           │   ├── studio_pptx.py            # Helper: Diagram, preset kinds, edges, qa(), add_png
+    │           │   └── sample_diagram.py         # Sample build script using every kind
+    │           ├── assets/
+    │           │   ├── studio-pptx-example.pptx  # Sample deck
+    │           │   └── studio-pptx-example.png   # Its LibreOffice render
+    │           └── tests/                        # Pytest suite: preset values, XML, QA, boundary
     ├── presentation/                             # plugins/presentation/skills/
     │   ├── .claude-plugin/
     │   │   └── plugin.json                       # Plugin manifest
@@ -303,7 +337,7 @@ These skills are distributed as Claude Code plugins via a marketplace.
 ### Install the plugins you want
 
 ```
-/plugin install architect@dddpaul-claude-skills      # arch-describe + arch-drawio
+/plugin install architect@dddpaul-claude-skills      # arch-describe + arch-drawio + arch-pptx
 /plugin install presentation@dddpaul-claude-skills   # core-style + ak-style + pptx-compare
 /plugin install obsidian@dddpaul-claude-skills       # offdesk
 /plugin install publish@dddpaul-claude-skills        # pdf + publish

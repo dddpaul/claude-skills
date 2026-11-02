@@ -5,7 +5,7 @@
     {
       "name": "architect",
       "source": "./plugins/architect",
-      "description": "Architecture documentation and diagramming skills — describe IT systems with ASCII diagrams (arch-describe) and generate draw.io XML diagrams (arch-drawio)."
+      "description": "Architecture documentation and diagramming skills — describe IT systems with ASCII diagrams (arch-describe), generate draw.io XML diagrams (arch-drawio), and render studio-preset architecture diagrams as native, editable PPTX shapes (arch-pptx)."
     },
     {
       "name": "presentation",
