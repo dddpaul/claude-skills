@@ -1,10 +1,10 @@
 ---
 id: TASK-57
 title: Add arch-pptx skill for studio-preset diagrams as native PPTX shapes
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-02T09:16:00Z'
-updated_date: '2026-11-02 09:51'
+updated_date: '2026-11-02 09:53'
 labels:
   - 'feature:arch-pptx'
 dependencies: []
@@ -80,4 +80,6 @@ ordinal: 57000
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: helper studio_pptx.py (tokens, px/pt conversions, Diagram with all preset kinds, freeform edges with custDash/tailEnd, add_png, qa() layout checks); sample_diagram.py; reference port; SKILL.md with four fences; hermetic tests incl. boundary grep; QA render via LibreOffice AppImage (no system soffice; Plex fonts installed to ~/.local/share/fonts); bump architect to 1.1.0 + marketplace + README.
+
+Implemented arch-pptx: studio_pptx.py helper (11 tokens, px->EMU/pt, Diagram with zone/group/box/chip/store/person/title/note/edge/add_png, qa() layout checks for grid, bounds, overlaps, zone borders/labels, edges through boxes, text fit), sample_diagram.py, reference port with draw.io->DrawingML translation table, SKILL.md fencing abs-slide/abs-puml/ak-style/arch-drawio, 58 hermetic tests incl. boundary grep. QA render via an extracted LibreOffice AppImage (PNG export) with IBM Plex fonts; committed as assets/studio-pptx-example.png. Architect plugin 1.1.0, marketplace + README updated. task-reviewer: APPROVED (score 9); one minor left as is: the test loader registers studio_pptx in sys.modules because sample_diagram imports it by name. Lint clean; pytest 506 passed, only the known ak-style decision-tree baseline failure.
 <!-- SECTION:NOTES:END -->
