@@ -272,6 +272,11 @@ def test_edge_needs_two_points() -> None:
         sp.Diagram().edge([(0, 0)])
 
 
+def test_edge_label_segment_out_of_range() -> None:
+    with pytest.raises(ValueError, match="label_segment 1 out of range"):
+        sp.Diagram().edge([(0, 0), (100, 0)], label="x", label_segment=1)
+
+
 # --- QA checks ------------------------------------------------------------------
 
 

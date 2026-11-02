@@ -4,7 +4,7 @@ title: Add arch-pptx skill for studio-preset diagrams as native PPTX shapes
 status: In Progress
 assignee: []
 created_date: '2026-11-02T09:16:00Z'
-updated_date: '2026-11-02 09:46'
+updated_date: '2026-11-02 09:51'
 labels:
   - 'feature:arch-pptx'
 dependencies: []
@@ -65,15 +65,15 @@ ordinal: 57000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 plugins/architect/skills/arch-pptx/ exists with SKILL.md naming studio-only triggers and fencing abs-slide, abs-puml, ak-style, and arch-drawio by name, plus a font precondition and a one-line bank-standard-deliverables note
-- [ ] #2 plugins/architect/skills/arch-pptx/references/style-studio-pptx.md exists, reproduces the eleven studio tokens exactly, and contains no bank layer-model vocabulary or ABS tokens
-- [ ] #3 plugins/architect/skills/arch-pptx/scripts/studio_pptx.py implements the Diagram class with zone, box, chip, store, person, group, title, note, edge (default/deny/ok/gate x plain/async/two-way), and add_png
-- [ ] #4 A sample deck containing a zone, a box, a chip, a store, a person, and all four edge kinds builds, re-opens cleanly with python-pptx, and QA-renders via LibreOffice to PNG with no shape overlaps
-- [ ] #5 add_png embeds a provided PNG full-bleed on a slide
-- [ ] #6 plugins/architect/skills/arch-pptx/tests/ hermetically verifies token integrity, px-to-EMU/pt conversions, per-kind shape properties, and the custDash/tailEnd XML output
-- [ ] #7 grep across plugins/architect/skills/arch-pptx/ finds no bank host name, internal repo URL, or layer-model vocabulary
-- [ ] #8 uv run ruff check . passes and uv run pytest passes with the repo's known baseline failure excluded
-- [ ] #9 plugins/architect/.claude-plugin/plugin.json is bumped to 1.1.0 with an updated description, the architect entry in .claude-plugin/marketplace.json is updated, and root README.md gets a new arch-pptx subsection (with the boundary sentence), tree entries, and an updated install line
+- [x] #1 plugins/architect/skills/arch-pptx/ exists with SKILL.md naming studio-only triggers and fencing abs-slide, abs-puml, ak-style, and arch-drawio by name, plus a font precondition and a one-line bank-standard-deliverables note
+- [x] #2 plugins/architect/skills/arch-pptx/references/style-studio-pptx.md exists, reproduces the eleven studio tokens exactly, and contains no bank layer-model vocabulary or ABS tokens
+- [x] #3 plugins/architect/skills/arch-pptx/scripts/studio_pptx.py implements the Diagram class with zone, box, chip, store, person, group, title, note, edge (default/deny/ok/gate x plain/async/two-way), and add_png
+- [x] #4 A sample deck containing a zone, a box, a chip, a store, a person, and all four edge kinds builds, re-opens cleanly with python-pptx, and QA-renders via LibreOffice to PNG with no shape overlaps
+- [x] #5 add_png embeds a provided PNG full-bleed on a slide
+- [x] #6 plugins/architect/skills/arch-pptx/tests/ hermetically verifies token integrity, px-to-EMU/pt conversions, per-kind shape properties, and the custDash/tailEnd XML output
+- [x] #7 grep across plugins/architect/skills/arch-pptx/ finds no bank host name, internal repo URL, or layer-model vocabulary
+- [x] #8 uv run ruff check . passes and uv run pytest passes with the repo's known baseline failure excluded
+- [x] #9 plugins/architect/.claude-plugin/plugin.json is bumped to 1.1.0 with an updated description, the architect entry in .claude-plugin/marketplace.json is updated, and root README.md gets a new arch-pptx subsection (with the boundary sentence), tree entries, and an updated install line
 <!-- AC:END -->
 
 ## Implementation Notes

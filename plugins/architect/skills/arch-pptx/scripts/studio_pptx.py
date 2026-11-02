@@ -593,6 +593,11 @@ class Diagram:
         """
         if len(points) < 2:
             raise ValueError("an edge needs at least two points")
+        if label and not 0 <= label_segment < len(points) - 1:
+            raise ValueError(
+                f"label_segment {label_segment} out of range "
+                f"for {len(points) - 1} segments"
+            )
         color, width = EDGES[kind]
         shape = self._polyline(points)
         _style_fill(shape, None)
