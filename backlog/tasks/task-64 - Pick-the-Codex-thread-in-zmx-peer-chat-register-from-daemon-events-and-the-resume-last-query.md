@@ -3,10 +3,10 @@ id: TASK-64
 title: >-
   Pick the Codex thread in zmx-peer-chat register from daemon events and the
   resume --last query
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-03T16:47:00Z'
-updated_date: '2026-11-03T17:44:00Z'
+updated_date: '2026-11-03T17:49:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -80,4 +80,8 @@ Public repo: the design doc carries no IP address, host name, user name, home pa
 Plan: zmx.Session gains cmd from zmx ls; Daemon keeps notifications, gains started_threads, history_model_provider (config/read), latest_thread (thread/list, TUI's --last query, two passes, rollout must exist); prepare keeps the snapshot connection open as reg.watch; bind picks from cmd (codex -> thread/started on watch; resume --last -> latest_thread once loaded; resume <id> -> once loaded) and falls back to the TASK-63 _candidates otherwise; ProcTransport.close works from the forked bind (Popen skips the signal outside the parent).
 
 Commit: `a2c551e` - task-64: pick the Codex thread from the session command, daemon events and the --last query
+
+Commit: `d599cbc` - task-64: close a daemon transport only once
+
+Review: ralph:task-reviewer APPROVED (score 8). Minor 1 fixed (ProcTransport.close idempotent, so the kept connection's double close never re-signals a pid). Minor 2 left for TASK-65 to watch: the --last query runs once at bind start; if it names a thread another TUI holds (a stale answer, or a provider from a profile/session flag that config/read does not reflect), that thread is renamed to zpc-<inc> and back every CONFIRM_SECONDS until the deadline, never bound. thread/status/changed is not used: the exact resume polls already wait for the thread in thread/loaded/list. ruff clean; pytest 567 passed, only the known test_decision_tree_helper failure.
 <!-- SECTION:NOTES:END -->
