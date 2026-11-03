@@ -18,6 +18,8 @@ from zpc.common import TESTED_CODEX_CLI
         (f"codex-cli {TESTED_CODEX_CLI}\n", True),
         (f"codex-cli 1{TESTED_CODEX_CLI}", False),
         (f"codex-cli {TESTED_CODEX_CLI}.1", False),
+        ("codex-cli 0.166.0", True),
+        ("codex-cli 0.163.0", False),
         ("", False),
     ],
 )
