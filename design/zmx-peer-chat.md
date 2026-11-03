@@ -244,7 +244,7 @@ Codex loads a plugin's `hooks/hooks.json` unless the manifest's `hooks` names an
 1. Before `zmx attach NAME <tool>` creates a session, run `zmx-peer-chat register --role <tool> --session NAME --dir <dir>` (only for `claude` and `codex`), from any directory.
 2. A non-zero exit means no label will be set; the launcher may start the session anyway, and its sends then refuse.
 3. A registration that fails in the background (codes 3, 4 and 5) is logged to `register.log` in the mail root and leaves the session unlabelled.
-4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (usually under two seconds); one that only runs a turn there is ignored, and a thread another TUI shows is never bound because the new session's footer does not show it.
+4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (under two seconds with codex-cli 0.163.0; about 9 seconds for a fresh start in the 0.166.0 retest); one that only runs a turn there is ignored, and a thread another TUI shows is never bound because the new session's footer does not show it.
 
 ## Box demonstrations
 
@@ -660,7 +660,7 @@ $ zmx get zpc-rt-codex2
 (no labels)
 ```
 
-This is a change from 0.163.0, and the register helper does not handle it. The daemon had unloaded the idle thread of the killed TUI by then, so it was not in the snapshot. The resume loaded it again and the TUI showed it, but its `updatedAt` stayed at its last turn (17:49:44) instead of moving to the resume time, and its `createdAt` is older than the snapshot. So the thread was neither started nor resumed by the pick's rule, no candidate was named, and the bind ended as code 5 after `BIND_SECONDS`. The footer still showed the name from the first session, `zpc-0de3b0a1`. A launcher resume of a thread the daemon no longer has loaded (after a reboot, or once the daemon has unloaded it) therefore starts unpaired with 0.166.0; sends to it refuse, nothing is queued to a wrong thread. A resume of a thread that is still loaded was not retested. TASK-63 makes a thread newly loaded in the directory a candidate whatever its times, leaving the footer check to decide.
+This is a change from 0.163.0, and the register helper does not handle it. The daemon had unloaded the idle thread of the killed TUI by then, so it was not in the snapshot. The resume loaded it again and the TUI showed it, but its `updatedAt` stayed at its last turn (17:49:44) instead of moving to the resume time, and its `createdAt` is older than the snapshot. So the thread was neither started nor resumed by the pick's rule, no candidate was named, and the bind ended as code 5 after `BIND_SECONDS`. The footer still showed the name from the first session, `zpc-0de3b0a1`. A launcher resume of a thread the daemon no longer has loaded (after a reboot, or once the daemon has unloaded it) therefore starts unpaired with 0.166.0; sends to it refuse, nothing is queued to a wrong thread. A resume of a thread that is still loaded was not retested. TASK-63 is to make a thread newly loaded in the directory a candidate whatever its times, leaving the footer check to decide.
 
 ### Sessions before and after
 
