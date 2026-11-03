@@ -28,7 +28,8 @@ thread loaded that the daemon has not persisted, and ``thread/read`` gives its
 ``createdAt`` and ``updatedAt`` as the time of the read, so it looks resumed on
 every poll. So each candidate is only named; it is bound once the session's
 footer shows the name. A candidate the footer does not show within
-``CONFIRM_SECONDS`` is passed over, and the next one is tried.
+``CONFIRM_SECONDS`` is renamed away from it, so no two threads ever carry the
+name, and the next one is tried; candidates take turns until the deadline.
 """
 
 from __future__ import annotations
@@ -91,6 +92,11 @@ class Registration:
 def thread_name(inc: str) -> str:
     """The name a bound Codex thread gets; the TUI footer shows it."""
     return f"zpc-{inc}"
+
+
+def _unbound_name(inc: str) -> str:
+    """The name a tried but unshown candidate gets back when it had none."""
+    return f"{thread_name(inc)}-unbound"
 
 
 def _dir_lock(root: Path, directory: str) -> IO[str]:
@@ -206,29 +212,35 @@ def _find_thread(
     sleep: Callable[[float], None],
     now: Callable[[], float],
 ) -> str:
-    tried: list[str] = []
+    tried: list[str] = []  # least recently tried first
+    name = thread_name(reg.inc)
     with open_daemon() as d:
         while True:
-            match = [t for t in _candidates(d, reg) if t not in tried]
+            match = _candidates(d, reg)
             if match:
-                tried.append(match[0])
-                d.set_thread_name(match[0], thread_name(reg.inc))
+                t = min(match, key=lambda m: tried.index(m) if m in tried else -1)
+                previous = d.read_thread(t).name
+                d.set_thread_name(t, name)
                 if _shown(reg, zmx, deadline, sleep, now):
-                    return match[0]
-                continue
+                    return t
+                d.set_thread_name(t, previous or _unbound_name(reg.inc))
+                if t in tried:
+                    tried.remove(t)
+                tried.append(t)
             if now() >= deadline:
                 if tried:
                     raise ZpcError(
-                        f"the Codex TUI in {reg.session} never showed "
-                        f"{thread_name(reg.inc)} in its footer; named but not "
-                        f"bound: {', '.join(tried)}; no label set",
+                        f"the Codex TUI in {reg.session} never showed {name} in "
+                        f"its footer; named but not bound: {', '.join(tried)}; "
+                        "no label set",
                         5,
                     )
                 raise ZpcError(
                     f"no Codex thread opened in {reg.directory} in time; no label set",
                     5,
                 )
-            sleep(0.3)
+            if not match:
+                sleep(0.3)
 
 
 def bind(
