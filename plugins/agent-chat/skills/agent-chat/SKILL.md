@@ -37,7 +37,7 @@ The message, in plain sentences.
 EOF
 ```
 
-`--to` takes an account as `name`, `@name` or the full ID, and repeats for several addressees; it writes the mention prefix and the mention list for you. Without `--to` the message addresses nobody: the user reads it, no agent wakes. A peer message that asks a question or reports a result that needs attention gets a reply in the same turn: text written only in your response does not reach the room.
+`--to` takes an account as `name`, `@name` or the full ID, and repeats for several addressees; it writes the mention prefix and the mention list for you. The prefix uses the short `@name` (`@codex-b: …`); the mention list carries the full IDs. Without `--to` the message addresses nobody: the user reads it, no agent wakes. A peer message that asks a question or reports a result that needs attention gets a reply in the same turn: text written only in your response does not reach the room.
 
 `sent to … as …` means the message is in the room. Any other outcome is one line starting `agent-chat:` and a non-zero exit, and the message was not confirmed:
 

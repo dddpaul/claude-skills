@@ -83,9 +83,14 @@ def _setup(tool: str) -> tuple[Config, str, Client]:
     return cfg, account, Client(cfg.homeserver, read_token(account))
 
 
-def message_content(body: str, to: list[str]) -> dict[str, Any]:
-    """Build the ``m.room.message`` content: the mention prefix and ``m.mentions``."""
-    prefix = " ".join(to) + ": " if to else ""
+def message_content(body: str, to: list[str], server_name: str) -> dict[str, Any]:
+    """Build the ``m.room.message`` content: the mention prefix and ``m.mentions``.
+
+    The prefix names an account on ``server_name`` as ``@localpart`` and any
+    other account by its full ID; ``m.mentions`` always holds the full IDs.
+    """
+    short = [u.removesuffix(f":{server_name}") for u in to]
+    prefix = " ".join(short) + ": " if to else ""
     return {"msgtype": "m.text", "body": prefix + body, "m.mentions": {"user_ids": to}}
 
 
@@ -105,7 +110,7 @@ def cmd_send(a: argparse.Namespace) -> int:
         raise AgentChatError(empty, 2)
     cfg, account, client = _setup(a.as_)
     to = list(dict.fromkeys(cfg.user_id(t) for t in a.to or []))
-    content = message_content(body.rstrip("\n"), to)
+    content = message_content(body.rstrip("\n"), to, cfg.server_name)
     deadline = time.monotonic() + SEND_SECONDS
     alias = project_alias(cfg)
     rooms = Rooms(client, cfg, state_dir(account))
