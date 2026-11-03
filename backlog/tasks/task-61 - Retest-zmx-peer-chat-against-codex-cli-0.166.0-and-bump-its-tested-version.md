@@ -1,10 +1,10 @@
 ---
 id: TASK-61
 title: Retest zmx-peer-chat against codex-cli 0.166.0 and bump its tested version
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-03T12:53:00Z'
-updated_date: '2026-11-03T15:57:00Z'
+updated_date: '2026-11-03T15:58:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -92,4 +92,8 @@ Finding: with 0.166.0 the daemon had unloaded the idle test thread; the resume l
 Commit: `ef98179` - task-61: record the 0.166.0 resume retest, the skill listing and the full transcript lines
 
 Review round 2 (CHANGES REQUESTED, 5): 'For the launcher' item 4 now gives the bind time per version (under 2 s with 0.163.0, about 9 s for the 0.166.0 fresh start); the TASK-63 sentence is worded as a plan. The register.py module docstring's resume claim goes to TASK-63's Files.
+
+Commit: `a0a39ea` - task-61: give the bind time per codex-cli version and word the TASK-63 reference as a plan
+
+Done. TESTED_CODEX_CLI = "0.166.0" (test_zpc_cli gains 0.166.0 pass / 0.163.0 fail cases); zmx-peer-chat 0.1.4. Box retest recorded in design/zmx-peer-chat.md 'Retest with codex-cli 0.166.0': daemon check exit 0, thread/loaded/list, thread/read, thread/name/set + footer, send to idle and busy TUI, codex plugin list, daemon skills, and a resume that did not bind (updatedAt unmoved for an unloaded thread) - the fix is TASK-63. task-reviewer: APPROVED (score 9) after two rounds; open minor: the register.py docstring's resume claim, listed for TASK-63. ruff clean; pytest 535 passed + the known test_decision_tree_helper baseline failure.
 <!-- SECTION:NOTES:END -->
