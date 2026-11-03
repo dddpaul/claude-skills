@@ -1,10 +1,10 @@
 ---
 id: TASK-65
 title: Retest the exact Codex thread pick of zmx-peer-chat register on the box
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-03T17:36:00Z'
-updated_date: '2026-11-03T18:33:00Z'
+updated_date: '2026-11-03T18:35:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -64,4 +64,8 @@ Review round 2 (CHANGES REQUESTED, 5): dropped the unchecked 'first TUI start af
 Commit: `abbcc18` - task-65: drop an unchecked cause and say exactly which case waits FALLBACK_SECONDS
 
 Review round 3 (CHANGES REQUESTED, 5): 'For the launcher' item 4 now names the missing-signal cases that can wait FALLBACK_SECONDS as another command or a --last query that returns no thread (no daemon at registration only affects a fresh start, which never waits).
+
+Commit: `1363476` - task-65: name the missing-signal cases that can wait FALLBACK_SECONDS
+
+Done. On the box with codex-cli 0.166.0, the exact pick (zmx-peer-chat 0.1.6) bound codex, codex resume --last of an unloaded thread and of a still-loaded thread, each in 1.61 to 1.62 s with the right thread. Docs aligned; README bind times fixed, so zmx-peer-chat 0.1.7. task-reviewer: APPROVED (score 10) after four rounds. Final: ruff clean; pytest 571 passed, 1 failed - the known test_decision_tree_helper baseline.
 <!-- SECTION:NOTES:END -->
