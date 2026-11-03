@@ -4,7 +4,7 @@ title: Retest zmx-peer-chat against codex-cli 0.166.0 and bump its tested versio
 status: In Progress
 assignee: []
 created_date: '2026-11-03T12:53:00Z'
-updated_date: '2026-11-03T15:54:00Z'
+updated_date: '2026-11-03T15:57:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -88,4 +88,8 @@ Commit: `cd8ce9d` - task-61: test the daemon client with codex-cli 0.166.0 and r
 Review round 1 (CHANGES REQUESTED, 5): the resume path was not retested. With the user's OK a third test session, zpc-rt-codex2, ran `codex resume <thread-r>` in a recreated ~/zpc-retest/fresh (no turn). zmx ls before (18:41:48) and after (18:43:18): only the user's two sessions; grep -c zpc-rt- after: 0; session killed, scratch dir and lock removed.
 
 Finding: with 0.166.0 the daemon had unloaded the idle test thread; the resume loaded it again and the TUI showed it, but updatedAt stayed at its last turn (17:49:44), createdAt is old, so register named no candidate and logged '18:42:48 zpc-rt-codex2: no Codex thread opened in <home>/zpc-retest/fresh in time; no label set' (code 5). A launcher resume of an unloaded thread starts unpaired with 0.166.0 (fail-closed). The user chose to keep TESTED_CODEX_CLI at 0.166.0 (every daemon call works) and fix the pick in a new task, TASK-63. Also recorded: daemon skills --cwd (exit 0, 33 skills, zmx-peer-chat:zmx-peer-chat listed); the full status output, R2a's command and output and the busy screen's hint line; the daemon unloads an idle thread within 50 minutes (the old note said it kept it until restart).
+
+Commit: `ef98179` - task-61: record the 0.166.0 resume retest, the skill listing and the full transcript lines
+
+Review round 2 (CHANGES REQUESTED, 5): 'For the launcher' item 4 now gives the bind time per version (under 2 s with 0.163.0, about 9 s for the 0.166.0 fresh start); the TASK-63 sentence is worded as a plan. The register.py module docstring's resume claim goes to TASK-63's Files.
 <!-- SECTION:NOTES:END -->
