@@ -54,9 +54,10 @@ Registration                       (the launcher [prov], just before the session
                fork a detached bind, return at once
   launcher   zmx attach NAME codex            -> the TUI starts or resumes thread T
   bind         wait for NAME to appear in zmx ls
-               poll the daemon for the one thread in <dir>: a new id created after S, (!2)
+               poll the daemon for a thread in <dir>: a new id created after S,   (!2)
                  or one whose updatedAt moved past S; never one seen running a turn
-               thread/name/set T "zpc-I2"     -> the footer shows zpc-I2
+               thread/name/set T "zpc-I2"; bind T only once zmx history NAME
+                 shows "· zpc-I2" in the footer, else rename T away and try the next
                zmx set NAME zpc.pair=P zpc.role=codex zpc.inc=I2 zpc.proto=1 zpc.thread=T
 
 Claude -> Codex
@@ -117,7 +118,7 @@ Every demonstration ran on 2026-10-20 with these versions, read from `--version`
 | Path in `plugins/zmx-peer-chat/` | For | What it is |
 |-----------------------------------|-----|------------|
 | `bin/zmx-peer-chat` | both | The one command: register helper, router, mailbox, wait, daemon client. Python 3, stdlib only; the code is in `skills/zmx-peer-chat/scripts/zpc/`. |
-| `.claude-plugin/plugin.json` | Claude | Manifest, version `0.1.0`. Claude Code puts `bin/` on the Bash tool's `PATH`. |
+| `.claude-plugin/plugin.json` | Claude | Manifest, version `0.1.1`. Claude Code puts `bin/` on the Bash tool's `PATH`. |
 | `skills/zmx-peer-chat/SKILL.md` | Claude | How Claude receives, replies and refuses. |
 | `hooks/hooks.json` | Claude | `SessionStart`, `UserPromptSubmit`, `Stop` and `StopFailure` hooks that run `zmx-peer-chat hook-wait` with `asyncRewake`. |
 | `.codex-plugin/plugin.json` | Codex | Manifest: `"skills": "./codex-skills/"` and `"hooks": "./codex/hooks.json"`. |
@@ -151,12 +152,12 @@ A peer is the one other session with the same `zpc.pair` and the other `zpc.role
 zmx-peer-chat register --role claude|codex --session NAME [--dir DIR] [--pair ID] [--timeout SECONDS] [--foreground]
 ```
 
-The launcher runs it just before it creates the session with `zmx attach NAME <tool>`, in the same directory. It returns at once and binds in a detached child that logs one line to `register.log` in the mail root; the child lets go of the caller's stdin, stdout and stderr, so a launcher may capture the helper's output. `--foreground` binds in the foreground and prints the labels. `--timeout` (default 10 seconds) bounds the wait for the session and its thread.
+The launcher runs it just before it creates the session with `zmx attach NAME <tool>`, in the same directory. It returns at once and binds in a detached child that logs one line to `register.log` in the mail root; the child lets go of the caller's stdin, stdout and stderr, so a launcher may capture the helper's output. `--foreground` binds in the foreground and prints the labels. `--timeout` (default `BIND_SECONDS`, 60 seconds) bounds the wait for the session and its thread; the bind runs in the background, so the long window costs the launcher nothing, and it covers a TUI that opens its thread only after a startup dialog (an update notice, "Trust this folder?") is answered.
 
 1. If session `NAME` already exists, it changes nothing and exits 0 (`register: session NAME exists; its labels are left as they are`): the launcher attaches to the live session as before.
 2. It takes a per-directory lock (`register-<hash>.lock` in the mail root), held until the bind ends.
 3. For Codex it notes the time and snapshots the daemon's loaded thread ids, with the update time of each one whose `cwd` is the directory.
-4. The bind waits for the session, then (Codex only) for the one thread the new TUI opened in the directory, names that thread `zpc-<inc>` with `thread/name/set`, and sets all labels in one `zmx set`.
+4. The bind waits for the session, then (Codex only) for the thread the new TUI opened in the directory: it names a candidate `zpc-<inc>` with `thread/name/set` and binds it once the session's footer shows that name, then sets all labels in one `zmx set`.
 
 The Codex thread pick, in `zpc/register.py`:
 
@@ -166,6 +167,8 @@ The Codex thread pick, in `zpc/register.py`:
 | resumes one (`codex resume --last`, which the launcher runs in a directory with an interactive rollout) | `updatedAt` at or after the snapshot time and later than in the snapshot; resuming moves `updatedAt` to the resume time, whether or not the daemon still had the thread loaded |
 
 A thread seen running a turn, at the snapshot or at any of the bind's polls 0.3 seconds apart, is never taken: a turn that ends moves `updatedAt` too. Being newly loaded is not enough: during a resume the starting TUI loaded an older thread of the same directory that it does not show, and that thread kept its old times (see "Register" under the demonstrations). An exiting TUI moves neither time. The spike saw `createdAt` read the time of the first `thread/read` for a thread without a rollout; the rule uses `createdAt` only for ids that were not loaded at the snapshot, and the sender's footer check (below) refuses any send to a thread the TUI does not show, so a wrong pick cannot start a turn.
+
+The times are a filter, not the proof. A Codex TUI killed before its first turn leaves its thread loaded in the daemon, unpersisted, and until it is persisted `thread/read` gives its `createdAt` and `updatedAt` as the time of the read, so it reads as resumed on every poll; on the box, with codex-cli 0.163.0, such a leftover was bound while the TUI showed another thread. So the bind names one candidate at a time, started threads before resumed ones, and binds it only when the footer rule the sender uses (`tui_shows` in `zpc/common.py`: one of the last six non-empty lines of `zmx history NAME` ends with `· zpc-<inc>`) holds within `CONFIRM_SECONDS` (5 seconds). A candidate the footer does not show gets its previous name back, or `zpc-<inc>-unbound` when it had none, before the next one is named, so no two threads carry `zpc-<inc>` and the footer can only confirm the thread being tried; naming persists a leftover with its real times, so it stops reading as now. Candidates that are still candidates take turns until the deadline, so a thread whose footer a dialog hid for longer than one turn is tried again. When no candidate is shown by the deadline, the bind sets no label and logs `the Codex TUI in NAME never showed zpc-<inc> in its footer; named but not bound: <ids>; no label set` (code 5).
 
 ### Exit codes
 
@@ -177,8 +180,8 @@ Every command uses the same codes; a refusal prints `zmx-peer-chat: <reason>` on
 | 1 | Refused, nothing sent: no peer, several peers, protocol mismatch, unbound or not-shown Codex thread, `codex queue` failed, session not registered; `waiting` also exits 1 for "no" and `daemon check` for an untested codex-cli |
 | 2 | Usage: a bad argument, name or message file, or no zmx session to act for |
 | 3 | The Codex daemon could not be reached or answered something unexpected (`codex daemon: …`) |
-| 4 | Ambiguous: another registration runs for the directory, or several Codex threads opened in it at once; no label set |
-| 5 | Not in time: the session or its Codex thread did not appear within `--timeout`; no label set |
+| 4 | Ambiguous: another registration runs for the directory; no label set |
+| 5 | Not in time: the session, or a Codex thread the TUI footer shows, did not appear within `--timeout`; no label set |
 
 ### Commands
 
@@ -239,7 +242,7 @@ Codex loads a plugin's `hooks/hooks.json` unless the manifest's `hooks` names an
 1. Before `zmx attach NAME <tool>` creates a session, run `zmx-peer-chat register --role <tool> --session NAME --dir <dir>` (only for `claude` and `codex`), from any directory.
 2. A non-zero exit means no label will be set; the launcher may start the session anyway, and its sends then refuse.
 3. A registration that fails in the background (codes 3, 4 and 5) is logged to `register.log` in the mail root and leaves the session unlabelled.
-4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (usually under two seconds); one that only runs a turn there is ignored.
+4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (usually under two seconds); one that only runs a turn there is ignored, and a thread another TUI shows is never bound because the new session's footer does not show it.
 
 ## Box demonstrations
 

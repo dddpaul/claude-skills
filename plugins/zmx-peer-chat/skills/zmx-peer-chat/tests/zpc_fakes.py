@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import struct
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,8 @@ class FakeZmx:
     ) -> None:
         self.live = {s.name: s for s in sessions or []}
         self.screens = screens or {}
+        # Screens that change, such as a footer that follows a thread's name.
+        self.footers: dict[str, Callable[[], str]] = {}
         self.set_calls: list[tuple[str, dict[str, str]]] = []
 
     def sessions(self) -> dict[str, Session]:
@@ -51,6 +54,8 @@ class FakeZmx:
         self.live[name].labels.update(new)
 
     def history(self, name: str) -> str:
+        if name in self.footers:
+            return self.footers[name]()
         return self.screens.get(name, "")
 
 
@@ -59,13 +64,22 @@ class FakeDaemon:
 
     ``timeline`` holds one thread table per ``loaded_threads`` call; the last
     table repeats. ``read_thread`` answers from the table of the latest call.
+    A ``leftovers`` thread is one a killed TUI left unpersisted: until it is
+    named, its ``createdAt`` and ``updatedAt`` read as ``wall()`` at the read.
     """
 
-    def __init__(self, timeline: list[dict[str, ThreadInfo]]) -> None:
+    def __init__(
+        self,
+        timeline: list[dict[str, ThreadInfo]],
+        leftovers: set[str] | None = None,
+        wall: Callable[[], float] | None = None,
+    ) -> None:
         self.timeline = timeline
         self.calls = 0
         self.table = timeline[0]
         self.names: dict[str, str] = {}
+        self.leftovers = set(leftovers or ())
+        self.wall = wall
 
     def __enter__(self) -> FakeDaemon:
         return self
@@ -79,10 +93,25 @@ class FakeDaemon:
         return list(self.table)
 
     def read_thread(self, thread_id: str) -> ThreadInfo:
-        return self.table[thread_id]
+        info = self.table[thread_id]
+        if thread_id in self.leftovers and self.wall is not None:
+            now = int(self.wall())
+            return ThreadInfo(info.id, info.cwd, info.status, info.name, now, now)
+        return info
 
     def set_thread_name(self, thread_id: str, name: str) -> None:
         self.names[thread_id] = name
+        self.leftovers.discard(thread_id)  # naming persists it, real times
+
+
+def tui_footer(daemon: FakeDaemon, shown: str) -> Callable[[], str]:
+    """Return a Codex screen whose footer names thread ``shown``, once named."""
+
+    def screen() -> str:
+        name = daemon.names.get(shown)
+        return "› \n\n  GPT-6.1 medium · ~/work" + (f" · {name}" if name else "")
+
+    return screen
 
 
 def thread(
