@@ -4,7 +4,7 @@ title: Bind a resumed Codex thread in zmx-peer-chat register whatever its times
 status: In Progress
 assignee: []
 created_date: '2026-11-03T15:59:00Z'
-updated_date: '2026-11-03T16:06:00Z'
+updated_date: '2026-11-03T16:20:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -54,19 +54,25 @@ Public repo: the design doc carries no IP address, host name, user name, home pa
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A test where a thread not loaded at the snapshot is loaded during the bind with createdAt and updatedAt both before the snapshot, and the fake footer shows its name once named, ends with zpc.thread naming that thread
-- [ ] #2 A test with two threads newly loaded during the bind, both with old times, where the footer shows only one, binds the shown one and gives the other its previous name back
-- [ ] #3 A test where no started, newly loaded or resumed thread exists and an idle thread loaded at the snapshot with unmoved times is the one the footer shows ends with zpc.thread naming it
-- [ ] #4 The register.py module docstring, the pick table in design/zmx-peer-chat.md and plugins/zmx-peer-chat/README.md (where it describes the pick) state the new candidate rule, and grep finds no remaining claim that a resume always moves updatedAt
-- [ ] #5 With the user's explicit OK, a box retest with throwaway zpc-rt- sessions resumes a thread the daemon has unloaded and one it still has loaded, each ends labelled with zpc.thread naming the resumed thread, and design/zmx-peer-chat.md records the commands, outputs and zmx ls before and after
-- [ ] #6 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
-- [ ] #7 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
-- [ ] #8 A test shows that a started or newly loaded candidate is named before any fallback thread
-- [ ] #9 A test shows that a thread seen running a turn is never named, as a fallback or otherwise
+- [x] #1 A test where a thread not loaded at the snapshot is loaded during the bind with createdAt and updatedAt both before the snapshot, and the fake footer shows its name once named, ends with zpc.thread naming that thread
+- [x] #2 A test with two threads newly loaded during the bind, both with old times, where the footer shows only one, binds the shown one and gives the other its previous name back
+- [x] #3 A test where no started, newly loaded or resumed thread exists and an idle thread loaded at the snapshot with unmoved times is the one the footer shows ends with zpc.thread naming it
+- [x] #4 The register.py module docstring, the pick table in design/zmx-peer-chat.md and plugins/zmx-peer-chat/README.md (where it describes the pick) state the new candidate rule, and grep finds no remaining claim that a resume always moves updatedAt
+- [x] #5 With the user's explicit OK, a box retest with throwaway zpc-rt- sessions resumes a thread the daemon has unloaded and one it still has loaded, each ends labelled with zpc.thread naming the resumed thread, and design/zmx-peer-chat.md records the commands, outputs and zmx ls before and after
+- [x] #6 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
+- [x] #7 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
+- [x] #8 A test shows that a started or newly loaded candidate is named before any fallback thread
+- [x] #9 A test shows that a thread seen running a turn is never named, as a fallback or otherwise
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: _candidates() orders started, newly loaded (not in the snapshot, any times), resumed, then (after FALLBACK_SECONDS = 20 s in the bind) the idle snapshot threads, most recent first; busy threads never. The fallback waits so a starting TUI's own thread is tried before an older thread is renamed (a plain fallback broke four existing tests that way); the task's Scope item 4 was reworded to match. Tests for AC1-5 plus mutation checks; docs; 0.1.5; then the box retest with the user's OK.
+
+Commit: `9cc073b` - task-63: try a thread newly loaded in the directory whatever its times, and idle snapshot threads after FALLBACK_SECONDS; zmx-peer-chat 0.1.5
+
+AC6 (box, with the user's OK, branch copy 0.1.5, 2026-11-03): zmx ls before 19:17:12 and after 19:18:03 listed only the user's two sessions; grep -c zpc-rt- after: 0. zpc-rt-codex3 resumed the unloaded test thread: labelled after 7.63 s (newly loaded; times unmoved). zpc-rt-codex4 resumed it while still loaded: updatedAt did not move either, labelled after 20.7 s through the fallback. Both footers showed the new zpc-<inc>. Sessions killed; ~/zpc-retest and the lock removed; transcripts and register.log lines kept. Recorded in design/zmx-peer-chat.md 'Resume after TASK-63'.
+
+AC9: ruff clean; pytest 539 passed, 1 failed - the known baseline test_decision_tree_helper (un-vendored node_modules).
 <!-- SECTION:NOTES:END -->
