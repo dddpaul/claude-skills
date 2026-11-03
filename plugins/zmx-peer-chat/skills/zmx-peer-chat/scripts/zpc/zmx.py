@@ -24,6 +24,8 @@ class Session:
     name: str
     pid: int | None = None
     labels: dict[str, str] = field(default_factory=dict)
+    # The command the session was started with, as `zmx ls` prints it.
+    cmd: str | None = None
 
 
 def parse_ls(text: str) -> dict[str, Session]:
@@ -48,7 +50,9 @@ def parse_ls(text: str) -> dict[str, Session]:
         name = fields["name"]
         pid = fields.get("pid", "")
         labels = {k: v for k, v in fields.items() if k not in _BUILTIN}
-        sessions[name] = Session(name, int(pid) if pid.isdigit() else None, labels)
+        sessions[name] = Session(
+            name, int(pid) if pid.isdigit() else None, labels, fields.get("cmd")
+        )
     return sessions
 
 

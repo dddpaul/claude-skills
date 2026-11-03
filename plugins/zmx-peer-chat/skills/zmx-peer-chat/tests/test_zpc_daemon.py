@@ -1,7 +1,8 @@
 """The Codex daemon client fails closed.
 
-``thread/loaded/list``, ``thread/read``, ``thread/name/set`` and ``skills/list``
-over ``codex app-server proxy`` are an internal, undocumented API. Anything
+``thread/loaded/list``, ``thread/read``, ``thread/name/set``, ``thread/list``,
+``config/read``, ``skills/list`` and the ``thread/started`` notification over
+``codex app-server proxy`` are an internal, undocumented API. Anything
 unexpected in the handshake, the WebSocket framing or a response raises
 ``DaemonError`` (exit code 3), so no caller acts on a guess.
 """
@@ -11,12 +12,25 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
+import signal
+import time
+from pathlib import Path
 from typing import Any
 
 import pytest
 from zpc_fakes import THREAD_A, THREAD_B, FakeTransport, frame
 
-from zpc.daemon import _GUID, Daemon, DaemonError, encode_frame, handshake, read_frame
+from zpc.daemon import (
+    _GUID,
+    Daemon,
+    DaemonError,
+    ProcTransport,
+    encode_frame,
+    handshake,
+    latest_params,
+    read_frame,
+)
 
 KEY = base64.b64encode(b"0123456789abcdef").decode()
 ACCEPT = base64.b64encode(hashlib.sha1((KEY + _GUID).encode()).digest()).decode()
@@ -76,7 +90,7 @@ def test_handshake_checks_the_accept_header() -> None:
         handshake(FakeTransport(b"HTTP/1.1 101"), KEY, 0)
 
 
-def test_call_skips_notifications_and_answers_pings() -> None:
+def test_call_keeps_notifications_and_answers_pings() -> None:
     d = _daemon(
         frame({"method": "thread/started", "params": {}}),
         frame(b"hi", opcode=0x9),
@@ -86,6 +100,108 @@ def test_call_skips_notifications_and_answers_pings() -> None:
     assert d.call("thread/loaded/list", {}) == {"data": []}
     assert [op for op, _ in _sent(d)] == [0x1, 0xA]
     assert _sent(d)[1][1] == b"hi"
+    assert list(d.notifications) == [{"method": "thread/started", "params": {}}]
+
+
+def _started(tid: str, cwd: str) -> bytes:
+    params = {"thread": {"id": tid, "cwd": cwd, "status": {"type": "idle"}}}
+    return frame({"method": "thread/started", "params": params})
+
+
+def test_started_threads_takes_each_thread_started_notification_once() -> None:
+    other = frame({"method": "thread/status/changed", "params": {}})
+    d = _daemon(_started(THREAD_A, "/w"), other, _started(THREAD_B, "/x"))
+    d.notifications.extend(d._message(1) for _ in range(3))
+    assert d.started_threads() == [(THREAD_A, "/w"), (THREAD_B, "/x")]
+    assert d.started_threads() == []
+    assert [n["method"] for n in d.notifications] == ["thread/status/changed"]
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {},
+        {"thread": None},
+        {"thread": {"id": "x", "cwd": "/w"}},
+        {"thread": {"id": THREAD_A}},
+    ],
+)
+def test_started_threads_refuses_an_unexpected_notification(params: Any) -> None:
+    d = _daemon()
+    d.notifications.append({"method": "thread/started", "params": params})
+    with pytest.raises(DaemonError, match="unexpected thread"):
+        d.started_threads()
+
+
+def test_latest_params_are_the_tuis_resume_last_query() -> None:
+    # Pinned to latest_session_lookup_params in codex-rs/tui/src/lib.rs at
+    # rust-v0.166.0: limit 1, sortKey updated_at (ThreadSortKey is snake_case),
+    # the cwd filter, resume_source_kinds(false) = cli and vscode, archived
+    # false, the history model provider, and useStateDbOnly true then false
+    # (serde leaves false out).
+    assert latest_params("/w", "openai", True) == {
+        "limit": 1,
+        "sortKey": "updated_at",
+        "sourceKinds": ["cli", "vscode"],
+        "archived": False,
+        "cwd": "/w",
+        "modelProviders": ["openai"],
+        "useStateDbOnly": True,
+    }
+    assert latest_params("/w", None, False) == {
+        "limit": 1,
+        "sortKey": "updated_at",
+        "sourceKinds": ["cli", "vscode"],
+        "archived": False,
+        "cwd": "/w",
+    }
+
+
+def _listed(rid: int, tid: str, path: str | None) -> bytes:
+    return _answer(rid, {"data": [{"id": tid, "path": path}], "nextCursor": None})
+
+
+def test_latest_thread_sends_the_tuis_query(tmp_path: Path) -> None:
+    rollout = tmp_path / "rollout.jsonl"
+    rollout.write_text("")
+    d = _daemon(
+        _answer(1, {"config": {"model_provider": None}, "origins": {}}),
+        _listed(2, THREAD_B, str(rollout)),
+    )
+    assert d.latest_thread("/w") == THREAD_B
+    sent = [json.loads(p) for _, p in _sent(d)]
+    assert [(m["method"], m["params"]) for m in sent] == [
+        ("config/read", {"includeLayers": True, "cwd": "/w"}),
+        ("thread/list", latest_params("/w", "openai", True)),
+    ]
+
+
+def test_latest_thread_scans_when_the_state_db_misses(tmp_path: Path) -> None:
+    rollout = tmp_path / "rollout.jsonl"
+    rollout.write_text("")
+    d = _daemon(
+        _answer(1, error={"code": -32601, "message": "unknown method"}),
+        _listed(2, THREAD_A, str(tmp_path / "gone.jsonl")),
+        _listed(3, THREAD_B, str(rollout)),
+    )
+    assert d.latest_thread("/w") == THREAD_B
+    sent = [json.loads(p)["params"] for _, p in _sent(d)][1:]
+    assert sent == [latest_params("/w", None, True), latest_params("/w", None, False)]
+
+
+def test_latest_thread_returns_none_without_a_thread() -> None:
+    d = _daemon(
+        _answer(1, {"config": {"model_provider": "oss"}}),
+        _answer(2, error={"message": "no state db"}),
+        _answer(3, {"data": [], "nextCursor": None}),
+    )
+    assert d.latest_thread("/w") is None
+    assert json.loads(_sent(d)[2][1])["params"]["modelProviders"] == ["oss"]
+    for bad in ({"data": {}}, {"data": [1]}):
+        with pytest.raises(DaemonError, match="unexpected list"):
+            _daemon(_answer(1, {"config": {}}), _answer(2, bad)).latest_thread("/w")
+    with pytest.raises(DaemonError, match="unexpected config"):
+        _daemon(_answer(1, {"config": {"model_provider": 3}})).latest_thread("/w")
 
 
 @pytest.mark.parametrize(
@@ -204,3 +320,20 @@ def test_encoded_frames_read_back(n: int) -> None:
 def test_a_missing_codex_binary_is_a_daemon_error() -> None:
     with pytest.raises(DaemonError, match="cannot start"):
         Daemon.open(["/nonexistent/codex", "app-server", "proxy"], timeout=1)
+
+
+def test_a_forked_bind_stops_the_proxy_it_did_not_start() -> None:
+    # register keeps the snapshot's connection for the bind, which runs in a
+    # forked grandchild; closing it there must still stop the proxy.
+    t = ProcTransport(["sleep", "30"])
+    child = os.fork()
+    if child == 0:
+        if os.fork() == 0:
+            t.close()
+        os._exit(0)
+    os.waitpid(child, 0)
+    for _ in range(50):
+        if t.proc.poll() is not None:
+            break
+        time.sleep(0.05)
+    assert t.proc.returncode == -signal.SIGTERM

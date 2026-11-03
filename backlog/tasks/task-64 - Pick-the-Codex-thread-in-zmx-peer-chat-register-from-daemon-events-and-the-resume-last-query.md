@@ -3,10 +3,10 @@ id: TASK-64
 title: >-
   Pick the Codex thread in zmx-peer-chat register from daemon events and the
   resume --last query
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-03T16:47:00Z'
-updated_date: '2026-11-03T17:36:00Z'
+updated_date: '2026-11-03T17:44:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -64,12 +64,18 @@ Public repo: the design doc carries no IP address, host name, user name, home pa
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A test where the session's cmd is codex and the fake daemon sends a thread/started notification for the session directory ends with zpc.thread naming that thread, while a leftover thread in the directory whose times read as now is never named
-- [ ] #2 A test where the session's cmd is codex resume --last binds the thread the fake thread/list answer returns, though it was loaded at the snapshot with unmoved times, and names no other thread
-- [ ] #3 A test where the session's cmd is codex resume <id> binds that id
-- [ ] #4 A test where no exact signal is available (the daemon came up after the session, or the cmd is unknown) still binds through the TASK-63 pick
-- [ ] #5 A test pins the thread/list request params to the TUI's --last query (limit 1, updated-at sort, the cwd filter, interactive source kinds, not archived), with a comment naming codex-rs/tui/src/lib.rs latest_session_lookup_params at rust-v0.166.0
-- [ ] #6 design/zmx-peer-chat.md (Register helper and the pick table) and plugins/zmx-peer-chat/README.md describe the exact pick and the fallback
-- [ ] #7 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
-- [ ] #8 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
+- [x] #1 A test where the session's cmd is codex and the fake daemon sends a thread/started notification for the session directory ends with zpc.thread naming that thread, while a leftover thread in the directory whose times read as now is never named
+- [x] #2 A test where the session's cmd is codex resume --last binds the thread the fake thread/list answer returns, though it was loaded at the snapshot with unmoved times, and names no other thread
+- [x] #3 A test where the session's cmd is codex resume <id> binds that id
+- [x] #4 A test where no exact signal is available (the daemon came up after the session, or the cmd is unknown) still binds through the TASK-63 pick
+- [x] #5 A test pins the thread/list request params to the TUI's --last query (limit 1, updated-at sort, the cwd filter, interactive source kinds, not archived), with a comment naming codex-rs/tui/src/lib.rs latest_session_lookup_params at rust-v0.166.0
+- [x] #6 design/zmx-peer-chat.md (Register helper and the pick table) and plugins/zmx-peer-chat/README.md describe the exact pick and the fallback
+- [x] #7 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
+- [x] #8 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: zmx.Session gains cmd from zmx ls; Daemon keeps notifications, gains started_threads, history_model_provider (config/read), latest_thread (thread/list, TUI's --last query, two passes, rollout must exist); prepare keeps the snapshot connection open as reg.watch; bind picks from cmd (codex -> thread/started on watch; resume --last -> latest_thread once loaded; resume <id> -> once loaded) and falls back to the TASK-63 _candidates otherwise; ProcTransport.close works from the forked bind (Popen skips the signal outside the parent).
+<!-- SECTION:NOTES:END -->
