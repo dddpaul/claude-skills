@@ -1,10 +1,10 @@
 ---
 id: TASK-58
 title: Start agent-chat mentions with the short account name
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-02T18:58:00Z'
-updated_date: '2026-11-03 12:51'
+updated_date: '2026-11-03 12:55'
 labels:
   - agent-chat
 dependencies: []
@@ -82,4 +82,8 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 Plan: message_content(body, to, server_name) writes @localpart for addressees on server_name, the full ID otherwise; m.mentions unchanged. Update stdin and codex message-file send tests to --to codex-a --to @claude-b with short prefix; add foreign-server prefix test and a strip-m.mentions round-trip test (addressees + wakes) in the addressing tests. README Addressing row + both SKILL.md --to paragraphs; bump both manifests 0.2.0 -> 0.2.1.
 
 Commit: `b9f2265` - task-58: start agent-chat mention prefix with the short @name; agent-chat 0.2.1
+
+Commit: `dafeaf1` - task-58: note the full-ID prefix for foreign accounts in both SKILL.md
+
+Done. message_content() takes server_name and shortens addressees on it to @localpart via removesuffix(':<server_name>'); m.mentions keeps full IDs. Tests: stdin and codex message-file sends assert '@codex-a @claude-b: ...'; addressing tests cover a foreign-server account (full ID kept) and a stripped-m.mentions round trip (addressees + wakes). Version pin in test_agent_chat_codex.py moved to 0.2.1. task-reviewer: APPROVED (0 blocking, 1 minor: SKILL.md lacked the foreign-server exception, fixed). pytest plugins/agent-chat 108 passed / 4 skipped (codex not installed); ruff clean.
 <!-- SECTION:NOTES:END -->
