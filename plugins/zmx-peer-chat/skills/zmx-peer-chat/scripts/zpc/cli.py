@@ -19,7 +19,7 @@ from .common import (
 from .daemon import Daemon
 from .mailbox import Mailbox, mail_root, prepare_message, take_message
 from .procs import claude_ancestor
-from .register import bind, bind_in_background, prepare
+from .register import BIND_SECONDS, bind, bind_in_background, prepare
 from .router import find_me, send
 from .zmx import Zmx
 
@@ -184,7 +184,7 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--session", required=True)
     r.add_argument("--dir", default=".")
     r.add_argument("--pair")
-    r.add_argument("--timeout", type=float, default=10.0)
+    r.add_argument("--timeout", type=float, default=BIND_SECONDS)
     r.add_argument("--foreground", action="store_true")
     r.set_defaults(func=cmd_register)
 
