@@ -70,6 +70,7 @@ class ProcTransport:
         self._fd = self.proc.stdout.fileno()
         self._buf = b""
         self._owner = os.getpid()
+        self._closed = False
 
     def write(self, data: bytes) -> None:
         try:
@@ -91,6 +92,9 @@ class ProcTransport:
         return out
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         if os.getpid() != self._owner:
             # A forked bind holds the proxy of its parent: Popen cannot wait
             # for it here and would skip the signal, so send it directly.
