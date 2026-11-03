@@ -123,7 +123,7 @@ Every demonstration below "Box demonstrations" ran on 2026-10-20 with these vers
 | Path in `plugins/zmx-peer-chat/` | For | What it is |
 |-----------------------------------|-----|------------|
 | `bin/zmx-peer-chat` | both | The one command: register helper, router, mailbox, wait, daemon client. Python 3, stdlib only; the code is in `skills/zmx-peer-chat/scripts/zpc/`. |
-| `.claude-plugin/plugin.json` | Claude | Manifest, version `0.1.5`. Claude Code puts `bin/` on the Bash tool's `PATH`. |
+| `.claude-plugin/plugin.json` | Claude | Manifest, version `0.1.7`. Claude Code puts `bin/` on the Bash tool's `PATH`. |
 | `skills/zmx-peer-chat/SKILL.md` | Claude | How Claude receives, replies and refuses. |
 | `hooks/hooks.json` | Claude | `SessionStart`, `UserPromptSubmit`, `Stop` and `StopFailure` hooks that run `zmx-peer-chat hook-wait` with `asyncRewake`. |
 | `.codex-plugin/plugin.json` | Codex | Manifest: `"skills": "./codex-skills/"` and `"hooks": "./codex/hooks.json"`. |
@@ -261,7 +261,7 @@ Codex loads a plugin's `hooks/hooks.json` unless the manifest's `hooks` names an
 1. Before `zmx attach NAME <tool>` creates a session, run `zmx-peer-chat register --role <tool> --session NAME --dir <dir>` (only for `claude` and `codex`), from any directory.
 2. A non-zero exit means no label will be set; the launcher may start the session anyway, and its sends then refuse.
 3. A registration that fails in the background (codes 3, 4 and 5) is logged to `register.log` in the mail root and leaves the session unlabelled.
-4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (under two seconds with codex-cli 0.163.0; with 0.166.0 about 9 seconds for a fresh start and 7.6 for a resume of an unloaded thread, and just over `FALLBACK_SECONDS`, 20, for a resume of a still-loaded thread); one that only runs a turn there is ignored, and a thread another TUI shows is never bound because the new session's footer does not show it. Such a thread can still be tried: once `FALLBACK_SECONDS` have passed an idle one may carry `zpc-<inc>` for up to `CONFIRM_SECONDS` before it gets its name back, and sends to that TUI refuse meanwhile.
+4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (under two seconds with codex-cli 0.163.0; with 0.166.0 and the exact pick about 1.6 seconds for `codex` and for `codex resume --last`, the thread loaded or not; just over `FALLBACK_SECONDS`, 20, only when the exact pick has no signal, for another command or a `--last` query that returns no thread, and the thread is a still-loaded resume; a fallback for a fresh start or an unloaded resume binds as soon as the thread loads); one that only runs a turn there is ignored, and a thread another TUI shows is never bound because the new session's footer does not show it. Such a thread can still be tried: once `FALLBACK_SECONDS` have passed an idle one may carry `zpc-<inc>` for up to `CONFIRM_SECONDS` before it gets its name back, and sends to that TUI refuse meanwhile.
 
 ## Box demonstrations
 
@@ -523,7 +523,7 @@ exit 1
 
 TASK-61 retested the daemon client on 2026-11-03, after the box moved to codex-cli 0.166.0 (the TUI's CLI, and the daemon's release `0.166.0-x86_64-unknown-linux-musl`). The working tree, with `TESTED_CODEX_CLI = "0.166.0"`, was copied to `~/zpc-retest/copy` on the box with `tar` over ssh; `Z` below is its `bin/zmx-peer-chat`, so the register and send code is this repo's, not the box's installed plugin (0.1.0). `probe.py` is a throwaway script that calls `thread/loaded/list` and `thread/read` through the plugin's own `Daemon` client and prints only threads under `~/zpc-retest`, so no other thread's data was read out. `<thread-r>` is the test thread's UUID. Every command ran from the Mac as `ssh <box> 'bash -l'` with a script on stdin.
 
-With the user's OK, these throwaway sessions were used: `zpc-rt-codex`, a Codex TUI started with `codex` in `~/zpc-retest/fresh`, a directory without Codex history; `zpc-rt-claude`, a plain shell (`zmx run zpc-rt-claude -d true`) labelled as the Claude side so that `send --to codex` had a sender; 50 minutes later `zpc-rt-codex2`, a Codex TUI that resumed `zpc-rt-codex`'s thread (see "Resume"); and, for TASK-63, `zpc-rt-codex3` and `zpc-rt-codex4`, which resumed it again (see "Resume after TASK-63"). No Claude was started. Nothing was typed into any pane.
+With the user's OK, these throwaway sessions were used: `zpc-rt-codex`, a Codex TUI started with `codex` in `~/zpc-retest/fresh`, a directory without Codex history; `zpc-rt-claude`, a plain shell (`zmx run zpc-rt-claude -d true`) labelled as the Claude side so that `send --to codex` had a sender; 50 minutes later `zpc-rt-codex2`, a Codex TUI that resumed `zpc-rt-codex`'s thread (see "Resume"); for TASK-63, `zpc-rt-codex3` and `zpc-rt-codex4`, which resumed it again (see "Resume after TASK-63"); and, for TASK-65, `zpc-rt-codex6` and `zpc-rt-codex7`, which resumed it with `--last`, and `zpc-rt-codex5`, a fresh start (see "The exact pick (TASK-64)"). No Claude was started. Nothing was typed into any pane.
 
 ### Version and daemon
 
@@ -734,7 +734,71 @@ Both resumes bound the resumed thread. The unloaded one was a newly loaded candi
 
 ### The exact pick (TASK-64)
 
-The retests above ran with the pick from the times. Since TASK-64 the bind picks the thread from the session's command first (see "Register helper"): a fresh start binds the thread of its `thread/started` notification, so a leftover that reads as now is never named, and a resume of a still-loaded thread binds without waiting `FALLBACK_SECONDS`. That pick is covered by the tests with fake daemon answers only; TASK-65 retests it on the box.
+The retests above ran with the pick from the times. Since TASK-64 the bind picks the thread from the session's command first (see "Register helper"): a fresh start binds the thread of its `thread/started` notification, so a leftover that reads as now is never named, and a resume of a still-loaded thread binds without waiting `FALLBACK_SECONDS`. TASK-65 retested it on the box at 21:19, with the scratch copy replaced by zmx-peer-chat 0.1.6 (0.1.7 changes only the README's bind times). The sessions were started as the launcher starts them: `codex resume --last` in `~/zpc-retest/fresh`, whose one interactive rollout is the test thread `<thread-r>` (unloaded again by then), once with the thread unloaded and once a second after that session was killed, with it still loaded; then `codex` in a new `~/zpc-retest/fresh2`. `<thread-f>` is the fresh start's thread and `<pair-id-2>` that directory's pair id. `run` below is a small shell function that runs the register call, starts the session under `script` and polls `zmx get` every half second, as in the earlier subsections. No turn ran.
+
+```text
+21:18:50 $ python3 -u probe.py   # the test thread is not loaded
+thread/loaded/list: 1 id(s), nextCursor=None
+threads outside the scratch directory: 1
+21:19:03 $ zmx ls | cut -f1
+  name=<the user's claude session>
+  name=<the user's codex session>
+$ run zpc-rt-codex6 ~/zpc-retest/fresh codex resume --last
+register: labelling zpc-rt-codex6 in the background (log: register.log)
+exit 0
+label after 1.62 s
+$ zmx ls | grep zpc-rt-codex6 | cut -f1,6
+  name=zpc-rt-codex6	cmd=codex resume --last
+$ zmx get zpc-rt-codex6
+zpc.inc=b0f7e868 zpc.pair=<pair-id> zpc.proto=1 zpc.role=codex zpc.thread=<thread-r>
+$ tail -1 register.log
+2026-11-03T21:19:04 zpc-rt-codex6: labelled zpc.inc=b0f7e868 zpc.pair=<pair-id> zpc.proto=1 zpc.role=codex zpc.thread=<thread-r>
+$ python3 -u probe.py
+thread/loaded/list: 2 id(s), nextCursor=None
+thread/read: {"id": "<thread-r>", "name": "zpc-b0f7e868", "cwd": "<home>/zpc-retest/fresh", "status": {"type": "idle"}, "createdAt": 1793717313, "updatedAt": 1793717384}
+threads outside the scratch directory: 1
+$ zmx history zpc-rt-codex6 | grep -v '^\s*$' | tail -2 | head -1
+  GPT-6.1-Sol medium · ~/zpc-retest/fresh · zpc-b0f7e868
+$ zmx kill zpc-rt-codex6
+killed session zpc-rt-codex6
+$ run zpc-rt-codex7 ~/zpc-retest/fresh codex resume --last   # a second after the kill; not probed in between, the thread was loaded seconds before
+register: labelling zpc-rt-codex7 in the background (log: register.log)
+exit 0
+label after 1.61 s
+$ zmx ls | grep zpc-rt-codex7 | cut -f1,6
+  name=zpc-rt-codex7	cmd=codex resume --last
+$ zmx get zpc-rt-codex7
+zpc.inc=afc5401f zpc.pair=<pair-id> zpc.proto=1 zpc.role=codex zpc.thread=<thread-r>
+$ tail -1 register.log
+2026-11-03T21:19:07 zpc-rt-codex7: labelled zpc.inc=afc5401f zpc.pair=<pair-id> zpc.proto=1 zpc.role=codex zpc.thread=<thread-r>
+$ python3 -u probe.py
+thread/loaded/list: 2 id(s), nextCursor=None
+thread/read: {"id": "<thread-r>", "name": "zpc-afc5401f", "cwd": "<home>/zpc-retest/fresh", "status": {"type": "idle"}, "createdAt": 1793717313, "updatedAt": 1793717384}
+threads outside the scratch directory: 1
+$ zmx history zpc-rt-codex7 | grep -v '^\s*$' | tail -2 | head -1
+  GPT-6.1-Sol medium · ~/zpc-retest/fresh · zpc-afc5401f
+$ run zpc-rt-codex5 ~/zpc-retest/fresh2 codex
+register: labelling zpc-rt-codex5 in the background (log: register.log)
+exit 0
+label after 1.61 s
+$ zmx ls | grep zpc-rt-codex5 | cut -f1,6
+  name=zpc-rt-codex5	cmd=codex
+$ zmx get zpc-rt-codex5
+zpc.inc=7bf2e88e zpc.pair=<pair-id-2> zpc.proto=1 zpc.role=codex zpc.thread=<thread-f>
+$ tail -1 register.log
+2026-11-03T21:19:22 zpc-rt-codex5: labelled zpc.inc=7bf2e88e zpc.pair=<pair-id-2> zpc.proto=1 zpc.role=codex zpc.thread=<thread-f>
+$ python3 -u probe.py
+thread/loaded/list: 3 id(s), nextCursor=None
+thread/read: {"id": "<thread-r>", "name": "zpc-afc5401f", "cwd": "<home>/zpc-retest/fresh", "status": {"type": "idle"}, "createdAt": 1793717313, "updatedAt": 1793717384}
+thread/read: {"id": "<thread-f>", "name": "zpc-7bf2e88e", "cwd": "<home>/zpc-retest/fresh2", "status": {"type": "idle"}, "createdAt": 1793729962, "updatedAt": 1793729962}
+threads outside the scratch directory: 1
+$ zmx history zpc-rt-codex5 | grep -v '^\s*$' | tail -3
+› Ask Codex to do anything
+  GPT-6.1-Sol medium · ~/zpc-retest/fresh2 · zpc-7bf2e88e
+  ← for agents · ? for shortcuts                                                               ⚠ 1 warning · f2 to view
+```
+
+Each session was labelled with the thread its TUI shows 1.61 to 1.62 seconds after the register call. Only the still-loaded resume owes the gain to the exact pick: through the fallback it took 20.7 seconds. The pick from the times also takes a started or newly loaded thread as soon as it is loaded, so the earlier 9.1 seconds (fresh start) and 7.6 seconds (unloaded resume, run as `codex resume <id>`) come from run conditions this record cannot single out, not from the pick. The resumed thread's times stayed where its last turn left them both times, so for the still-loaded resume the `--last` lookup, not the times, found it.
 
 ### Sessions before and after
 
@@ -768,6 +832,17 @@ $ rm -r ~/zpc-retest; rm -f /tmp/zmx-peer-chat-<uid>/register-<hash>.lock
   name=<the user's codex session>
 $ zmx ls | grep -c zpc-rt-
 0
+$ zmx kill zpc-rt-codex7   # after "The exact pick (TASK-64)"
+killed session zpc-rt-codex7
+$ zmx kill zpc-rt-codex5
+killed session zpc-rt-codex5
+$ rm -r ~/zpc-retest; rm -f /tmp/zmx-peer-chat-<uid>/register-<hash>.lock /tmp/zmx-peer-chat-<uid>/register-<hash-2>.lock
+$ for p in <pair-id> <pair-id-2>; do [ -d /tmp/zmx-peer-chat-<uid>/$p ] && rm -r /tmp/zmx-peer-chat-<uid>/$p; done   # neither existed
+21:19:35 $ zmx ls | cut -f1
+  name=<the user's claude session>
+  name=<the user's codex session>
+$ zmx ls | grep -c zpc-rt-
+0
 ```
 
-The user's sessions were not touched. The test thread's transcript and the `register.log` lines were left in place. The daemon unloaded the idle thread of a killed TUI within 50 minutes, and again within 35 (see "Resume" and "Resume after TASK-63").
+The user's sessions were not touched, nor were the mail root's entries for other directories. The test threads' transcripts and the `register.log` lines were left in place. The daemon unloaded the idle thread of a killed TUI within 50 minutes, again within 35, and again within about two hours (see "Resume", "Resume after TASK-63" and "The exact pick (TASK-64)").
