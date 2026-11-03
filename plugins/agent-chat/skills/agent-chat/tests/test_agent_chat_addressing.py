@@ -7,7 +7,8 @@ from typing import Any
 import ac_fakes as f
 import pytest
 
-from agent_chat.addressing import leading_mentions, wakes
+from agent_chat.addressing import addressees, leading_mentions, wakes
+from agent_chat.cli import message_content
 from agent_chat.config import Config
 from agent_chat.note import Message, render
 
@@ -20,6 +21,7 @@ CFG = Config(
     accounts={"claude": f.CLAUDE_A, "codex": f.CODEX_A},
 )
 LISTENERS = (f.CLAUDE_A, f.CODEX_A, f.CLAUDE_B, f.CODEX_B)
+FOREIGN = "@codex-x:other.test"
 
 
 def event(
@@ -108,6 +110,24 @@ def test_non_messages_wake_nobody() -> None:
     assert not wakes(
         event(f.HUMAN, "x") | {"content": {"msgtype": "m.text"}}, f.CLAUDE_A, CFG
     )
+
+
+def test_the_send_prefix_names_a_foreign_account_by_its_full_id() -> None:
+    cfg = Config(**{**CFG.__dict__, "agents": (*CFG.agents, FOREIGN)})
+    to = [cfg.user_id("codex-a"), cfg.user_id(FOREIGN)]
+    content = message_content("hi", to, cfg.server_name)
+    assert content["body"] == f"@codex-a {FOREIGN}: hi"
+    assert content["m.mentions"] == {"user_ids": [f.CODEX_A, FOREIGN]}
+
+
+def test_the_short_send_prefix_alone_still_addresses_and_wakes() -> None:
+    content = message_content("look", [f.CODEX_A, f.CLAUDE_B], CFG.server_name)
+    assert content["body"] == "@codex-a @claude-b: look"
+    del content["m.mentions"]
+    assert addressees(content, CFG.server_name) == {f.CODEX_A, f.CLAUDE_B}
+    e = {"type": "m.room.message", "sender": f.CLAUDE_A, "content": content}
+    assert wakes(e, f.CODEX_A, CFG) and wakes(e, f.CLAUDE_B, CFG)
+    assert not wakes(e, f.CODEX_B, CFG)
 
 
 def test_the_note_labels_each_senders_authority() -> None:

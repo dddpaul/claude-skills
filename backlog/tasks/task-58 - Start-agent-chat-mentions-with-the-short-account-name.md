@@ -1,9 +1,10 @@
 ---
 id: TASK-58
 title: Start agent-chat mentions with the short account name
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-02T18:58:00Z'
+updated_date: '2026-11-03 12:55'
 labels:
   - agent-chat
 dependencies: []
@@ -67,10 +68,22 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A test sends with --to codex-a --to @claude-b and asserts the posted body is '@codex-a @claude-b: <text>' while m.mentions holds both full IDs, for the stdin send and for send --as codex --message-file
-- [ ] #2 A test with a config account on a server other than server_name asserts that addressee keeps its full ID in the body prefix
-- [ ] #3 A test strips m.mentions from a posted short-prefix message and asserts addressing.addressees() still returns the same full IDs, and that wakes() is true for each addressee and false for a third account
-- [ ] #4 The README Addressing row and both SKILL.md --to paragraphs say the body prefix uses the short @name, and grep finds no remaining claim that it carries the full ID
-- [ ] #5 Both plugins/agent-chat plugin.json files carry the same bumped patch version
-- [ ] #6 uv run pytest plugins/agent-chat and uv run ruff check . both pass
+- [x] #1 A test sends with --to codex-a --to @claude-b and asserts the posted body is '@codex-a @claude-b: <text>' while m.mentions holds both full IDs, for the stdin send and for send --as codex --message-file
+- [x] #2 A test with a config account on a server other than server_name asserts that addressee keeps its full ID in the body prefix
+- [x] #3 A test strips m.mentions from a posted short-prefix message and asserts addressing.addressees() still returns the same full IDs, and that wakes() is true for each addressee and false for a third account
+- [x] #4 The README Addressing row and both SKILL.md --to paragraphs say the body prefix uses the short @name, and grep finds no remaining claim that it carries the full ID
+- [x] #5 Both plugins/agent-chat plugin.json files carry the same bumped patch version
+- [x] #6 uv run pytest plugins/agent-chat and uv run ruff check . both pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: message_content(body, to, server_name) writes @localpart for addressees on server_name, the full ID otherwise; m.mentions unchanged. Update stdin and codex message-file send tests to --to codex-a --to @claude-b with short prefix; add foreign-server prefix test and a strip-m.mentions round-trip test (addressees + wakes) in the addressing tests. README Addressing row + both SKILL.md --to paragraphs; bump both manifests 0.2.0 -> 0.2.1.
+
+Commit: `b9f2265` - task-58: start agent-chat mention prefix with the short @name; agent-chat 0.2.1
+
+Commit: `dafeaf1` - task-58: note the full-ID prefix for foreign accounts in both SKILL.md
+
+Done. message_content() takes server_name and shortens addressees on it to @localpart via removesuffix(':<server_name>'); m.mentions keeps full IDs. Tests: stdin and codex message-file sends assert '@codex-a @claude-b: ...'; addressing tests cover a foreign-server account (full ID kept) and a stripped-m.mentions round trip (addressees + wakes). Version pin in test_agent_chat_codex.py moved to 0.2.1. task-reviewer: APPROVED (0 blocking, 1 minor: SKILL.md lacked the foreign-server exception, fixed). pytest plugins/agent-chat 108 passed / 4 skipped (codex not installed); ruff clean.
+<!-- SECTION:NOTES:END -->
