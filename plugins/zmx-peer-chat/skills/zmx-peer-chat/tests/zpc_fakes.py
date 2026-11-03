@@ -104,6 +104,24 @@ class FakeDaemon:
         self.leftovers.discard(thread_id)  # naming persists it, real times
 
 
+class LateDaemon:
+    """An ``open_daemon`` callable: no daemon for the first ``misses`` opens.
+
+    ``misses`` None means the daemon never comes up.
+    """
+
+    def __init__(self, daemon: FakeDaemon | None, misses: int | None) -> None:
+        self.daemon = daemon
+        self.misses = misses
+        self.opens = 0
+
+    def __call__(self) -> FakeDaemon:
+        self.opens += 1
+        if self.daemon is None or self.misses is None or self.opens <= self.misses:
+            raise DaemonError("cannot start codex: no daemon is listening")
+        return self.daemon
+
+
 def tui_footer(daemon: FakeDaemon, shown: str) -> Callable[[], str]:
     """Return a Codex screen whose footer names thread ``shown``, once named."""
 
