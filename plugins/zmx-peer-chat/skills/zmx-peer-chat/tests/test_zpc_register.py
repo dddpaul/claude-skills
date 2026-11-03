@@ -4,7 +4,11 @@ The launcher calls ``register`` just before ``zmx attach`` creates a session.
 An existing session keeps its labels (``zmx attach --labels`` would overwrite
 them, so nothing here attaches). For Codex the helper snapshots the daemon's
 loaded threads and binds the one thread the new TUI shows in the session
-directory. Candidates are tried in order: a newly loaded id created after the
+directory. The session's command picks it exactly where it can: ``codex`` binds
+the thread of the first ``thread/started`` notification in the directory,
+``codex resume --last`` the thread the TUI's own ``thread/list`` query returns,
+``codex resume <id>`` that id. Without such a signal the fallback infers it:
+candidates are tried in order: a newly loaded id created after the
 snapshot, any other newly loaded id whatever its times (codex-cli 0.166.0
 leaves the times of a resumed, unloaded thread alone), a thread whose
 ``updatedAt`` moved past the snapshot (``codex resume --last``), and, after
@@ -43,6 +47,7 @@ from zpc.register import (
     FALLBACK_SECONDS,
     Registration,
     _candidates,
+    _command,
     bind,
     bind_in_background,
     prepare,
@@ -64,14 +69,16 @@ def _no_daemon() -> FakeDaemon:
     raise AssertionError("the daemon must not be asked")
 
 
-def _prepare(tmp_path: Path, daemon: FakeDaemon, zmx: FakeZmx) -> Registration:
+def _prepare(
+    tmp_path: Path, daemon: FakeDaemon, zmx: FakeZmx, cmd: str | None = None
+) -> Registration:
     work = tmp_path / "work"
     work.mkdir(exist_ok=True)
     reg = prepare(
         "codex", "w-codex", str(work), None, zmx, tmp_path, lambda: daemon, NOW
     )
     assert reg is not None
-    zmx.live["w-codex"] = Session("w-codex", 42)
+    zmx.live["w-codex"] = Session("w-codex", 42, cmd=cmd)
     return reg
 
 
@@ -82,11 +89,12 @@ def _register(
     clock: Clock,
     shown: str | None = None,
     timeout: float | None = 10,
+    cmd: str | None = None,
 ) -> tuple[Registration, dict[str, str]]:
     """Register a Codex session whose TUI shows thread ``shown`` (None: none)."""
     if shown is not None:
         zmx.footers["w-codex"] = tui_footer(daemon, shown)
-    reg = _prepare(tmp_path, daemon, zmx)
+    reg = _prepare(tmp_path, daemon, zmx, cmd)
     try:
         if timeout is None:
             got = bind(reg, zmx, lambda: daemon, sleep=clock.sleep, now=clock.now)
@@ -158,6 +166,119 @@ def test_fresh_start_binds_the_one_new_thread_in_the_directory(tmp_path: Path) -
     assert got["zpc.thread"] == THREAD_C
     assert daemon.names == {THREAD_C: f"zpc-{reg.inc}"}
     assert zmx.set_calls == [("w-codex", got)]
+
+
+def test_a_fresh_start_binds_the_thread_of_its_thread_started_notification(
+    tmp_path: Path,
+) -> None:
+    # Leftover A, loaded at the snapshot, reads as now on every poll, which
+    # the fallback would take for a resume. The session runs `codex`, so only
+    # the thread/started notification counts: first one in another directory,
+    # then the new TUI's thread C in the session directory.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    left = {THREAD_A: thread(THREAD_A, work, 5, created=5)}
+    opened = dict(left)
+    opened[THREAD_E] = thread(THREAD_E, "/elsewhere", SINCE + 1, created=SINCE + 1)
+    opened[THREAD_C] = thread(THREAD_C, work, SINCE + 3, created=SINCE + 3)
+    clock = Clock()
+    started = {4: [(THREAD_E, "/elsewhere")], 9: [(THREAD_C, work)]}
+    daemon = FakeDaemon(
+        [left] * 9 + [opened], {THREAD_A}, lambda: SINCE + clock.t, started
+    )
+    reg, got = _register(tmp_path, daemon, FakeZmx(), clock, THREAD_C, cmd="codex")
+    assert got["zpc.thread"] == THREAD_C
+    assert daemon.names == {THREAD_C: f"zpc-{reg.inc}"}
+    # The connection opened at prepare is the one that heard the notification.
+    assert reg.watch is daemon and daemon.closed
+
+
+def test_resume_last_binds_the_thread_the_tuis_query_returns(tmp_path: Path) -> None:
+    # B was loaded at the snapshot and its times never move; A, updated more
+    # recently, and C, loaded again during the bind, are what the fallback
+    # would try first. The thread/list query says B, so only B is named.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    snap = {THREAD_A: thread(THREAD_A, work, 9), THREAD_B: thread(THREAD_B, work, 7)}
+    later = dict(snap)
+    later[THREAD_C] = thread(THREAD_C, work, SINCE + 1, created=SINCE + 1)
+    daemon, clock = FakeDaemon([snap, later], last=THREAD_B), Clock()
+    reg, got = _register(
+        tmp_path, daemon, FakeZmx(), clock, THREAD_B, cmd="codex resume --last"
+    )
+    assert got["zpc.thread"] == THREAD_B
+    assert daemon.names == {THREAD_B: f"zpc-{reg.inc}"}
+    assert daemon.queries == [work]
+    assert clock.t < FALLBACK_SECONDS
+
+
+def test_resume_of_an_id_binds_that_id_once_loaded(tmp_path: Path) -> None:
+    # C starts loading first with fresh times, which the fallback would try
+    # before anything else; the session resumes B, loaded a few polls later.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    early = {THREAD_C: thread(THREAD_C, work, SINCE + 1, created=SINCE + 1)}
+    late = dict(early)
+    late[THREAD_B] = thread(THREAD_B, work, 7, created=3)
+    daemon = FakeDaemon([{}, early, early, early, late])
+    cmd = f"codex resume {THREAD_B}"
+    reg, got = _register(tmp_path, daemon, FakeZmx(), Clock(), THREAD_B, cmd=cmd)
+    assert got["zpc.thread"] == THREAD_B
+    assert daemon.names == {THREAD_B: f"zpc-{reg.inc}"}
+    assert daemon.queries == []
+
+
+@pytest.mark.parametrize("cmd", [None, "bash", "codex --yolo", "codex resume --last"])
+def test_without_an_exact_signal_the_bind_falls_back(tmp_path: Path, cmd: str) -> None:
+    # No cmd, another command, or a --last query that returns nothing: the
+    # TASK-63 pick binds the thread loaded again with unmoved times.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    resumed = thread(THREAD_B, work, SINCE - 50, created=SINCE - 100)
+    daemon = FakeDaemon([{}, {}, {THREAD_B: resumed}], last=None)
+    reg, got = _register(tmp_path, daemon, FakeZmx(), Clock(), THREAD_B, cmd=cmd)
+    assert got["zpc.thread"] == THREAD_B
+    assert daemon.names == {THREAD_B: f"zpc-{reg.inc}"}
+
+
+def test_a_fresh_start_after_a_late_daemon_falls_back(tmp_path: Path) -> None:
+    # No daemon at registration: the TUI started it, so its thread/started
+    # went out before register could listen. The bind's own connection never
+    # hears it; the TASK-63 pick binds the new thread.
+    work = str((tmp_path / "work").resolve())
+    opened = {THREAD_C: thread(THREAD_C, work, SINCE + 2, created=SINCE + 2)}
+    daemon = FakeDaemon([{}, opened])
+    opener, zmx = LateDaemon(daemon, 3), FakeZmx()
+    zmx.footers["w-codex"] = tui_footer(daemon, THREAD_C)
+    reg = _prepare_late(tmp_path, opener, zmx)
+    zmx.live["w-codex"].cmd = "codex"
+    assert reg.watch is None
+    clock = Clock()
+    got = bind(reg, zmx, opener, 10, clock.sleep, clock.now)
+    assert got["zpc.thread"] == THREAD_C
+    assert daemon.names == {THREAD_C: f"zpc-{reg.inc}"}
+
+
+@pytest.mark.parametrize(
+    ("cmd", "how"),
+    [
+        ("codex", ("start", None)),
+        ("/usr/local/bin/codex", ("start", None)),
+        ("codex resume --last", ("last", None)),
+        (f"codex resume {THREAD_B}", ("id", THREAD_B)),
+        ("codex resume", None),
+        ("codex resume not-an-id", None),
+        ("codex exec hi", None),
+        ("claude", None),
+        ("codex 'unclosed", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_the_session_command_says_how_codex_starts(
+    cmd: str | None, how: tuple[str, str | None] | None
+) -> None:
+    assert _command(cmd) == how
 
 
 def test_resume_binds_the_still_loaded_thread_whose_update_moved(

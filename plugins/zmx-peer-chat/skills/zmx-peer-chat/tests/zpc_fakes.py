@@ -47,7 +47,10 @@ class FakeZmx:
         self.set_calls: list[tuple[str, dict[str, str]]] = []
 
     def sessions(self) -> dict[str, Session]:
-        return {n: Session(s.name, s.pid, dict(s.labels)) for n, s in self.live.items()}
+        return {
+            n: Session(s.name, s.pid, dict(s.labels), s.cmd)
+            for n, s in self.live.items()
+        }
 
     def set_labels(self, name: str, new: dict[str, str]) -> None:
         self.set_calls.append((name, dict(new)))
@@ -66,6 +69,9 @@ class FakeDaemon:
     table repeats. ``read_thread`` answers from the table of the latest call.
     A ``leftovers`` thread is one a killed TUI left unpersisted: until it is
     named, its ``createdAt`` and ``updatedAt`` read as ``wall()`` at the read.
+    ``started`` maps a ``loaded_threads`` call number (0 first) to the
+    ``thread/started`` notifications (id, cwd) read with it; ``last`` is the
+    thread the ``codex resume --last`` query returns.
     """
 
     def __init__(
@@ -73,6 +79,8 @@ class FakeDaemon:
         timeline: list[dict[str, ThreadInfo]],
         leftovers: set[str] | None = None,
         wall: Callable[[], float] | None = None,
+        started: dict[int, list[tuple[str, str]]] | None = None,
+        last: str | None = None,
     ) -> None:
         self.timeline = timeline
         self.calls = 0
@@ -80,17 +88,34 @@ class FakeDaemon:
         self.names: dict[str, str] = {}
         self.leftovers = set(leftovers or ())
         self.wall = wall
+        self.started = started or {}
+        self.notes: list[tuple[str, str]] = []
+        self.last = last
+        self.queries: list[str] = []
+        self.closed = False
 
     def __enter__(self) -> FakeDaemon:
         return self
 
     def __exit__(self, *exc: object) -> None:
-        pass
+        self.close()
+
+    def close(self) -> None:
+        self.closed = True
 
     def loaded_threads(self) -> list[str]:
         self.table = self.timeline[min(self.calls, len(self.timeline) - 1)]
+        self.notes += self.started.get(self.calls, [])
         self.calls += 1
         return list(self.table)
+
+    def started_threads(self) -> list[tuple[str, str]]:
+        out, self.notes = self.notes, []
+        return out
+
+    def latest_thread(self, cwd: str) -> str | None:
+        self.queries.append(cwd)
+        return self.last
 
     def read_thread(self, thread_id: str) -> ThreadInfo:
         info = self.table[thread_id]
