@@ -11,7 +11,7 @@ import re
 PROTO = "1"
 
 # The codex-cli version the daemon client was tested with (design/zmx-peer-chat.md).
-TESTED_CODEX_CLI = "0.163.0"
+TESTED_CODEX_CLI = "0.166.0"
 
 LABEL_PAIR = "zpc.pair"
 LABEL_ROLE = "zpc.role"

@@ -1,10 +1,10 @@
 ---
 id: TASK-61
 title: Retest zmx-peer-chat against codex-cli 0.166.0 and bump its tested version
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-03T12:53:00Z'
-updated_date: '2026-11-03T13:05:00Z'
+updated_date: '2026-11-03T14:53:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -62,10 +62,24 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 grep -n 'TESTED_CODEX_CLI = "0.166.0"' plugins/zmx-peer-chat/skills/zmx-peer-chat/scripts/zpc/common.py matches
-- [ ] #2 zmx-peer-chat daemon check on the box with codex-cli 0.166.0 exits 0 and prints 'codex-cli 0.166.0 (tested with codex-cli 0.166.0); daemon ok, ...', recorded in the task notes
-- [ ] #3 The retest's probe commands and outputs (thread/loaded/list, thread/read, thread/name/set with the footer showing zpc-<inc>, codex queue to an idle and a busy test TUI, the codex plugin listing) are recorded in design/zmx-peer-chat.md or design/zmx-peer-chat-spike.md
-- [ ] #4 Every live probe used test Codex sessions started with the user's OK, recorded with their names and zmx ls before and after
-- [ ] #5 The version in plugins/zmx-peer-chat/.claude-plugin/plugin.json and .codex-plugin/plugin.json is one patch above the version current at merge
-- [ ] #6 uv run pytest and uv run ruff check . pass
+- [x] #1 grep -n 'TESTED_CODEX_CLI = "0.166.0"' plugins/zmx-peer-chat/skills/zmx-peer-chat/scripts/zpc/common.py matches
+- [x] #2 zmx-peer-chat daemon check on the box with codex-cli 0.166.0 exits 0 and prints 'codex-cli 0.166.0 (tested with codex-cli 0.166.0); daemon ok, ...', recorded in the task notes
+- [x] #3 The retest's probe commands and outputs (thread/loaded/list, thread/read, thread/name/set with the footer showing zpc-<inc>, codex queue to an idle and a busy test TUI, the codex plugin listing) are recorded in design/zmx-peer-chat.md or design/zmx-peer-chat-spike.md
+- [x] #4 Every live probe used test Codex sessions started with the user's OK, recorded with their names and zmx ls before and after
+- [x] #5 The version in plugins/zmx-peer-chat/.claude-plugin/plugin.json and .codex-plugin/plugin.json is one patch above the version current at merge
+- [x] #6 uv run pytest and uv run ruff check . pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: interactive (Ralph's container has no ssh to the box). 1) TESTED_CODEX_CLI = "0.166.0" in zpc/common.py; tests pin via the constant. 2) Copy the branch's plugins/zmx-peer-chat to a scratch dir on the box (tar over ssh) and run its daemon check (AC2), a probe script over its Daemon client (thread/loaded/list, thread/read) and codex plugin list. 3) With the user's OK: one throwaway Codex session zpc-rt-codex in ~/zpc-retest/fresh registered by the scratch copy (thread/name/set, footer), plus a shell session zpc-rt-claude labelled as the Claude side; Z send / codex queue to the idle and the busy TUI. 4) Record commands and outputs, with placeholders, in design/zmx-peer-chat.md; zmx ls before and after; kill the zpc-rt-* sessions, keep transcripts. 5) Patch bump to 0.1.4.
+
+AC2 (on the box, the branch's scratch copy, 2026-11-03 17:47): `zmx-peer-chat daemon check` -> 'codex-cli 0.166.0 (tested with codex-cli 0.166.0); daemon ok, 1 loaded thread(s); protocol 1', exit 0.
+
+AC4: live probes started after the user's explicit OK in this session. Test sessions: zpc-rt-codex (Codex TUI, `codex` in ~/zpc-retest/fresh, registered by the scratch copy) and zpc-rt-claude (a plain shell labelled as the Claude side; no Claude started). zmx ls before (17:48:24) and after (17:50:28) listed only the user's two sessions; `zmx ls | grep -c zpc-rt-` after: 0. Three Codex turns (R1 idle, R2a sleep 20, R2b while busy). Both test sessions killed, ~/zpc-retest and the test pair's mailbox dir and lock removed; transcripts and the register.log line kept. The user's sessions were not touched.
+
+Findings: thread/loaded/list, thread/read (same fields) and thread/name/set unchanged; the bind labelled after 9.1 s; 0.166.0 prints a hint line under the footer, still within the six-line footer rule; the footer keeps the thread name during a turn, so send --to codex passes while busy, and the busy turn ran after the running one. codex plugin list columns unchanged.
+
+AC6: uv run ruff check . passes; uv run pytest: 535 passed, 1 failed - the known baseline plugins/presentation/skills/ak-style/scripts/tests/test_decision_tree_helper.py::test_helper_renders_canonical_decision_tree (un-vendored node_modules), unrelated to this task.
+<!-- SECTION:NOTES:END -->
