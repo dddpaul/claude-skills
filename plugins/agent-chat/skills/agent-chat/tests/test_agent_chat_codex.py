@@ -2,8 +2,8 @@
 
 The watcher runs against the fake homeserver, a fake ``codex`` that records
 its argv (and, when asked, the cursor file at the moment it runs) and a fake
-``zmx`` whose ``ls`` output and session screens each test writes. Thread IDs, names and tokens are
-placeholders.
+``zmx`` whose ``ls`` output and session screens each test writes. Thread IDs,
+names and tokens are placeholders.
 """
 
 from __future__ import annotations
