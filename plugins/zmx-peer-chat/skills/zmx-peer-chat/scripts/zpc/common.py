@@ -27,6 +27,9 @@ SENDER_NAMES = {"claude": "Claude", "codex": "Codex"}
 _TOKEN = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
+# How many non-empty lines at the end of the Codex screen may hold its footer.
+_FOOTER_LINES = 6
+
 
 class ZpcError(Exception):
     """A refusal or failure reported to the caller with a fixed exit code."""
@@ -71,3 +74,9 @@ def pair_id(directory: str, explicit: str | None = None) -> str:
         return check_token(explicit, "pair id")
     canonical = os.path.realpath(directory)
     return "d" + hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
+def tui_shows(screen: str, name: str) -> bool:
+    """Tell whether the Codex footer at the end of ``screen`` names thread ``name``."""
+    lines = [line.rstrip() for line in screen.splitlines() if line.strip()]
+    return any(line.endswith(f"· {name}") for line in lines[-_FOOTER_LINES:])

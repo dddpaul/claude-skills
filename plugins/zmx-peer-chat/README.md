@@ -6,7 +6,7 @@ The contract (labels, the register helper's CLI and exit codes, the protocol ver
 
 ## How a pair comes about
 
-1. The launcher runs `zmx-peer-chat register --role claude|codex --session NAME --dir DIR` just before `zmx attach NAME <tool>` creates a session. The helper labels the new session with `zpc.pair` (from the directory's full path), `zpc.role`, `zpc.inc` and `zpc.proto`; for Codex it also finds the thread the new TUI opened through the local Codex app-server daemon, names it `zpc-<inc>` and stores its UUID as `zpc.thread`. An existing session keeps its labels.
+1. The launcher runs `zmx-peer-chat register --role claude|codex --session NAME --dir DIR` just before `zmx attach NAME <tool>` creates a session. The helper labels the new session with `zpc.pair` (from the directory's full path), `zpc.role`, `zpc.inc` and `zpc.proto`; for Codex it also finds the thread the new TUI opened through the local Codex app-server daemon, names it `zpc-<inc>` and, once the session's TUI footer shows that name, stores its UUID as `zpc.thread` (a candidate the footer does not show, such as a thread a killed TUI left loaded, is passed over). An existing session keeps its labels.
 2. Claude's hooks keep a wait running for its session in every `claude` process, including the ones Happy starts on a mode switch.
 3. Either side sends with `zmx-peer-chat send`; it finds the one peer with the same pair id and the other role, and refuses when there is none, more than one, or another protocol version.
 
@@ -37,7 +37,7 @@ The Codex manifest points `hooks` at the empty `codex/hooks.json`: otherwise Cod
 
 ### The launcher
 
-Call the register helper for `claude` and `codex` sessions only, right before the session is created, and start one session per directory at a time; no other Codex TUI may start or resume a thread in that directory while the helper binds (up to its `--timeout`, 10 seconds by default). It returns at once and labels the session from a detached child within about two seconds; failures are logged to `register.log` in the mail root (`/tmp/zmx-peer-chat-<uid>`). See the exit codes in `design/zmx-peer-chat.md`.
+Call the register helper for `claude` and `codex` sessions only, right before the session is created, and start one session per directory at a time; no other Codex TUI may start or resume a thread in that directory while the helper binds (up to its `--timeout`, 60 seconds by default, long enough for a TUI held back by a startup dialog). It returns at once and labels the session from a detached child within about two seconds; failures are logged to `register.log` in the mail root (`/tmp/zmx-peer-chat-<uid>`). See the exit codes in `design/zmx-peer-chat.md`.
 
 ## Checks
 

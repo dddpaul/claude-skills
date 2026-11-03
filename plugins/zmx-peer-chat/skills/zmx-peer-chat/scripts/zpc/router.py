@@ -18,14 +18,13 @@ from .common import (
     SENDER_NAMES,
     ZpcError,
     is_uuid,
+    tui_shows,
 )
 from .mailbox import Mailbox
 from .register import thread_name
 from .zmx import Session, Zmx
 
 _REQUIRED = (LABEL_PAIR, LABEL_ROLE, LABEL_INC, LABEL_PROTO)
-# How many non-empty lines at the end of the Codex screen may hold its footer.
-_FOOTER_LINES = 6
 
 CodexQueue = Callable[[str, str], None]
 
@@ -126,12 +125,6 @@ def clean_text(raw: str, label: str) -> str:
     if not text:
         raise ZpcError("the message is empty; nothing was sent", 2)
     return text
-
-
-def tui_shows(screen: str, name: str) -> bool:
-    """Tell whether the Codex footer at the end of ``screen`` names thread ``name``."""
-    lines = [line.rstrip() for line in screen.splitlines() if line.strip()]
-    return any(line.endswith(f"· {name}") for line in lines[-_FOOTER_LINES:])
 
 
 def run_codex_queue(thread: str, message: str) -> None:
