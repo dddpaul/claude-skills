@@ -1,9 +1,10 @@
 ---
 id: TASK-59
 title: Bind the Codex thread the new TUI shows in zmx-peer-chat register
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-03T12:50:00Z'
+updated_date: '2026-11-03 13:11'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -65,10 +66,18 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A test in test_zpc_register.py where the fake daemon keeps a turn-less leftover thread loaded in the session directory, its createdAt and updatedAt reading as the time of each thread/read, ends with zpc.thread naming the new TUI's thread, not the leftover
-- [ ] #2 A test where the only candidate thread's zpc-<inc> name never shows in the fake session footer (zmx history) ends with no zpc.thread label and a register.log line saying why
-- [ ] #3 A test where the new TUI's thread first appears in thread/loaded/list 15 s after the session does is bound with the default window, and register's --timeout defaults to a named constant BIND_SECONDS = 60; a test with a shorter explicit timeout still ends with no label
-- [ ] #4 register reuses router.tui_shows (or one shared helper), so the footer rule exists in one place: grep -n 'def tui_shows' finds exactly one definition under plugins/zmx-peer-chat
-- [ ] #5 The version in plugins/zmx-peer-chat/.claude-plugin/plugin.json and .codex-plugin/plugin.json is bumped to 0.1.1, and plugins/zmx-peer-chat/README.md or design/zmx-peer-chat.md describes the new bind rule
+- [x] #1 A test in test_zpc_register.py where the fake daemon keeps a turn-less leftover thread loaded in the session directory, its createdAt and updatedAt reading as the time of each thread/read, ends with zpc.thread naming the new TUI's thread, not the leftover
+- [x] #2 A test where the only candidate thread's zpc-<inc> name never shows in the fake session footer (zmx history) ends with no zpc.thread label and a register.log line saying why
+- [x] #3 A test where the new TUI's thread first appears in thread/loaded/list 15 s after the session does is bound with the default window, and register's --timeout defaults to a named constant BIND_SECONDS = 60; a test with a shorter explicit timeout still ends with no label
+- [x] #4 register reuses router.tui_shows (or one shared helper), so the footer rule exists in one place: grep -n 'def tui_shows' finds exactly one definition under plugins/zmx-peer-chat
+- [x] #5 The version in plugins/zmx-peer-chat/.claude-plugin/plugin.json and .codex-plugin/plugin.json is bumped to 0.1.1, and plugins/zmx-peer-chat/README.md or design/zmx-peer-chat.md describes the new bind rule
 - [ ] #6 uv run pytest and uv run ruff check . pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: handoff checklist green (all Files exist, no deps, ACs are pytest/grep checks). Move tui_shows + footer line count from router.py to common.py (register cannot import router: router imports register), router re-imports it. In register: _find_thread names one candidate at a time (started before resumed), polls zmx history up to CONFIRM_SECONDS for the footer; rejected candidates are skipped on later polls; no candidate confirmed by the deadline -> code 5 naming the tried threads. Drop the several-candidates refusal (the footer disambiguates). BIND_SECONDS = 60 as bind/--timeout default. Fakes: FakeDaemon leftovers whose times read as wall-now until named; FakeZmx footers callable. Tests for AC1-3, docs + 0.1.1 bump.
+
+Commit: `d4be017` - task-59: bind a Codex thread only once the TUI footer shows its name, 60 s default window
+<!-- SECTION:NOTES:END -->
