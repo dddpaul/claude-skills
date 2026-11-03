@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-11-03T16:47:00Z'
+updated_date: '2026-11-03T17:36:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -40,7 +41,7 @@ In scope:
 - When the exact signal is missing (no daemon at registration, so the `thread/started` came before register could connect; an unknown command; a query that returns nothing), the bind falls back to the TASK-63 pick, unchanged.
 - The daemon client keeps the notifications it reads (today `Daemon.call` skips them) and gains the `thread/list` call. The request's params match the TUI's; check the wire names and enum values in `codex-rs/app-server-protocol` at the same tag, and how the TUI derives the history model provider.
 - Tests in `plugins/zmx-peer-chat/skills/zmx-peer-chat/tests/` with fakes for the notification stream, the `thread/list` answer and the session's `cmd=`.
-- A live box retest, run interactively (Ralph's container cannot reach the box): the working tree copied to a scratch directory on the box as in TASK-61 and TASK-63; with the user's explicit OK, throwaway Codex sessions (prefix `zpc-rt-`) for a fresh start, a resume of an unloaded thread and a resume of a still-loaded thread, started the way the launcher starts them (`codex`, `codex resume --last`); `zmx ls` before and after; no Codex turn needed.
+- The live box retest is TASK-65, run interactively after this task merges (Ralph's container cannot reach the box).
 - `design/zmx-peer-chat.md` ("Register helper", the pick table, the retest section) and `plugins/zmx-peer-chat/README.md`; a patch bump in both `plugin.json` files.
 
 Out of scope:
@@ -68,8 +69,7 @@ Public repo: the design doc carries no IP address, host name, user name, home pa
 - [ ] #3 A test where the session's cmd is codex resume <id> binds that id
 - [ ] #4 A test where no exact signal is available (the daemon came up after the session, or the cmd is unknown) still binds through the TASK-63 pick
 - [ ] #5 A test pins the thread/list request params to the TUI's --last query (limit 1, updated-at sort, the cwd filter, interactive source kinds, not archived), with a comment naming codex-rs/tui/src/lib.rs latest_session_lookup_params at rust-v0.166.0
-- [ ] #6 With the user's explicit OK, a box retest with throwaway zpc-rt- sessions started as codex and as codex resume --last covers a fresh start, a resume of an unloaded thread and a resume of a still-loaded thread; each ends labelled with the right thread in under FALLBACK_SECONDS, and design/zmx-peer-chat.md records the commands, outputs and zmx ls before and after
-- [ ] #7 design/zmx-peer-chat.md (Register helper and the pick table) and plugins/zmx-peer-chat/README.md describe the exact pick and the fallback
-- [ ] #8 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
-- [ ] #9 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
+- [ ] #6 design/zmx-peer-chat.md (Register helper and the pick table) and plugins/zmx-peer-chat/README.md describe the exact pick and the fallback
+- [ ] #7 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
+- [ ] #8 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
 <!-- AC:END -->
