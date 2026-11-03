@@ -29,11 +29,13 @@ from zpc_fakes import (
     Clock,
     FakeDaemon,
     FakeZmx,
+    LateDaemon,
     thread,
     tui_footer,
 )
 
 from zpc.common import ZpcError, pair_id
+from zpc.daemon import DaemonError
 from zpc.register import BIND_SECONDS, Registration, bind, bind_in_background, prepare
 from zpc.zmx import Session, Zmx
 
@@ -397,6 +399,99 @@ def test_a_shorter_timeout_still_gives_up(tmp_path: Path) -> None:
         _register(tmp_path, daemon, zmx, clock, THREAD_C, timeout=10)
     assert err.value.code == 5
     assert zmx.set_calls == [] and daemon.names == {}
+
+
+def _prepare_late(tmp_path: Path, opener: LateDaemon, zmx: FakeZmx) -> Registration:
+    """Prepare a Codex session through ``opener``; let go of its lock."""
+    work = tmp_path / "work"
+    work.mkdir(exist_ok=True)
+    reg = prepare("codex", "w-codex", str(work), None, zmx, tmp_path, opener, NOW)
+    assert reg is not None and reg.lock is not None
+    reg.lock.close()
+    zmx.live["w-codex"] = Session("w-codex", 42)
+    return reg
+
+
+def _bind_logged(reg: Registration, zmx: FakeZmx, opener: LateDaemon, log: Path) -> str:
+    """Run the background bind on a fake clock; return its register.log line."""
+    clock = Clock()
+    bind_in_background(
+        reg, log, lambda: bind(reg, zmx, opener, 10, clock.sleep, clock.now)
+    )
+    for _ in range(100):
+        if log.exists() and log.read_text().endswith("\n"):
+            break
+        time.sleep(0.05)
+    return log.read_text()
+
+
+def test_no_daemon_at_prepare_keeps_an_empty_snapshot(tmp_path: Path) -> None:
+    opener = LateDaemon(None, None)
+    reg = _prepare_late(tmp_path, opener, FakeZmx())
+    assert opener.opens == 1
+    assert reg.before == {} and reg.busy == set()
+    assert reg.since == SINCE and reg.snapshot is False
+
+
+def test_a_bad_answer_from_an_open_daemon_still_fails_closed(tmp_path: Path) -> None:
+    class Broken(FakeDaemon):
+        def loaded_threads(self) -> list[str]:
+            raise DaemonError("unexpected answer to thread/loaded/list")
+
+    work, daemon, zmx = str(tmp_path), Broken([{}]), FakeZmx()
+    with pytest.raises(ZpcError) as err:
+        prepare("codex", "w-x", work, None, zmx, tmp_path, lambda: daemon, NOW)
+    assert err.value.code == 3
+    # The lock was let go: the next registration in the directory goes ahead.
+    again = prepare("claude", "w-c", work, None, zmx, tmp_path, _no_daemon)
+    assert again is not None and again.lock is not None
+    again.lock.close()
+
+
+def test_a_daemon_that_comes_up_late_binds_the_new_thread(tmp_path: Path) -> None:
+    # Seen on the box: the launcher registered the Codex session before its
+    # TUI started the box's first daemon.
+    work = str((tmp_path / "work").resolve())
+    opened = {THREAD_C: thread(THREAD_C, work, SINCE + 2, created=SINCE + 2)}
+    daemon = FakeDaemon([{}, opened])
+    opener, zmx = LateDaemon(daemon, 4), FakeZmx()  # prepare and three bind opens
+    zmx.footers["w-codex"] = tui_footer(daemon, THREAD_C)
+    reg = _prepare_late(tmp_path, opener, zmx)
+    assert reg.snapshot is False
+    line = _bind_logged(reg, zmx, opener, tmp_path / "register.log")
+    assert f"zpc.thread={THREAD_C}" in line
+    assert line.endswith(" (no Codex daemon at registration)\n")
+
+
+def test_a_daemon_that_never_comes_up_sets_no_label(tmp_path: Path) -> None:
+    opener, zmx = LateDaemon(None, None), FakeZmx()
+    reg = _prepare_late(tmp_path, opener, zmx)
+    line = _bind_logged(reg, zmx, opener, tmp_path / "register.log")
+    assert "w-codex: no Codex daemon was reachable in time (last error: " in line
+    assert "cannot start codex" in line and line.endswith("; no label set\n")
+    assert zmx.live["w-codex"].labels == {}
+
+
+def test_a_late_daemon_binds_the_new_thread_not_a_leftover(tmp_path: Path) -> None:
+    # With no snapshot, a turn-less leftover reads as created after it, like
+    # the new TUI's thread; only the one the footer shows is bound.
+    work = str((tmp_path / "work").resolve())
+    clock = Clock()
+    table = {
+        THREAD_A: thread(THREAD_A, work, 5, created=5),
+        THREAD_C: thread(THREAD_C, work, SINCE + 1, created=SINCE + 1),
+    }
+    daemon = FakeDaemon([table], {THREAD_A}, lambda: SINCE + clock.t)
+    opener, zmx = LateDaemon(daemon, 3), FakeZmx()
+    zmx.footers["w-codex"] = tui_footer(daemon, THREAD_C)
+    reg = _prepare_late(tmp_path, opener, zmx)
+    got = bind(reg, zmx, opener, 10, clock.sleep, clock.now)
+    assert got["zpc.thread"] == THREAD_C
+    assert daemon.names == {
+        THREAD_A: f"zpc-{reg.inc}-unbound",
+        THREAD_C: f"zpc-{reg.inc}",
+    }
+    assert zmx.set_calls == [("w-codex", got)]
 
 
 def test_two_registrations_in_one_directory_refuse(tmp_path: Path) -> None:

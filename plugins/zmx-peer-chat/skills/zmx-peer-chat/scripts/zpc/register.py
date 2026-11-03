@@ -9,6 +9,11 @@ waits for the session, finds the Codex thread the new TUI opened in that
 directory, names it ``zpc-<inc>``, checks that the TUI footer shows that name
 and sets every label in one ``zmx set``.
 
+On a freshly booted box no daemon runs until the first Codex TUI starts one,
+so the launcher may register a Codex session before any daemon exists. No
+daemon means no thread is loaded: ``prepare`` keeps the empty snapshot and
+notes it, and ``bind`` keeps trying to open the daemon until its deadline.
+
 The TUI either starts a thread or (the launcher runs ``codex resume --last``
 in a directory with history) resumes one:
 
@@ -57,7 +62,7 @@ from .common import (
     pair_id,
     tui_shows,
 )
-from .daemon import Daemon, ThreadInfo
+from .daemon import Daemon, DaemonError, ThreadInfo
 from .zmx import Zmx
 
 OpenDaemon = Callable[[], Daemon]
@@ -86,6 +91,9 @@ class Registration:
     # Threads seen running a turn since the snapshot: a turn that ends also
     # moves updatedAt, so these are never taken for a resume.
     busy: set[str] = field(default_factory=set)
+    # False when no Codex daemon could be opened at registration, so the
+    # snapshot is empty because nothing was loaded, not because it was read.
+    snapshot: bool = True
     lock: IO[str] | None = None
 
 
@@ -127,8 +135,9 @@ def prepare(
     """Get ready to label ``session``; return None when it already exists.
 
     Raises:
-        ZpcError: Bad arguments (2), daemon trouble (3) or a concurrent
-            registration for the same directory (4).
+        ZpcError: Bad arguments (2), an unexpected answer from an open daemon
+            (3) or a concurrent registration for the same directory (4). A
+            daemon that cannot be opened leaves an empty snapshot instead.
     """
     if role not in ROLES:
         raise ZpcError(f"bad role: {role!r}", 2)
@@ -143,8 +152,13 @@ def prepare(
     try:
         if role == "codex":
             reg.since = int(wall())
-            with open_daemon() as d:
-                _snapshot(d, reg)
+            try:
+                d = open_daemon()
+            except DaemonError:
+                reg.snapshot = False  # no daemon yet: nothing is loaded
+            else:
+                with d:
+                    _snapshot(d, reg)
     except BaseException:
         reg.lock.close()
         raise
@@ -204,6 +218,26 @@ def _shown(
     return True
 
 
+def _open_until(
+    open_daemon: OpenDaemon,
+    deadline: float,
+    sleep: Callable[[float], None],
+    now: Callable[[], float],
+) -> Daemon:
+    """Open the daemon, retrying until ``deadline`` while none is reachable."""
+    while True:
+        try:
+            return open_daemon()
+        except DaemonError as exc:
+            if now() >= deadline:
+                raise ZpcError(
+                    f"no Codex daemon was reachable in time (last error: {exc}); "
+                    "no label set",
+                    5,
+                ) from exc
+        sleep(0.4)
+
+
 def _find_thread(
     reg: Registration,
     zmx: Zmx,
@@ -214,7 +248,7 @@ def _find_thread(
 ) -> str:
     tried: list[str] = []  # least recently tried first
     name = thread_name(reg.inc)
-    with open_daemon() as d:
+    with _open_until(open_daemon, deadline, sleep, now) as d:
         while True:
             match = _candidates(d, reg)
             if match:
@@ -254,8 +288,9 @@ def bind(
     """Wait for the session (and its Codex thread), then label it; return the labels.
 
     Raises:
-        ZpcError: The session, or a Codex thread the TUI footer shows, did not
-            appear within ``timeout`` seconds (5). No label is set then.
+        ZpcError: The session, a reachable Codex daemon or a Codex thread the
+            TUI footer shows did not appear within ``timeout`` seconds (5). No
+            label is set then.
     """
     deadline = now() + timeout
     while reg.session not in zmx.sessions():
@@ -302,6 +337,8 @@ def bind_in_background(
         line = f"{reg.session}: labelled " + " ".join(
             f"{k}={v}" for k, v in sorted(labels.items())
         )
+        if not reg.snapshot:
+            line += " (no Codex daemon at registration)"
     except ZpcError as exc:
         code, line = exc.code, f"{reg.session}: {exc}"
     except Exception as exc:  # noqa: BLE001 - the log is the only witness
