@@ -1,10 +1,10 @@
 ---
 id: TASK-59
 title: Bind the Codex thread the new TUI shows in zmx-peer-chat register
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-03T12:50:00Z'
-updated_date: '2026-11-03 13:11'
+updated_date: '2026-11-03 13:19'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -71,7 +71,7 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - [x] #3 A test where the new TUI's thread first appears in thread/loaded/list 15 s after the session does is bound with the default window, and register's --timeout defaults to a named constant BIND_SECONDS = 60; a test with a shorter explicit timeout still ends with no label
 - [x] #4 register reuses router.tui_shows (or one shared helper), so the footer rule exists in one place: grep -n 'def tui_shows' finds exactly one definition under plugins/zmx-peer-chat
 - [x] #5 The version in plugins/zmx-peer-chat/.claude-plugin/plugin.json and .codex-plugin/plugin.json is bumped to 0.1.1, and plugins/zmx-peer-chat/README.md or design/zmx-peer-chat.md describes the new bind rule
-- [ ] #6 uv run pytest and uv run ruff check . pass
+- [x] #6 uv run pytest and uv run ruff check . pass
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -80,4 +80,8 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 Plan: handoff checklist green (all Files exist, no deps, ACs are pytest/grep checks). Move tui_shows + footer line count from router.py to common.py (register cannot import router: router imports register), router re-imports it. In register: _find_thread names one candidate at a time (started before resumed), polls zmx history up to CONFIRM_SECONDS for the footer; rejected candidates are skipped on later polls; no candidate confirmed by the deadline -> code 5 naming the tried threads. Drop the several-candidates refusal (the footer disambiguates). BIND_SECONDS = 60 as bind/--timeout default. Fakes: FakeDaemon leftovers whose times read as wall-now until named; FakeZmx footers callable. Tests for AC1-3, docs + 0.1.1 bump.
 
 Commit: `d4be017` - task-59: bind a Codex thread only once the TUI footer shows its name, 60 s default window
+
+Commit: `aaf5b60` - task-59: rename an unshown candidate away so only the tried thread carries zpc-<inc>
+
+Done. register binds a Codex thread only once the session footer shows zpc-<inc> (tui_shows moved to zpc/common.py, the single definition); an unshown candidate gets its previous name back or zpc-<inc>-unbound so only the tried thread carries the name; candidates rotate until the deadline; BIND_SECONDS=60 (CONFIRM_SECONDS=5 per try). The several-candidates refusal (code 4) is gone: the footer disambiguates. Review: task-reviewer CHANGES REQUESTED (shared name let the footer confirm the wrong thread) -> fixed with rename-away + test_a_hidden_footer_never_confirms_another_candidate (mutation-checked) -> APPROVED 9/10. Open minor: the next candidate is checked right after the rename-back, before the TUI may have redrawn; a millisecond window. Tests: zmx-peer-chat 105 passed; full suite 514 passed, 1 known baseline failure (ak-style test_decision_tree_helper, missing vendored node_modules). Note: uv run recreated /workspace/.venv (it pointed at the host's homebrew python).
 <!-- SECTION:NOTES:END -->
