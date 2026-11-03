@@ -275,8 +275,12 @@ def test_of_several_candidates_the_one_the_footer_shows_is_bound(
     daemon, zmx = FakeDaemon([before, after]), FakeZmx()
     reg, got = _register(tmp_path, daemon, zmx, Clock(), THREAD_A)
     assert got["zpc.thread"] == THREAD_A
-    # The started thread comes first; the footer never shows it.
-    assert daemon.names == {t: f"zpc-{reg.inc}" for t in (THREAD_C, THREAD_A)}
+    # The started thread comes first; the footer never shows it, so it is
+    # renamed away and only the bound thread carries the name.
+    assert daemon.names == {
+        THREAD_C: f"zpc-{reg.inc}-unbound",
+        THREAD_A: f"zpc-{reg.inc}",
+    }
     assert zmx.set_calls == [("w-codex", got)]
 
 
@@ -295,7 +299,10 @@ def test_a_leftover_thread_that_reads_as_now_is_not_bound(tmp_path: Path) -> Non
     zmx = FakeZmx()
     reg, got = _register(tmp_path, daemon, zmx, clock, THREAD_C)
     assert got["zpc.thread"] == THREAD_C
-    assert daemon.names[THREAD_A] == f"zpc-{reg.inc}"  # tried, never shown
+    assert daemon.names == {
+        THREAD_A: f"zpc-{reg.inc}-unbound",  # tried, never shown
+        THREAD_C: f"zpc-{reg.inc}",
+    }
     assert zmx.set_calls == [("w-codex", got)]
 
 
@@ -304,14 +311,41 @@ def test_a_candidate_the_footer_never_shows_sets_no_label(tmp_path: Path) -> Non
     (tmp_path / "work").mkdir()
     after = {THREAD_C: thread(THREAD_C, work, SINCE + 1, created=SINCE + 1)}
     daemon, zmx = FakeDaemon([{}, after]), FakeZmx(screens={"w-codex": "x · y"})
+    reg = _prepare(tmp_path, daemon, zmx)
+    assert reg.lock is not None
+    reg.lock.close()
+    clock = Clock()
     with pytest.raises(ZpcError) as err:
-        _register(tmp_path, daemon, zmx, Clock())
+        bind(reg, zmx, lambda: daemon, 10, clock.sleep, clock.now)
     assert err.value.code == 5
     assert str(err.value) == (
-        f"the Codex TUI in w-codex never showed {daemon.names[THREAD_C]} in its "
+        f"the Codex TUI in w-codex never showed zpc-{reg.inc} in its "
         f"footer; named but not bound: {THREAD_C}; no label set"
     )
+    assert daemon.names == {THREAD_C: f"zpc-{reg.inc}-unbound"}
     assert zmx.set_calls == []
+
+
+def test_a_hidden_footer_never_confirms_another_candidate(tmp_path: Path) -> None:
+    # A dialog hides the footer past the confirm window while the new TUI's
+    # thread C is tried. Leftover A is tried next; the footer, now visible,
+    # shows C's name, which was taken back, so A is not bound. C gets its
+    # turn again and is bound.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    left = {THREAD_A: thread(THREAD_A, work, 5, created=5)}
+    opened = dict(left)
+    opened[THREAD_C] = thread(THREAD_C, work, SINCE + 1, created=SINCE + 1)
+    clock = Clock()
+    daemon = FakeDaemon([left, opened], {THREAD_A}, lambda: SINCE + clock.t)
+    zmx, footer = FakeZmx(), tui_footer(daemon, THREAD_C)
+    zmx.footers["w-codex"] = lambda: "" if clock.t < 6 else footer()
+    reg, got = _register(tmp_path, daemon, zmx, clock, timeout=None)
+    assert got["zpc.thread"] == THREAD_C
+    assert daemon.names == {
+        THREAD_A: f"zpc-{reg.inc}-unbound",
+        THREAD_C: f"zpc-{reg.inc}",
+    }
 
 
 def test_the_log_says_why_the_footer_check_set_no_label(tmp_path: Path) -> None:
