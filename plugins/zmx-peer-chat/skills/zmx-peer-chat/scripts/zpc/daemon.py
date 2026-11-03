@@ -14,9 +14,11 @@ import hashlib
 import json
 import os
 import select
+import signal
 import struct
 import subprocess
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -25,6 +27,8 @@ from .common import ZpcError, is_uuid
 _GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 _MAX_FRAME = 16 * 1024 * 1024
 _STATUSES = {"notLoaded", "idle", "systemError", "active"}
+# How many notifications a connection keeps for its caller; the oldest go first.
+_KEEP = 1000
 
 
 class DaemonError(ZpcError):
@@ -32,6 +36,10 @@ class DaemonError(ZpcError):
 
     def __init__(self, message: str) -> None:
         super().__init__(f"codex daemon: {message}", 3)
+
+
+class DaemonRefused(DaemonError):
+    """The daemon answered a call with an error; the connection stays usable."""
 
 
 class Transport(Protocol):
@@ -61,6 +69,8 @@ class ProcTransport:
         self._in = self.proc.stdin
         self._fd = self.proc.stdout.fileno()
         self._buf = b""
+        self._owner = os.getpid()
+        self._closed = False
 
     def write(self, data: bytes) -> None:
         try:
@@ -82,6 +92,18 @@ class ProcTransport:
         return out
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if os.getpid() != self._owner:
+            # A forked bind holds the proxy of its parent: Popen cannot wait
+            # for it here and would skip the signal, so send it directly.
+            try:
+                self._in.close()
+                os.kill(self.proc.pid, signal.SIGTERM)
+            except OSError:
+                pass
+            return
         self.proc.terminate()
         try:
             self.proc.wait(timeout=2)
@@ -168,6 +190,8 @@ class Daemon:
         self.t = transport
         self.timeout = timeout
         self._id = 0
+        # The notifications read while waiting for answers, oldest first.
+        self.notifications: deque[dict[str, Any]] = deque(maxlen=_KEEP)
 
     @classmethod
     def open(cls, argv: list[str] | None = None, timeout: float = 10.0) -> Daemon:
@@ -235,7 +259,8 @@ class Daemon:
         while True:
             msg = self._message(deadline)
             if "id" not in msg:
-                continue  # a notification
+                self.notifications.append(msg)
+                continue
             if "method" in msg:
                 raise DaemonError(
                     f"unexpected request {msg['method']!r} from the daemon"
@@ -245,7 +270,7 @@ class Daemon:
             if "error" in msg:
                 err = msg["error"]
                 why = err.get("message") if isinstance(err, dict) else err
-                raise DaemonError(f"{method} failed: {why}")
+                raise DaemonRefused(f"{method} failed: {why}")
             result = msg.get("result")
             if not isinstance(result, dict):
                 raise DaemonError(f"{method} answered without a result object")
@@ -298,6 +323,75 @@ class Daemon:
         """Give ``thread_id`` the name ``name`` (shown in the TUI footer)."""
         self.call("thread/name/set", {"threadId": thread_id, "name": name})
 
+    def started_threads(self) -> list[tuple[str, str]]:
+        """Take the ``thread/started`` notifications read so far: (id, cwd) each.
+
+        The daemon sends one to every initialized connection when a client
+        starts a thread; it is read while a call waits for its answer, so a
+        caller makes a call first to see the latest ones.
+        """
+        out: list[tuple[str, str]] = []
+        rest: deque[dict[str, Any]] = deque(maxlen=_KEEP)
+        for msg in self.notifications:
+            if msg.get("method") != "thread/started":
+                rest.append(msg)
+                continue
+            params = msg.get("params")
+            t = params.get("thread") if isinstance(params, dict) else None
+            tid = t.get("id") if isinstance(t, dict) else None
+            if not (isinstance(tid, str) and is_uuid(tid)) or not isinstance(
+                t.get("cwd"), str
+            ):
+                raise DaemonError("thread/started carried an unexpected thread")
+            out.append((tid, t["cwd"]))
+        self.notifications = rest
+        return out
+
+    def history_model_provider(self, cwd: str) -> str | None:
+        """Return the model provider whose threads ``codex resume --last`` lists.
+
+        As the TUI derives it without an explicit provider: the effective
+        config for ``cwd``, ``openai`` when it names none, no filter at all
+        when the daemon refuses ``config/read``.
+        """
+        try:
+            result = self.call("config/read", {"includeLayers": True, "cwd": cwd})
+        except DaemonRefused:
+            return None
+        config = result.get("config")
+        provider = config.get("model_provider") if isinstance(config, dict) else 0
+        if provider is None:
+            return "openai"
+        if not isinstance(provider, str):
+            raise DaemonError("config/read answered an unexpected config")
+        return provider
+
+    def latest_thread(self, cwd: str) -> str | None:
+        """Return the thread ``codex resume --last`` resumes in ``cwd``, or None.
+
+        The TUI's own lookup: one ``thread/list`` call from the state db, then
+        one that scans the rollouts, each taking the most recently updated
+        thread only when its rollout file exists.
+        """
+        provider = self.history_model_provider(cwd)
+        for state_db_only in (True, False):
+            try:
+                result = self.call(
+                    "thread/list", latest_params(cwd, provider, state_db_only)
+                )
+            except DaemonRefused:
+                if state_db_only:
+                    continue
+                return None
+            data = result.get("data")
+            if not isinstance(data, list) or not all(isinstance(t, dict) for t in data):
+                raise DaemonError("thread/list answered an unexpected list")
+            ids = [t for t in data if isinstance(t.get("id"), str) and is_uuid(t["id"])]
+            path = ids[0].get("path") if ids else None
+            if isinstance(path, str) and os.path.exists(path):
+                return ids[0]["id"]
+        return None
+
     def skills(self, cwd: str) -> list[str]:
         """Return the names of the skills Codex lists for ``cwd``."""
         result = self.call("skills/list", {"cwds": [cwd], "forceReload": True})
@@ -314,3 +408,26 @@ class Daemon:
                     raise DaemonError("skills/list answered an unexpected skill")
                 names.append(s["name"])
         return names
+
+
+def latest_params(
+    cwd: str, provider: str | None, state_db_only: bool
+) -> dict[str, Any]:
+    """Return the ``thread/list`` params of the TUI's ``codex resume --last`` lookup.
+
+    They follow ``latest_session_lookup_params`` in ``codex-rs/tui/src/lib.rs``
+    at codex-cli ``rust-v0.166.0``; ``useStateDbOnly`` is left out when false,
+    as the daemon's own serializer does.
+    """
+    params: dict[str, Any] = {
+        "limit": 1,
+        "sortKey": "updated_at",
+        "sourceKinds": ["cli", "vscode"],
+        "archived": False,
+        "cwd": cwd,
+    }
+    if provider is not None:
+        params["modelProviders"] = [provider]
+    if state_db_only:
+        params["useStateDbOnly"] = True
+    return params
