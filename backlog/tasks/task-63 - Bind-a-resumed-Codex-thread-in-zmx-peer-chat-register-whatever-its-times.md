@@ -1,10 +1,10 @@
 ---
 id: TASK-63
 title: Bind a resumed Codex thread in zmx-peer-chat register whatever its times
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-03T15:59:00Z'
-updated_date: '2026-11-03T16:43:00Z'
+updated_date: '2026-11-03T16:46:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -83,4 +83,8 @@ Review round 1 (CHANGES REQUESTED, 4): fixed the Architecture flow's pick, the o
 Commit: `2d4ea35` - task-63: align the design doc with the new pick and test the fallback's order and idle-only rule
 
 Review round 2 (CHANGES REQUESTED, 5): 'For the launcher' item 4 now says sends to that TUI refuse meanwhile (only sends to a Codex TUI read its footer).
+
+Commit: `472ce2b` - task-63: say that sends to a TUI whose thread is briefly renamed refuse
+
+Done. register tries, in order: started, newly loaded (any times), resumed, and after FALLBACK_SECONDS (20 s) the idle snapshot threads, most recent first; busy threads never; the footer check decides. Box retest (0.166.0): unloaded resume bound in 7.6 s, still-loaded resume in 20.7 s via the fallback. zmx-peer-chat 0.1.5. task-reviewer: APPROVED (score 10) after three rounds. Final: ruff clean; pytest 542 passed, 1 failed - the known test_decision_tree_helper baseline. Follow-up: an exact pick from daemon events and the --last query (next task).
 <!-- SECTION:NOTES:END -->
