@@ -15,8 +15,8 @@ from pathlib import Path
 import pytest
 from zpc_fakes import PAIR, THREAD_A, THREAD_B, FakeZmx, labels
 
-from zpc.common import ZpcError
-from zpc.router import clean_text, find_me, send, tui_shows
+from zpc.common import ZpcError, tui_shows
+from zpc.router import clean_text, find_me, send
 from zpc.zmx import Session, parse_ls
 
 FOOTER = "\n› Ask Codex to do anything\n\n  model medium · ~/work · zpc-c0dec0de\n  ? for shortcuts\n"

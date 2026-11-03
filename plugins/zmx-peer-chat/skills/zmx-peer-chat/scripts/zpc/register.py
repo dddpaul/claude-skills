@@ -5,8 +5,9 @@ nothing about an existing session (it leaves its labels alone and the launcher
 attaches as usual), takes the per-directory registration lock, and for Codex
 notes the time and snapshots the thread ids the daemon has loaded, with the
 update time of each one whose cwd is the session directory. ``bind`` then
-waits for the session, finds the one Codex thread the new TUI opened in that
-directory, names it ``zpc-<inc>`` and sets every label in one ``zmx set``.
+waits for the session, finds the Codex thread the new TUI opened in that
+directory, names it ``zpc-<inc>``, checks that the TUI footer shows that name
+and sets every label in one ``zmx set``.
 
 The TUI either starts a thread or (the launcher runs ``codex resume --last``
 in a directory with history) resumes one:
@@ -21,6 +22,14 @@ the directory that it does not show, and that thread keeps its old times.
 An exiting TUI moves neither time. A turn that ends moves ``updatedAt`` too, so
 a thread seen running a turn at the snapshot or while the bind polls is never
 taken; the polls are 0.3 seconds apart, shorter than any turn.
+
+The times alone can still mislead: a TUI killed before its first turn leaves a
+thread loaded that the daemon has not persisted, and ``thread/read`` gives its
+``createdAt`` and ``updatedAt`` as the time of the read, so it looks resumed on
+every poll. So each candidate is only named; it is bound once the session's
+footer shows the name. A candidate the footer does not show within
+``CONFIRM_SECONDS`` is renamed away from it, so no two threads ever carry the
+name, and the next one is tried; candidates take turns until the deadline.
 """
 
 from __future__ import annotations
@@ -46,11 +55,18 @@ from .common import (
     ZpcError,
     check_token,
     pair_id,
+    tui_shows,
 )
 from .daemon import Daemon, ThreadInfo
 from .zmx import Zmx
 
 OpenDaemon = Callable[[], Daemon]
+
+# The default bind window: long enough for a TUI that opens its thread only
+# after a startup dialog (an update notice, "Trust this folder?") is answered.
+BIND_SECONDS = 60.0
+# How long a named candidate may take to show up in the session's footer.
+CONFIRM_SECONDS = 5.0
 
 
 @dataclass
@@ -76,6 +92,11 @@ class Registration:
 def thread_name(inc: str) -> str:
     """The name a bound Codex thread gets; the TUI footer shows it."""
     return f"zpc-{inc}"
+
+
+def _unbound_name(inc: str) -> str:
+    """The name a tried but unshown candidate gets back when it had none."""
+    return f"{thread_name(inc)}-unbound"
 
 
 def _dir_lock(root: Path, directory: str) -> IO[str]:
@@ -144,8 +165,11 @@ def _snapshot(d: Daemon, reg: Registration) -> None:
 
 
 def _candidates(d: Daemon, reg: Registration) -> list[str]:
-    """Return the threads in the directory that the new TUI may have opened."""
-    found = []
+    """Return the threads in the directory that the new TUI may have opened.
+
+    Started threads come before resumed ones.
+    """
+    started, resumed = [], []
     for t in d.loaded_threads():
         if t in reg.before and reg.before[t] is None:
             continue  # loaded before, in another directory
@@ -156,56 +180,82 @@ def _candidates(d: Daemon, reg: Registration) -> list[str]:
             reg.busy.add(t)
         if t in reg.busy:
             continue  # ran a turn in the window: no TUI has just opened it
-        started = t not in reg.before and info.created_at >= reg.since
         old = reg.before.get(t)
-        resumed = info.updated_at >= reg.since and (
-            old is None or info.updated_at > old
-        )
-        if started or resumed:
-            found.append(t)
-    return found
+        if t not in reg.before and info.created_at >= reg.since:
+            started.append(t)
+        elif info.updated_at >= reg.since and (old is None or info.updated_at > old):
+            resumed.append(t)
+    return started + resumed
+
+
+def _shown(
+    reg: Registration,
+    zmx: Zmx,
+    deadline: float,
+    sleep: Callable[[float], None],
+    now: Callable[[], float],
+) -> bool:
+    """Wait until the session's footer shows the thread name, or give up."""
+    until = min(now() + CONFIRM_SECONDS, deadline)
+    while not tui_shows(zmx.history(reg.session), thread_name(reg.inc)):
+        if now() >= until:
+            return False
+        sleep(0.3)
+    return True
 
 
 def _find_thread(
     reg: Registration,
+    zmx: Zmx,
     open_daemon: OpenDaemon,
     deadline: float,
     sleep: Callable[[float], None],
     now: Callable[[], float],
 ) -> str:
+    tried: list[str] = []  # least recently tried first
+    name = thread_name(reg.inc)
     with open_daemon() as d:
         while True:
             match = _candidates(d, reg)
-            if len(match) > 1:
-                raise ZpcError(
-                    f"{len(match)} Codex threads opened in {reg.directory} at once; "
-                    "refusing to guess, no label set",
-                    4,
-                )
             if match:
-                d.set_thread_name(match[0], thread_name(reg.inc))
-                return match[0]
+                t = min(match, key=lambda m: tried.index(m) if m in tried else -1)
+                previous = d.read_thread(t).name
+                d.set_thread_name(t, name)
+                if _shown(reg, zmx, deadline, sleep, now):
+                    return t
+                d.set_thread_name(t, previous or _unbound_name(reg.inc))
+                if t in tried:
+                    tried.remove(t)
+                tried.append(t)
             if now() >= deadline:
+                if tried:
+                    raise ZpcError(
+                        f"the Codex TUI in {reg.session} never showed {name} in "
+                        f"its footer; named but not bound: {', '.join(tried)}; "
+                        "no label set",
+                        5,
+                    )
                 raise ZpcError(
                     f"no Codex thread opened in {reg.directory} in time; no label set",
                     5,
                 )
-            sleep(0.3)
+            if not match:
+                sleep(0.3)
 
 
 def bind(
     reg: Registration,
     zmx: Zmx,
     open_daemon: OpenDaemon,
-    timeout: float,
+    timeout: float = BIND_SECONDS,
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], float] = time.monotonic,
 ) -> dict[str, str]:
     """Wait for the session (and its Codex thread), then label it; return the labels.
 
     Raises:
-        ZpcError: Several candidate threads (4), or the session or its thread
-            did not appear within ``timeout`` seconds (5). No label is set then.
+        ZpcError: The session, or a Codex thread the TUI footer shows, did not
+            appear within ``timeout`` seconds (5). No label is set then.
     """
     deadline = now() + timeout
     while reg.session not in zmx.sessions():
@@ -219,7 +269,7 @@ def bind(
         LABEL_PROTO: PROTO,
     }
     if reg.role == "codex":
-        labels[LABEL_THREAD] = _find_thread(reg, open_daemon, deadline, sleep, now)
+        labels[LABEL_THREAD] = _find_thread(reg, zmx, open_daemon, deadline, sleep, now)
     zmx.set_labels(reg.session, labels)
     return labels
 
