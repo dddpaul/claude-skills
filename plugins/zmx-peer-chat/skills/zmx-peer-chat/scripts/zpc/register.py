@@ -4,19 +4,32 @@ The launcher calls it just before it creates the session. ``prepare`` refuses
 nothing about an existing session (it leaves its labels alone and the launcher
 attaches as usual), takes the per-directory registration lock, and for Codex
 notes the time and snapshots the thread ids the daemon has loaded, with the
-update time of each one whose cwd is the session directory. ``bind`` then
-waits for the session, finds the Codex thread the new TUI opened in that
-directory, names it ``zpc-<inc>``, checks that the TUI footer shows that name
-and sets every label in one ``zmx set``.
+update time of each one whose cwd is the session directory, and keeps that
+daemon connection open for the bind. ``bind`` then waits for the session,
+finds the Codex thread the new TUI opened in that directory, names it
+``zpc-<inc>``, checks that the TUI footer shows that name and sets every label
+in one ``zmx set``.
 
 On a freshly booted box no daemon runs until the first Codex TUI starts one,
 so the launcher may register a Codex session before any daemon exists. No
 daemon means no thread is loaded: ``prepare`` keeps the empty snapshot and
 notes it, and ``bind`` keeps trying to open the daemon until its deadline.
 
-The TUI either starts a thread or (the launcher runs ``codex resume --last``
-in a directory with history) resumes one. The times only order the threads of
-the directory that it may show, tried in this order:
+The session's command (``cmd=`` in ``zmx ls``, as the launcher starts it)
+says which thread the TUI shows, so ``bind`` picks it exactly when it can:
+
+- ``codex``: the TUI starts a thread, and the daemon tells every connected
+  client with a ``thread/started`` notification; the first one whose cwd is
+  the session directory, read on the connection ``prepare`` kept open;
+- ``codex resume --last``: the thread the TUI's own ``thread/list`` query
+  returns for the session directory (``Daemon.latest_thread``), once loaded;
+- ``codex resume <id>``: that id, once loaded.
+
+Only these candidates are named then. Without an exact signal (no daemon at
+registration, so the ``thread/started`` may have come before register could
+listen; another command; a query that returns nothing) the bind falls back to
+inferring the thread from the times. They only order the threads of the
+directory that the TUI may show, tried in this order:
 
 - started: not loaded at the snapshot, created at or after it;
 - newly loaded: not loaded at the snapshot, whatever its times. With codex-cli
@@ -50,6 +63,7 @@ import fcntl
 import hashlib
 import os
 import secrets
+import shlex
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -66,6 +80,7 @@ from .common import (
     ROLES,
     ZpcError,
     check_token,
+    is_uuid,
     pair_id,
     tui_shows,
 )
@@ -104,6 +119,9 @@ class Registration:
     # False when no Codex daemon could be opened at registration, so the
     # snapshot is empty because nothing was loaded, not because it was read.
     snapshot: bool = True
+    # The daemon connection of the snapshot, kept open so that the bind reads
+    # the thread/started notification of a TUI that starts after it.
+    watch: Daemon | None = None
     lock: IO[str] | None = None
 
 
@@ -167,9 +185,11 @@ def prepare(
             except DaemonError:
                 reg.snapshot = False  # no daemon yet: nothing is loaded
             else:
-                with d:
-                    _snapshot(d, reg)
+                reg.watch = d
+                _snapshot(d, reg)
     except BaseException:
+        if reg.watch is not None:
+            reg.watch.close()
         reg.lock.close()
         raise
     return reg
@@ -217,6 +237,52 @@ def _candidates(d: Daemon, reg: Registration, fallback: bool) -> list[str]:
     return started + loaded + resumed + [t for _, t in sorted(idle, reverse=True)]
 
 
+def _command(cmd: str | None) -> tuple[str, str | None] | None:
+    """Tell how ``cmd`` starts Codex: ("start" | "last" | "id", the id), or None."""
+    try:
+        argv = shlex.split(cmd or "")
+    except ValueError:
+        return None
+    if not argv or os.path.basename(argv[0]) != "codex":
+        return None
+    args = argv[1:]
+    if not args:
+        return "start", None
+    if args == ["resume", "--last"]:
+        return "last", None
+    if len(args) == 2 and args[0] == "resume" and is_uuid(args[1]):
+        return "id", args[1]
+    return None
+
+
+def _exact(
+    d: Daemon, reg: Registration, cmd: str | None
+) -> Callable[[], list[str]] | None:
+    """Return a poll for the exact thread ``cmd`` shows, or None without one."""
+    how = _command(cmd)
+    if how is None:
+        return None
+    kind, tid = how
+    if kind == "start":
+        if d is not reg.watch:
+            return None  # its thread/started may have come before this connection
+        seen: list[str] = []
+
+        def started() -> list[str]:
+            d.loaded_threads()  # a call reads the notifications sent so far
+            for t, cwd in d.started_threads():
+                if t not in seen and os.path.realpath(cwd) == reg.directory:
+                    seen.append(t)
+            return list(seen)
+
+        return started
+    if kind == "last":
+        tid = d.latest_thread(reg.directory)
+    if tid is None:
+        return None
+    return lambda: [tid] if tid in d.loaded_threads() else []
+
+
 def _shown(
     reg: Registration,
     zmx: Zmx,
@@ -257,6 +323,7 @@ def _find_thread(
     reg: Registration,
     zmx: Zmx,
     open_daemon: OpenDaemon,
+    cmd: str | None,
     deadline: float,
     sleep: Callable[[float], None],
     now: Callable[[], float],
@@ -264,9 +331,13 @@ def _find_thread(
     tried: list[str] = []  # least recently tried first
     name = thread_name(reg.inc)
     fallback_at = now() + FALLBACK_SECONDS
-    with _open_until(open_daemon, deadline, sleep, now) as d:
+    with reg.watch or _open_until(open_daemon, deadline, sleep, now) as d:
+        exact = _exact(d, reg, cmd)
         while True:
-            match = _candidates(d, reg, now() >= fallback_at)
+            if exact is not None:
+                match = exact()
+            else:
+                match = _candidates(d, reg, now() >= fallback_at)
             if match:
                 t = min(match, key=lambda m: tried.index(m) if m in tried else -1)
                 previous = d.read_thread(t).name
@@ -309,18 +380,24 @@ def bind(
             label is set then.
     """
     deadline = now() + timeout
-    while reg.session not in zmx.sessions():
-        if now() >= deadline:
-            raise ZpcError(f"session {reg.session} did not appear; no label set", 5)
-        sleep(0.2)
     labels = {
         LABEL_PAIR: reg.pair,
         LABEL_ROLE: reg.role,
         LABEL_INC: reg.inc,
         LABEL_PROTO: PROTO,
     }
-    if reg.role == "codex":
-        labels[LABEL_THREAD] = _find_thread(reg, zmx, open_daemon, deadline, sleep, now)
+    try:
+        while (session := zmx.sessions().get(reg.session)) is None:
+            if now() >= deadline:
+                raise ZpcError(f"session {reg.session} did not appear; no label set", 5)
+            sleep(0.2)
+        if reg.role == "codex":
+            labels[LABEL_THREAD] = _find_thread(
+                reg, zmx, open_daemon, session.cmd, deadline, sleep, now
+            )
+    finally:
+        if reg.watch is not None:
+            reg.watch.close()
     zmx.set_labels(reg.session, labels)
     return labels
 
