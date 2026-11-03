@@ -1,9 +1,10 @@
 ---
 id: TASK-65
 title: Retest the exact Codex thread pick of zmx-peer-chat register on the box
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-03T17:36:00Z'
+updated_date: '2026-11-03T18:20:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -40,7 +41,15 @@ Public repo: no IP address, host name, user name, home path, token or conversati
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 With the user's explicit OK, a zpc-rt- session started as codex ends labelled with its new thread, and the register.log line and the label time are recorded
-- [ ] #2 A zpc-rt- session started as codex resume --last while the thread is unloaded, and one while it is still loaded, each end labelled with the resumed thread in under FALLBACK_SECONDS
-- [ ] #3 design/zmx-peer-chat.md records each command, its output and zmx ls before and after, and zmx ls after shows no zpc-rt- session
+- [x] #1 With the user's explicit OK, a zpc-rt- session started as codex ends labelled with its new thread, and the register.log line and the label time are recorded
+- [x] #2 A zpc-rt- session started as codex resume --last while the thread is unloaded, and one while it is still loaded, each end labelled with the resumed thread in under FALLBACK_SECONDS
+- [x] #3 design/zmx-peer-chat.md records each command, its output and zmx ls before and after, and zmx ls after shows no zpc-rt- session
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: interactive over ssh (Ralph's container cannot reach the box). Copy the 0.1.6 tree to ~/zpc-retest/copy on the box; with the user's OK (given in this session): zpc-rt-codex6 = codex resume --last in ~/zpc-retest/fresh while <thread-r> is unloaded, zpc-rt-codex7 = the same right after codex6 is killed (still loaded), zpc-rt-codex5 = codex in a new ~/zpc-retest/fresh2. No turns. Record label times, register.log, thread/read and footers, zmx ls before/after, in design/zmx-peer-chat.md; then clean up.
+
+Ran from the Mac over ssh (only the Mac reaches the box), with the user's explicit OK in this session, zmx-peer-chat 0.1.6 scratch copy, codex-cli 0.166.0. zmx ls before (21:19:03) and after (21:19:35): only the user's two sessions; grep -c zpc-rt- after: 0. AC #1: zpc-rt-codex5 (codex, new ~/zpc-retest/fresh2) labelled with its new thread after 1.61 s; register.log 21:19:22 labelled. AC #2: zpc-rt-codex6 (codex resume --last, thread unloaded) after 1.62 s and zpc-rt-codex7 (the same a second after codex6 was killed, thread still loaded) after 1.61 s, both with the resumed thread; register.log 21:19:04 and 21:19:07. All under FALLBACK_SECONDS (20). AC #3: design/zmx-peer-chat.md 'The exact pick (TASK-64)' and 'Sessions before and after'. Sessions killed; ~/zpc-retest and our two locks removed; another directory's mail-root entries left alone; transcripts kept. No code changed; no version bump (docs only).
+<!-- SECTION:NOTES:END -->
