@@ -4,7 +4,7 @@ title: Bind a resumed Codex thread in zmx-peer-chat register whatever its times
 status: In Progress
 assignee: []
 created_date: '2026-11-03T15:59:00Z'
-updated_date: '2026-11-03T16:38:00Z'
+updated_date: '2026-11-03T16:43:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -79,4 +79,8 @@ AC #7: ruff clean; pytest 539 passed, 1 failed - the known baseline test_decisio
 Commit: `023bb94` - task-63: record both 0.166.0 resumes binding on the box
 
 Review round 1 (CHANGES REQUESTED, 4): fixed the Architecture flow's pick, the old-demo bullet (now notes TASK-63 reopened it and cites the renamed test), the launcher item's bind times and the fallback's brief rename of another TUI's idle thread, the cut probe output, and the AC labels in these notes (AC #5 box, AC #7 tests). Added test_the_candidate_order_once_the_fallback_has_joined and test_only_an_idle_snapshot_thread_is_a_fallback (both mutation-checked). zmx-peer-chat tests 119 passed; ruff clean.
+
+Commit: `2d4ea35` - task-63: align the design doc with the new pick and test the fallback's order and idle-only rule
+
+Review round 2 (CHANGES REQUESTED, 5): 'For the launcher' item 4 now says sends to that TUI refuse meanwhile (only sends to a Codex TUI read its footer).
 <!-- SECTION:NOTES:END -->
