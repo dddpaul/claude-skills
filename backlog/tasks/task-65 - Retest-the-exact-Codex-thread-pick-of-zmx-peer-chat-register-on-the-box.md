@@ -4,7 +4,7 @@ title: Retest the exact Codex thread pick of zmx-peer-chat register on the box
 status: In Progress
 assignee: []
 created_date: '2026-11-03T17:36:00Z'
-updated_date: '2026-11-03T18:31:00Z'
+updated_date: '2026-11-03T18:33:00Z'
 labels:
   - zmx-peer-chat
 dependencies:
@@ -60,4 +60,8 @@ Review round 1 (CHANGES REQUESTED, 4): the contract table's manifest version and
 Commit: `ddfdd13` - task-65: align the bind times and versions with the exact pick; zmx-peer-chat 0.1.7
 
 Review round 2 (CHANGES REQUESTED, 5): dropped the unchecked 'first TUI start after the upgrade' claim (the gaps come from run conditions the record cannot single out); the launcher item and the README now say only a still-loaded resume without an exact signal waits FALLBACK_SECONDS; the evidence note no longer says 'no version bump'.
+
+Commit: `abbcc18` - task-65: drop an unchecked cause and say exactly which case waits FALLBACK_SECONDS
+
+Review round 3 (CHANGES REQUESTED, 5): 'For the launcher' item 4 now names the missing-signal cases that can wait FALLBACK_SECONDS as another command or a --last query that returns no thread (no daemon at registration only affects a fresh start, which never waits).
 <!-- SECTION:NOTES:END -->
