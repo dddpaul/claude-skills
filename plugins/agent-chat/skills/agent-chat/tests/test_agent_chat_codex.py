@@ -2,7 +2,7 @@
 
 The watcher runs against the fake homeserver, a fake ``codex`` that records
 its argv (and, when asked, the cursor file at the moment it runs) and a fake
-``zmx`` whose ``ls`` output each test writes. Thread IDs, names and tokens are
+``zmx`` whose ``ls`` output and session screens each test writes. Thread IDs, names and tokens are
 placeholders.
 """
 
@@ -55,9 +55,25 @@ with open(os.path.join(here, "codex.log"), "a") as log:
 FAKE_ZMX = """#!/bin/sh
 here=$(dirname "$0")
 printf '%s\\n' "$*" >> "$here/zmx.log"
+if [ "$1" = history ]; then
+    if [ -e "$here/history-fail" ]; then
+        echo "session not found: $2" >&2
+        exit 1
+    fi
+    cat "$here/zmx-history-$2.txt" 2>/dev/null
+    exit 0
+fi
 cat "$here/zmx-ls.txt" 2>/dev/null
 exit 0
 """
+
+
+def footer(thread_name: str) -> str:
+    """A Codex screen whose footer names ``thread_name``, then blank lines."""
+    return (
+        "› Write tests for @filename\n\n"
+        f"  gpt-5.5 high · 98% left · ~/box/work · {thread_name}\n\n\n"
+    )
 
 
 def until(cond: Callable[[], bool], seconds: float = 10) -> None:
@@ -87,14 +103,26 @@ class Fakes:
         flag.touch() if on else flag.unlink()
 
     def sessions(self, rows: list[tuple[str, Path, str, str | None]]) -> None:
-        """Write the ``zmx ls`` output: (name, directory, role, thread)."""
+        """Write the ``zmx ls`` output: (name, directory, role, thread).
+
+        Session ``n`` (from 1) gets ``zpc.inc=n`` and a screen whose footer
+        shows ``zpc-n``.
+        """
         lines = []
-        for name, directory, role, thread in rows:
+        for inc, (name, directory, role, thread) in enumerate(rows, 1):
             fields = [f"name={name}", "pid=1", "clients=0", f"cwd=file://{directory}"]
-            fields += ["zpc.pair=p0000001", f"zpc.role={role}"]
+            fields += ["zpc.pair=p0000001", f"zpc.role={role}", f"zpc.inc={inc}"]
             fields += [f"zpc.thread={thread}"] if thread else []
             lines.append("\t".join([*fields, f"cmd={role}"]))
+            self.screen(name, footer(f"zpc-{inc}"))
         (self.bin / "zmx-ls.txt").write_text("".join(f"  {x}\n" for x in lines))
+
+    def screen(self, name: str, text: str) -> None:
+        """Write what ``zmx history <name>`` prints."""
+        (self.bin / f"zmx-history-{name}.txt").write_text(text)
+
+    def history_fails(self) -> None:
+        (self.bin / "history-fail").touch()
 
     def child_argv(self) -> str:
         return "".join(
@@ -166,7 +194,7 @@ def test_the_codex_manifest_points_at_the_codex_skill_and_an_empty_hooks_file() 
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     assert codex["name"] == claude["name"] == "agent-chat"
-    assert codex["version"] == claude["version"] == "0.2.1"
+    assert codex["version"] == claude["version"] == "0.2.2"
     assert codex["skills"] == "./codex-skills/"
     assert codex["hooks"] == "./codex/hooks.json"
     assert json.loads((PLUGIN / "codex" / "hooks.json").read_text()) == {"hooks": {}}
@@ -436,6 +464,88 @@ def test_the_thread_comes_from_the_registered_session_of_the_rooms_directory(
     run.stop()
     [call] = fakes.calls()
     assert call["argv"][:3] == ["queue", "--thread", THREAD]
+
+
+@pytest.fixture
+def work(tmp_path: Path, fakes: Fakes) -> Path:
+    """The project directory, with one registered Codex session ``w-codex``."""
+    work = tmp_path / "box" / f.PROJECT
+    work.mkdir(parents=True)
+    fakes.sessions([("w-codex", work, "codex", THREAD)])
+    return work
+
+
+def test_mail_is_queued_while_the_tui_footer_shows_the_thread(
+    host: Host, fakes: Fakes, work: Path
+) -> None:
+    run = Running()
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: hello")
+    until(lambda: len(fakes.calls()) == 1)
+    run.stop()
+    assert fakes.calls()[0]["argv"][:3] == ["queue", "--thread", THREAD]
+    assert "history w-codex" in (fakes.bin / "zmx.log").read_text().splitlines()
+    assert not any(line.startswith("not queued") for line in run.lines)
+
+
+@pytest.mark.parametrize(
+    "screen",
+    [
+        footer("zpc-2"),  # /new or /resume moved the TUI to another thread
+        footer("zpc-1") + "\n".join(f"  {i}. option" for i in range(1, 8)),  # dialog
+        "",  # nothing on the screen
+    ],
+)
+def test_mail_is_not_queued_when_the_tui_footer_does_not_show_the_thread(
+    host: Host, fakes: Fakes, work: Path, screen: str
+) -> None:
+    fakes.screen("w-codex", screen)
+    run = Running()
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: hello")
+    until(lambda: any(line.startswith("not queued") for line in run.lines))
+    run.stop()
+    assert fakes.calls() == []
+    [line] = [x for x in run.lines if x.startswith("not queued")]
+    assert f"1 message(s) from {f.HUMAN} in {f.ALIAS}" in line
+    assert "the Codex TUI in w-codex does not show thread zpc-1" in line
+
+
+def test_mail_is_not_queued_when_zmx_history_fails(
+    host: Host, fakes: Fakes, work: Path
+) -> None:
+    fakes.history_fails()
+    run = Running()
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: hello")
+    until(lambda: any(line.startswith("not queued") for line in run.lines))
+    run.stop()
+    assert fakes.calls() == []
+    [line] = [x for x in run.lines if x.startswith("not queued")]
+    assert "zmx history w-codex failed: session not found: w-codex" in line
+
+
+def test_the_thread_mode_does_not_read_the_screen(
+    host: Host, fakes: Fakes, work: Path
+) -> None:
+    fakes.history_fails()
+    run = Running(THREAD, f.ALIAS)
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: hello")
+    until(lambda: len(fakes.calls()) == 1)
+    run.stop()
+    assert not (fakes.bin / "zmx.log").exists()
+
+
+@pytest.mark.parametrize(
+    ("screen", "shown"),
+    [
+        (footer("zpc-1"), True),
+        (footer("zpc-12"), False),
+        ("  model · zpc-1 is mentioned mid-line\n", False),
+        ("· zpc-1\n" + "line\n" * 6, False),  # above the footer window
+    ],
+)
+def test_tui_shows_reads_the_footer_like_the_zmx_peer_chat_router(
+    screen: str, shown: bool
+) -> None:
+    assert watch.tui_shows(screen, "zpc-1") is shown
 
 
 @pytest.mark.parametrize(

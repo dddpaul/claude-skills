@@ -4,7 +4,8 @@ Codex has no hook that can block and then hand it a message, so a
 long-running process does it: the shared sync loop for the Codex account, and
 ``codex queue`` for each batch of mail. The thread comes from ``--thread``
 (one room, the project of the working directory) or from the zmx session that
-zmx-peer-chat's launcher registered for the room's directory. The watcher
+zmx-peer-chat's launcher registered for the room's directory; mail goes to
+that session's thread only while its TUI footer shows the thread. The watcher
 never starts, registers, types into or kills a session.
 """
 
@@ -35,7 +36,11 @@ SWEEP_SECONDS = 300.0
 RETRY_MAX = 60.0
 # zmx's own `zmx ls` fields; any other key=value field is a label.
 _BUILTIN = {"name", "pid", "clients", "created", "cwd", "cmd"}
-ROLE, THREAD = "zpc.role", "zpc.thread"
+ROLE, THREAD, INC = "zpc.role", "zpc.thread", "zpc.inc"
+# How many of the last non-empty screen lines may hold the Codex footer; the
+# same rule as zmx-peer-chat's router (zpc/common.py), copied because the
+# plugins ship separately.
+_FOOTER_LINES = 6
 _UUID = re.compile(r"[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 
 
@@ -103,6 +108,29 @@ def zmx_sessions() -> list[Session]:
     return parse_ls(done.stdout)
 
 
+def zmx_history(name: str) -> str:
+    """Return the plain-text scrollback of zmx session ``name``."""
+    try:
+        done = subprocess.run(
+            [*_command(ZMX_ENV, "zmx"), "history", name],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise AgentChatError(f"zmx history {name} failed: {exc}") from exc
+    if done.returncode != 0:
+        why = done.stderr.strip() or f"exit {done.returncode}"
+        raise AgentChatError(f"zmx history {name} failed: {why}")
+    return done.stdout
+
+
+def tui_shows(screen: str, name: str) -> bool:
+    """Tell whether the Codex footer at the end of ``screen`` names thread ``name``."""
+    lines = [line.rstrip() for line in screen.splitlines() if line.strip()]
+    return any(line.endswith(f"· {name}") for line in lines[-_FOOTER_LINES:])
+
+
 def codex_queue(thread: str, text: str) -> None:
     """Queue ``text`` as the next turn of Codex thread ``thread``.
 
@@ -131,14 +159,14 @@ def room_dir(alias: str, cfg: Config) -> str | None:
     return local[len(cfg.room_prefix) :]
 
 
-def find_thread(
+def find_session(
     alias: str, cfg: Config, sessions: list[Session]
-) -> tuple[str | None, str]:
-    """Return the bound thread of the one Codex session the room names.
+) -> tuple[Session | None, str]:
+    """Return the one bound Codex session the room names.
 
     That is the session labelled ``zpc.role=codex`` whose working directory
     has the name the alias carries. Returns ``(None, why)`` when none or
-    several match, or the match has no valid ``zpc.thread``.
+    several match, or the match has no valid ``zpc.thread`` or no ``zpc.inc``.
     """
     name = room_dir(alias, cfg)
     matches = [
@@ -156,10 +184,31 @@ def find_thread(
             f"several registered Codex sessions work in a directory named {name} "
             f"({names}); refusing to pick one"
         )
-    thread = matches[0].labels.get(THREAD, "")
-    if not _UUID.fullmatch(thread):
-        return None, f"zmx session {matches[0].name} has no bound Codex thread"
-    return thread, ""
+    session = matches[0]
+    if not _UUID.fullmatch(session.labels.get(THREAD, "")):
+        return None, f"zmx session {session.name} has no bound Codex thread"
+    if not session.labels.get(INC):
+        return None, f"zmx session {session.name} has no {INC} label"
+    return session, ""
+
+
+def check_screen(session: Session, history: Callable[[str], str]) -> str:
+    """Return why mail must not go to ``session``'s thread now, else ``""``.
+
+    The TUI must show the thread in its footer: ``/new`` or ``/resume`` move
+    it to another thread, and a thread no TUI shows runs headless.
+    """
+    name = f"zpc-{session.labels[INC]}"
+    try:
+        screen = history(session.name)
+    except AgentChatError as exc:
+        return str(exc)
+    if tui_shows(screen, name):
+        return ""
+    return (
+        f"the Codex TUI in {session.name} does not show thread {name} (moved by "
+        "/new or /resume, or a dialog covers the footer)"
+    )
 
 
 class CodexWatcher(SyncLoop):
@@ -174,6 +223,7 @@ class CodexWatcher(SyncLoop):
         thread: The one thread to queue to; then only ``alias`` is served.
         alias: The room ``thread`` belongs to.
         sessions: Lists the zmx sessions.
+        history: Returns the screen of a zmx session.
         queue: Queues a text to a thread.
     """
 
@@ -187,6 +237,7 @@ class CodexWatcher(SyncLoop):
         thread: str | None = None,
         alias: str | None = None,
         sessions: Callable[[], list[Session]] = zmx_sessions,
+        history: Callable[[str], str] = zmx_history,
         queue: Callable[[str, str], None] = codex_queue,
         now: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -201,6 +252,7 @@ class CodexWatcher(SyncLoop):
         self.room: str | None = None
         self.rooms = Rooms(client, cfg, state)
         self.sessions = sessions
+        self.history = history
         self.queue = queue
         self._now = now
         self._aliases: dict[str, str] = {}
@@ -266,13 +318,15 @@ class CodexWatcher(SyncLoop):
     def _deliver(self, alias: str, mail: list[Message]) -> None:
         senders = ", ".join(sorted({m.sender for m in mail}))
         what = f"{len(mail)} message(s) from {senders} in {alias}"
-        if self.thread is not None:
-            thread, why = self.thread, ""
-        else:
+        thread, why = self.thread, ""
+        if thread is None:
             try:
-                thread, why = find_thread(alias, self.cfg, self.sessions())
+                session, why = find_session(alias, self.cfg, self.sessions())
             except AgentChatError as exc:
-                thread, why = None, str(exc)
+                session, why = None, str(exc)
+            if session is not None:
+                why = check_screen(session, self.history)
+                thread = None if why else session.labels[THREAD]
         if thread is None:
             self.log(f"not queued: {what}: {why}")
             return
