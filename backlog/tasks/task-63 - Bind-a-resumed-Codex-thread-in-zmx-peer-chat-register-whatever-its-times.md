@@ -1,10 +1,10 @@
 ---
 id: TASK-63
 title: Bind a resumed Codex thread in zmx-peer-chat register whatever its times
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-03T15:59:00Z'
-updated_date: '2026-11-03T15:59:00Z'
+updated_date: '2026-11-03T16:06:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -28,7 +28,7 @@ In scope:
   1. started: not loaded at the snapshot, `createdAt` at or after it (as today);
   2. newly loaded: not loaded at the snapshot, whatever its times (new);
   3. resumed: loaded at the snapshot, `updatedAt` moved past it (as today);
-  4. fallback, only while none of 1 to 3 exists: an idle thread that was loaded at the snapshot and whose times did not move (new). This covers a resume of a still-loaded thread if 0.166.0 does not move its `updatedAt` either.
+  4. fallback (new): the idle threads that were loaded at the snapshot and whose times did not move, the most recently updated first (the one `--last` picks), added after 1 to 3 once `FALLBACK_SECONDS` (20 s) have passed in the bind. This covers a resume of a still-loaded thread if 0.166.0 does not move its `updatedAt` either; the delay lets a starting TUI's own thread, which loads a few seconds after the session appears, be tried before any older thread is renamed.
   The footer check, the rename-away and the rotation until the deadline stay as TASK-59 left them.
 - With no snapshot (TASK-62, no daemon at registration) every thread in the directory is newly loaded, so it is a candidate.
 - The module docstring of `register.py` (it still says resuming moves `updatedAt` "whether the daemon still had it loaded or loads it again"), the pick table and the paragraph "Being newly loaded is not enough" / "The times are a filter, not the proof" in `design/zmx-peer-chat.md`, and `plugins/zmx-peer-chat/README.md` where it describes the pick.
@@ -64,3 +64,9 @@ Public repo: the design doc carries no IP address, host name, user name, home pa
 - [ ] #8 A test shows that a started or newly loaded candidate is named before any fallback thread
 - [ ] #9 A test shows that a thread seen running a turn is never named, as a fallback or otherwise
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: _candidates() orders started, newly loaded (not in the snapshot, any times), resumed, then (after FALLBACK_SECONDS = 20 s in the bind) the idle snapshot threads, most recent first; busy threads never. The fallback waits so a starting TUI's own thread is tried before an older thread is renamed (a plain fallback broke four existing tests that way); the task's Scope item 4 was reworded to match. Tests for AC1-5 plus mutation checks; docs; 0.1.5; then the box retest with the user's OK.
+<!-- SECTION:NOTES:END -->

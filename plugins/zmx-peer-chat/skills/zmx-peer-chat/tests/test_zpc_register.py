@@ -3,12 +3,14 @@
 The launcher calls ``register`` just before ``zmx attach`` creates a session.
 An existing session keeps its labels (``zmx attach --labels`` would overwrite
 them, so nothing here attaches). For Codex the helper snapshots the daemon's
-loaded threads and binds the one thread the new TUI opened in the session
-directory: a newly loaded id created after the snapshot, or a thread whose
-``updatedAt`` moved past it (``codex resume --last``). A thread that is only
-loaded again keeps its old times and is no candidate. A candidate is bound only
-once the session's footer shows the name it was given; without one the bind
-sets no label.
+loaded threads and binds the one thread the new TUI shows in the session
+directory. Candidates are tried in order: a newly loaded id created after the
+snapshot, any other newly loaded id whatever its times (codex-cli 0.166.0
+leaves the times of a resumed, unloaded thread alone), a thread whose
+``updatedAt`` moved past the snapshot (``codex resume --last``), and, after
+``FALLBACK_SECONDS``, the other idle threads loaded at the snapshot. A candidate
+is bound only once the session's footer shows the name it was given; without
+one the bind sets no label.
 """
 
 from __future__ import annotations
@@ -35,8 +37,15 @@ from zpc_fakes import (
 )
 
 from zpc.common import ZpcError, pair_id
-from zpc.daemon import DaemonError
-from zpc.register import BIND_SECONDS, Registration, bind, bind_in_background, prepare
+from zpc.daemon import DaemonError, ThreadInfo
+from zpc.register import (
+    BIND_SECONDS,
+    FALLBACK_SECONDS,
+    Registration,
+    bind,
+    bind_in_background,
+    prepare,
+)
 from zpc.zmx import Session, Zmx
 
 
@@ -175,20 +184,82 @@ def test_resume_of_an_unloaded_thread_binds_it(tmp_path: Path) -> None:
     assert got["zpc.thread"] == THREAD_B
 
 
-def test_an_older_thread_loaded_again_is_no_candidate(tmp_path: Path) -> None:
-    # Seen on the box: while `codex resume --last` resumed one thread, the
-    # starting TUI loaded another, turnless thread of the same directory
-    # again. It keeps its old times; only the resumed thread is bound.
+def test_a_resumed_unloaded_thread_whose_times_did_not_move_is_bound(
+    tmp_path: Path,
+) -> None:
+    # Seen on the box with codex-cli 0.166.0: the daemon had unloaded the
+    # thread; the resume loaded it again, but createdAt and updatedAt both
+    # stayed before the snapshot. Being loaded again is what marks it.
     work = str((tmp_path / "work").resolve())
     (tmp_path / "work").mkdir()
-    reloaded = thread(THREAD_C, work, 700, created=700)
-    resumed = thread(THREAD_B, work, SINCE + 1, created=600)
-    daemon = FakeDaemon(
-        [{}, {THREAD_C: reloaded}, {THREAD_C: reloaded, THREAD_B: resumed}]
-    )
+    resumed = thread(THREAD_B, work, SINCE - 50, created=SINCE - 100)
+    daemon = FakeDaemon([{}, {}, {THREAD_B: resumed}])
     reg, got = _register(tmp_path, daemon, FakeZmx(), Clock(), THREAD_B)
     assert got["zpc.thread"] == THREAD_B
     assert daemon.names == {THREAD_B: f"zpc-{reg.inc}"}
+
+
+def test_an_older_thread_loaded_again_is_tried_and_gets_its_name_back(
+    tmp_path: Path,
+) -> None:
+    # Seen on the box: while `codex resume --last` resumed one thread, the
+    # starting TUI loaded another, older thread of the same directory again.
+    # Both read as old; the footer shows only the resumed one.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    reloaded = ThreadInfo(THREAD_C, work, "idle", "earlier-name", 600, 700)
+    resumed = thread(THREAD_B, work, 800, created=600)
+    daemon = FakeDaemon([{}, {THREAD_C: reloaded, THREAD_B: resumed}])
+    reg, got = _register(tmp_path, daemon, FakeZmx(), Clock(), THREAD_B)
+    assert got["zpc.thread"] == THREAD_B
+    assert daemon.names == {THREAD_C: "earlier-name", THREAD_B: f"zpc-{reg.inc}"}
+
+
+def test_a_still_loaded_thread_whose_times_did_not_move_is_a_fallback(
+    tmp_path: Path,
+) -> None:
+    # A resume of a thread the daemon still has loaded, if it moves no time:
+    # nothing is started, newly loaded or resumed, so after FALLBACK_SECONDS
+    # the idle threads of the snapshot are tried, the most recent first.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    table = {THREAD_A: thread(THREAD_A, work, 5), THREAD_B: thread(THREAD_B, work, 7)}
+    daemon, clock = FakeDaemon([table]), Clock()
+    reg, got = _register(tmp_path, daemon, FakeZmx(), clock, THREAD_B, timeout=None)
+    assert got["zpc.thread"] == THREAD_B
+    assert daemon.names == {THREAD_B: f"zpc-{reg.inc}"}
+    assert clock.t >= FALLBACK_SECONDS
+
+
+def test_newly_loaded_threads_are_tried_before_any_fallback(tmp_path: Path) -> None:
+    # Thread C is loaded again during the bind but not shown; thread A, loaded
+    # at the snapshot with unmoved times, is the one the footer shows. C is
+    # named first and taken back; A is tried only as a fallback.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    snap = {THREAD_A: thread(THREAD_A, work, 5)}
+    later = dict(snap)
+    later[THREAD_C] = thread(THREAD_C, work, 6, created=6)
+    daemon, clock = FakeDaemon([snap, later]), Clock()
+    reg, got = _register(tmp_path, daemon, FakeZmx(), clock, THREAD_A, timeout=None)
+    assert got["zpc.thread"] == THREAD_A
+    assert list(daemon.names) == [THREAD_C, THREAD_A]
+    assert daemon.names[THREAD_C] == f"zpc-{reg.inc}-unbound"
+    assert clock.t >= FALLBACK_SECONDS
+
+
+def test_a_thread_seen_running_a_turn_is_never_a_fallback(tmp_path: Path) -> None:
+    # Thread A ran a turn during the bind and then sat idle with its old
+    # times; even though the footer would show it, it is never named.
+    work = str((tmp_path / "work").resolve())
+    (tmp_path / "work").mkdir()
+    idle = {THREAD_A: thread(THREAD_A, work, 5)}
+    turn = {THREAD_A: thread(THREAD_A, work, 5, status="active")}
+    daemon, zmx = FakeDaemon([idle, turn, idle]), FakeZmx()
+    with pytest.raises(ZpcError, match="no Codex thread opened") as err:
+        _register(tmp_path, daemon, zmx, Clock(), THREAD_A, timeout=None)
+    assert err.value.code == 5
+    assert daemon.names == {} and zmx.set_calls == []
 
 
 def test_a_running_turn_is_no_resume(tmp_path: Path) -> None:
