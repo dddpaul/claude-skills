@@ -63,7 +63,7 @@ def test_the_token_never_reaches_a_command_line(
 def test_send_reads_its_body_from_stdin_intact(host: Host) -> None:
     body = 'it\'s "quoted" $(not run) `nor this`\n\n  indented line\nend'
     out = subprocess.run(
-        [sys.executable, str(BIN), "send", "--to", "@codex-a", "--to", f.CLAUDE_B],
+        [sys.executable, str(BIN), "send", "--to", "codex-a", "--to", "@claude-b"],
         input=body,
         capture_output=True,
         text=True,
@@ -74,7 +74,7 @@ def test_send_reads_its_body_from_stdin_intact(host: Host) -> None:
     assert out.returncode == 0, out.stderr
     assert f.TOKENS[f.CLAUDE_A] not in out.stdout + out.stderr
     [msg] = host.hs.messages(f.ROOM)
-    assert msg["content"]["body"] == f"{f.CODEX_A} {f.CLAUDE_B}: {body}"
+    assert msg["content"]["body"] == f"@codex-a @claude-b: {body}"
     assert msg["content"]["m.mentions"] == {"user_ids": [f.CODEX_A, f.CLAUDE_B]}
 
 

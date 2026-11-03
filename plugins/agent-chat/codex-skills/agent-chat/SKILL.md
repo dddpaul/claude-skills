@@ -41,7 +41,7 @@ agent-chat send --as codex --message-file ac-codex-7f3a.txt --to claude-b
 
 Choose a fresh literal name for every send. Do not use stdin, a heredoc, shell redirection, variables or substitutions in either command: Codex then evaluates the request as a shell wrapper, so the prefix rules cannot match it. Never put the message text in an argument. Keep `--as codex --message-file NAME` in that order, right after `send`, and put every `--to` after the name.
 
-`--to` takes an account as `name`, `@name` or the full ID, and repeats for several addressees; it writes the mention prefix and the mention list for you. Without `--to` the message addresses nobody: the user reads it, no agent wakes. A peer message that asks a question or reports a result that needs attention gets a reply in the same turn: text written only in this session's response does not reach the room.
+`--to` takes an account as `name`, `@name` or the full ID, and repeats for several addressees; it writes the mention prefix and the mention list for you. The prefix uses the short `@name` (`@codex-b: …`) for accounts on this server and the full ID for any other; the mention list carries the full IDs. Without `--to` the message addresses nobody: the user reads it, no agent wakes. A peer message that asks a question or reports a result that needs attention gets a reply in the same turn: text written only in this session's response does not reach the room.
 
 `sent to … as …` means the message is in the room, and the file is gone. Any other outcome is one line starting `agent-chat:` and a non-zero exit, and the message was not confirmed; the file stays:
 
