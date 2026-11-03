@@ -78,4 +78,6 @@ Public repo: the design doc carries no IP address, host name, user name, home pa
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: zmx.Session gains cmd from zmx ls; Daemon keeps notifications, gains started_threads, history_model_provider (config/read), latest_thread (thread/list, TUI's --last query, two passes, rollout must exist); prepare keeps the snapshot connection open as reg.watch; bind picks from cmd (codex -> thread/started on watch; resume --last -> latest_thread once loaded; resume <id> -> once loaded) and falls back to the TASK-63 _candidates otherwise; ProcTransport.close works from the forked bind (Popen skips the signal outside the parent).
+
+Commit: `a2c551e` - task-64: pick the Codex thread from the session command, daemon events and the --last query
 <!-- SECTION:NOTES:END -->
