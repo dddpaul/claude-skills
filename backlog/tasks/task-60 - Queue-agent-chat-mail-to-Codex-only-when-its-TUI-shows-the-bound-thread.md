@@ -1,9 +1,10 @@
 ---
 id: TASK-60
 title: Queue agent-chat mail to Codex only when its TUI shows the bound thread
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-03T12:50:00Z'
+updated_date: '2026-11-03 13:32'
 labels:
   - agent-chat
 dependencies:
@@ -61,10 +62,24 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A test in test_agent_chat_codex.py where the matched session's fake zmx history footer ends with '· zpc-<inc>' still queues the batch with codex queue to that session's zpc.thread
-- [ ] #2 A test where the footer does not show '· zpc-<inc>' (another thread name, or a dialog over it) runs no codex queue and writes one 'not queued: ...' line naming the session and zpc-<inc> to the account log
-- [ ] #3 A test where zmx history fails for the matched session runs no codex queue and logs the failure
-- [ ] #4 plugins/agent-chat/README.md's watch-codex paragraph states the footer check and that it is the same rule as zmx-peer-chat's router; --thread mode is documented as unchanged
-- [ ] #5 The version in plugins/agent-chat/.claude-plugin/plugin.json and .codex-plugin/plugin.json is bumped one patch above the version TASK-58 leaves
-- [ ] #6 uv run pytest and uv run ruff check . pass
+- [x] #1 A test in test_agent_chat_codex.py where the matched session's fake zmx history footer ends with '· zpc-<inc>' still queues the batch with codex queue to that session's zpc.thread
+- [x] #2 A test where the footer does not show '· zpc-<inc>' (another thread name, or a dialog over it) runs no codex queue and writes one 'not queued: ...' line naming the session and zpc-<inc> to the account log
+- [x] #3 A test where zmx history fails for the matched session runs no codex queue and logs the failure
+- [x] #4 plugins/agent-chat/README.md's watch-codex paragraph states the footer check and that it is the same rule as zmx-peer-chat's router; --thread mode is documented as unchanged
+- [x] #5 The version in plugins/agent-chat/.claude-plugin/plugin.json and .codex-plugin/plugin.json is bumped one patch above the version TASK-58 leaves
+- [x] #6 uv run pytest and uv run ruff check . pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: handoff checklist green (tui_shows now lives in zpc/common.py, router.py imports it). watch.py: find_thread -> find_session returning the matched Session; new zmx_history() via _command(ZMX_ENV) and a copied tui_shows() (last 6 non-empty lines end with '· zpc-<inc>'); CodexWatcher takes a history callable and, in all-rooms mode only, logs 'not queued: ... the Codex TUI in <s> does not show thread zpc-<inc> ...' or the zmx history failure before codex queue. Fake zmx gains 'history' reading zmx-history-<name>.txt (written with a matching footer by Fakes.sessions) and a history-fail flag. README paragraphs in agent-chat and zmx-peer-chat note the shared rule; patch bumps agent-chat 0.2.2 and zmx-peer-chat.
+
+Commit: `aff2d25` - task-60: queue watch-codex mail only while the session's TUI footer shows zpc-<inc>
+
+Commit: `077de67` - task-60: wrap the codex test module docstring
+
+AC6: uv run ruff check . passes; uv run pytest gives 524 passed, 1 failed — the one failure, plugins/presentation/skills/ak-style/scripts/tests/test_decision_tree_helper.py::test_helper_renders_canonical_decision_tree, fails identically on master (checked with the change stashed) and is outside this task. agent-chat + zmx-peer-chat suites: all pass.
+
+Done. watch-codex (all-rooms mode) reads the matched session's screen with zmx history and queues only when the last six non-empty lines end with '· zpc-<inc>' (copy of zpc/common.py tui_shows); otherwise or on a zmx history failure it logs 'not queued: ...'. find_thread became find_session (also requires zpc.inc). --thread mode unchanged. agent-chat 0.2.2, zmx-peer-chat 0.1.2 (README note on the shared rule). Review: ralph:task-reviewer APPROVED (score 10) after re-wrapping a docstring and recording the AC6 master-baseline failure.
+<!-- SECTION:NOTES:END -->
