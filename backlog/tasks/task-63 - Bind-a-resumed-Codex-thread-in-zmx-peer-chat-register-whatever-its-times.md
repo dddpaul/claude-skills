@@ -4,7 +4,7 @@ title: Bind a resumed Codex thread in zmx-peer-chat register whatever its times
 status: In Progress
 assignee: []
 created_date: '2026-11-03T15:59:00Z'
-updated_date: '2026-11-03T16:20:00Z'
+updated_date: '2026-11-03T16:38:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -72,7 +72,11 @@ Plan: _candidates() orders started, newly loaded (not in the snapshot, any times
 
 Commit: `9cc073b` - task-63: try a thread newly loaded in the directory whatever its times, and idle snapshot threads after FALLBACK_SECONDS; zmx-peer-chat 0.1.5
 
-AC6 (box, with the user's OK, branch copy 0.1.5, 2026-11-03): zmx ls before 19:17:12 and after 19:18:03 listed only the user's two sessions; grep -c zpc-rt- after: 0. zpc-rt-codex3 resumed the unloaded test thread: labelled after 7.63 s (newly loaded; times unmoved). zpc-rt-codex4 resumed it while still loaded: updatedAt did not move either, labelled after 20.7 s through the fallback. Both footers showed the new zpc-<inc>. Sessions killed; ~/zpc-retest and the lock removed; transcripts and register.log lines kept. Recorded in design/zmx-peer-chat.md 'Resume after TASK-63'.
+AC #5 (run from the Mac over ssh, since only the Mac reaches the box; with the user's OK, branch copy 0.1.5, 2026-11-03): zmx ls before 19:17:12 and after 19:18:03 listed only the user's two sessions; grep -c zpc-rt- after: 0. zpc-rt-codex3 resumed the unloaded test thread: labelled after 7.63 s (newly loaded; times unmoved). zpc-rt-codex4 resumed it while still loaded: updatedAt did not move either, labelled after 20.7 s through the fallback. Both footers showed the new zpc-<inc>. Sessions killed; ~/zpc-retest and the lock removed; transcripts and register.log lines kept. Recorded in design/zmx-peer-chat.md 'Resume after TASK-63'.
 
-AC9: ruff clean; pytest 539 passed, 1 failed - the known baseline test_decision_tree_helper (un-vendored node_modules).
+AC #7: ruff clean; pytest 539 passed, 1 failed - the known baseline test_decision_tree_helper (un-vendored node_modules).
+
+Commit: `023bb94` - task-63: record both 0.166.0 resumes binding on the box
+
+Review round 1 (CHANGES REQUESTED, 4): fixed the Architecture flow's pick, the old-demo bullet (now notes TASK-63 reopened it and cites the renamed test), the launcher item's bind times and the fallback's brief rename of another TUI's idle thread, the cut probe output, and the AC labels in these notes (AC #5 box, AC #7 tests). Added test_the_candidate_order_once_the_fallback_has_joined and test_only_an_idle_snapshot_thread_is_a_fallback (both mutation-checked). zmx-peer-chat tests 119 passed; ruff clean.
 <!-- SECTION:NOTES:END -->

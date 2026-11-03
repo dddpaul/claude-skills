@@ -42,6 +42,7 @@ from zpc.register import (
     BIND_SECONDS,
     FALLBACK_SECONDS,
     Registration,
+    _candidates,
     bind,
     bind_in_background,
     prepare,
@@ -246,6 +247,33 @@ def test_newly_loaded_threads_are_tried_before_any_fallback(tmp_path: Path) -> N
     assert list(daemon.names) == [THREAD_C, THREAD_A]
     assert daemon.names[THREAD_C] == f"zpc-{reg.inc}-unbound"
     assert clock.t >= FALLBACK_SECONDS
+
+
+def test_the_candidate_order_once_the_fallback_has_joined() -> None:
+    # Started, newly loaded, resumed, then the idle snapshot threads, the most
+    # recently updated first (the one `codex resume --last` picks).
+    work, thread_f = "/work", "01a15a38-0000-7000-8000-00000000000f"
+    reg = Registration("codex", "w-codex", work, "dpair", "inc0", since=SINCE)
+    reg.before = {THREAD_A: 5, THREAD_B: 7, THREAD_E: 3}
+    table = {
+        THREAD_A: thread(THREAD_A, work, 5),
+        THREAD_B: thread(THREAD_B, work, 7),
+        THREAD_E: thread(THREAD_E, work, SINCE + 1),
+        thread_f: thread(thread_f, work, 9, created=9),
+        THREAD_C: thread(THREAD_C, work, SINCE + 1, created=SINCE + 1),
+    }
+    daemon = FakeDaemon([table])
+    order = [THREAD_C, thread_f, THREAD_E, THREAD_B, THREAD_A]
+    assert _candidates(daemon, reg, True) == order
+    assert _candidates(daemon, reg, False) == order[:3]
+
+
+@pytest.mark.parametrize("status", ["notLoaded", "systemError"])
+def test_only_an_idle_snapshot_thread_is_a_fallback(status: str) -> None:
+    reg = Registration("codex", "w-codex", "/work", "dpair", "inc0", since=SINCE)
+    reg.before = {THREAD_A: 5}
+    daemon = FakeDaemon([{THREAD_A: thread(THREAD_A, "/work", 5, status=status)}])
+    assert _candidates(daemon, reg, True) == []
 
 
 def test_a_thread_seen_running_a_turn_is_never_a_fallback(tmp_path: Path) -> None:
