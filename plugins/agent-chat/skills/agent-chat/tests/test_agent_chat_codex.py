@@ -166,7 +166,7 @@ def test_the_codex_manifest_points_at_the_codex_skill_and_an_empty_hooks_file() 
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     assert codex["name"] == claude["name"] == "agent-chat"
-    assert codex["version"] == claude["version"] == "0.2.0"
+    assert codex["version"] == claude["version"] == "0.2.1"
     assert codex["skills"] == "./codex-skills/"
     assert codex["hooks"] == "./codex/hooks.json"
     assert json.loads((PLUGIN / "codex" / "hooks.json").read_text()) == {"hooks": {}}
@@ -275,15 +275,17 @@ def test_send_posts_a_prepared_file_as_the_codex_account_and_removes_it(
         "--message-file",
         "m1.txt",
         "--to",
-        "claude-b",
+        "codex-a",
+        "--to",
+        "@claude-b",
         stdin="stdin is not read",
     )
     assert (code, err) == (0, "")
     assert out.startswith(f"sent to {f.ALIAS} as {f.CODEX_A}: ")
     [msg] = host.hs.messages(f.ROOM)
     assert msg["sender"] == f.CODEX_A
-    assert msg["content"]["body"] == f"{f.CLAUDE_B}: " + text.rstrip("\n")
-    assert msg["content"]["m.mentions"] == {"user_ids": [f.CLAUDE_B]}
+    assert msg["content"]["body"] == "@codex-a @claude-b: " + text.rstrip("\n")
+    assert msg["content"]["m.mentions"] == {"user_ids": [f.CODEX_A, f.CLAUDE_B]}
     assert not (box / "m1.txt").exists()
     assert src.read() == "stdin is not read"
 
