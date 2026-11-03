@@ -1,6 +1,6 @@
 {
   "name": "zmx-peer-chat",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Box-local peer chat with a Claude Code session in another zmx session on the same Linux box: send to Claude through its mailbox, receive Claude's messages as queued turns.",
   "author": {
     "name": "Pavel Derendyaev",

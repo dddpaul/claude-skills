@@ -15,26 +15,33 @@ daemon means no thread is loaded: ``prepare`` keeps the empty snapshot and
 notes it, and ``bind`` keeps trying to open the daemon until its deadline.
 
 The TUI either starts a thread or (the launcher runs ``codex resume --last``
-in a directory with history) resumes one:
+in a directory with history) resumes one. The times only order the threads of
+the directory that it may show, tried in this order:
 
-- a started thread is a loaded id that was not there before, created after
-  the snapshot;
-- resuming a thread moves its ``updatedAt`` to the time of the resume, past the
-  snapshot, whether the daemon still had it loaded or loads it again.
+- started: not loaded at the snapshot, created at or after it;
+- newly loaded: not loaded at the snapshot, whatever its times. With codex-cli
+  0.166.0 a resume of a thread the daemon had unloaded leaves its
+  ``updatedAt`` at its last turn, so only being loaded again tells it apart;
+- resumed: loaded at the snapshot, ``updatedAt`` moved past it;
+- the other idle threads loaded at the snapshot, the most recently updated
+  first (the one ``--last`` picks), in case a resume of a thread that is still
+  loaded moves no time either. They join only after ``FALLBACK_SECONDS``
+  without a candidate shown, so a starting TUI's own thread, which loads a few
+  seconds after the session appears, is tried before any older thread is
+  renamed.
 
-Being newly loaded is not enough: a starting TUI can load an older thread of
-the directory that it does not show, and that thread keeps its old times.
-An exiting TUI moves neither time. A turn that ends moves ``updatedAt`` too, so
-a thread seen running a turn at the snapshot or while the bind polls is never
-taken; the polls are 0.3 seconds apart, shorter than any turn.
+A turn that ends moves ``updatedAt`` too, so a thread seen running a turn at
+the snapshot or while the bind polls is never tried; the polls are 0.3 seconds
+apart, shorter than any turn.
 
-The times alone can still mislead: a TUI killed before its first turn leaves a
-thread loaded that the daemon has not persisted, and ``thread/read`` gives its
-``createdAt`` and ``updatedAt`` as the time of the read, so it looks resumed on
-every poll. So each candidate is only named; it is bound once the session's
-footer shows the name. A candidate the footer does not show within
-``CONFIRM_SECONDS`` is renamed away from it, so no two threads ever carry the
-name, and the next one is tried; candidates take turns until the deadline.
+The times never prove anything: a starting TUI can load an older thread of the
+directory that it does not show, and a TUI killed before its first turn leaves
+a thread loaded that the daemon has not persisted, whose ``createdAt`` and
+``updatedAt`` read as the time of the read. So each candidate is only named;
+it is bound once the session's footer shows the name. A candidate the footer
+does not show within ``CONFIRM_SECONDS`` is renamed away from it, so no two
+threads ever carry the name, and the next one is tried; candidates take turns
+until the deadline.
 """
 
 from __future__ import annotations
@@ -72,6 +79,9 @@ OpenDaemon = Callable[[], Daemon]
 BIND_SECONDS = 60.0
 # How long a named candidate may take to show up in the session's footer.
 CONFIRM_SECONDS = 5.0
+# How long the bind looks only at started, newly loaded and resumed threads
+# before it also tries the idle threads that were loaded at the snapshot.
+FALLBACK_SECONDS = 20.0
 
 
 @dataclass
@@ -178,12 +188,15 @@ def _snapshot(d: Daemon, reg: Registration) -> None:
             reg.busy.add(t)
 
 
-def _candidates(d: Daemon, reg: Registration) -> list[str]:
-    """Return the threads in the directory that the new TUI may have opened.
+def _candidates(d: Daemon, reg: Registration, fallback: bool) -> list[str]:
+    """Return the threads in the directory that the new TUI may show.
 
-    Started threads come before resumed ones.
+    In the order they are tried: started, newly loaded, resumed, then, with
+    ``fallback``, the other idle threads that were loaded at the snapshot, the
+    most recently updated first.
     """
-    started, resumed = [], []
+    started, loaded, resumed = [], [], []
+    idle: list[tuple[int, str]] = []
     for t in d.loaded_threads():
         if t in reg.before and reg.before[t] is None:
             continue  # loaded before, in another directory
@@ -195,11 +208,13 @@ def _candidates(d: Daemon, reg: Registration) -> list[str]:
         if t in reg.busy:
             continue  # ran a turn in the window: no TUI has just opened it
         old = reg.before.get(t)
-        if t not in reg.before and info.created_at >= reg.since:
-            started.append(t)
-        elif info.updated_at >= reg.since and (old is None or info.updated_at > old):
+        if old is None:
+            (started if info.created_at >= reg.since else loaded).append(t)
+        elif info.updated_at >= reg.since and info.updated_at > old:
             resumed.append(t)
-    return started + resumed
+        elif fallback and info.status == "idle":
+            idle.append((info.updated_at, t))
+    return started + loaded + resumed + [t for _, t in sorted(idle, reverse=True)]
 
 
 def _shown(
@@ -248,9 +263,10 @@ def _find_thread(
 ) -> str:
     tried: list[str] = []  # least recently tried first
     name = thread_name(reg.inc)
+    fallback_at = now() + FALLBACK_SECONDS
     with _open_until(open_daemon, deadline, sleep, now) as d:
         while True:
-            match = _candidates(d, reg)
+            match = _candidates(d, reg, now() >= fallback_at)
             if match:
                 t = min(match, key=lambda m: tried.index(m) if m in tried else -1)
                 previous = d.read_thread(t).name
