@@ -1,10 +1,10 @@
 ---
 id: TASK-62
 title: Bind a Codex session in zmx-peer-chat register when no Codex daemon runs yet
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-03T13:52:00Z'
-updated_date: '2026-11-03T13:52:00Z'
+updated_date: '2026-11-03T14:02:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -49,12 +49,20 @@ Out of scope:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A test where the daemon is unreachable at prepare() and for the first bind polls, then comes up with the new TUI's thread named in the fake footer, ends with zpc.thread naming that thread and a register.log line saying no Codex daemon ran at registration
-- [ ] #2 A test where the daemon never becomes reachable before the bind deadline ends with no labels on the session and a register.log line saying no Codex daemon was reachable
-- [ ] #3 A test where the daemon is unreachable at prepare() and then comes up with a turn-less leftover thread (createdAt and updatedAt reading as now) loaded next to the new TUI's thread ends with zpc.thread naming the new TUI's thread
-- [ ] #4 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
-- [ ] #5 A test where open_daemon raises DaemonError in prepare() for role codex gets a Registration with an empty snapshot, and prepare() raises nothing
-- [ ] #6 A test where the daemon opens in prepare() but thread/loaded/list raises DaemonError still gets a ZpcError with exit code 3
-- [ ] #7 plugins/zmx-peer-chat/README.md or design/zmx-peer-chat.md describes the no-daemon case
-- [ ] #8 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
+- [x] #1 A test where the daemon is unreachable at prepare() and for the first bind polls, then comes up with the new TUI's thread named in the fake footer, ends with zpc.thread naming that thread and a register.log line saying no Codex daemon ran at registration
+- [x] #2 A test where the daemon never becomes reachable before the bind deadline ends with no labels on the session and a register.log line saying no Codex daemon was reachable
+- [x] #3 A test where the daemon is unreachable at prepare() and then comes up with a turn-less leftover thread (createdAt and updatedAt reading as now) loaded next to the new TUI's thread ends with zpc.thread naming the new TUI's thread
+- [x] #4 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
+- [x] #5 A test where open_daemon raises DaemonError in prepare() for role codex gets a Registration with an empty snapshot, and prepare() raises nothing
+- [x] #6 A test where the daemon opens in prepare() but thread/loaded/list raises DaemonError still gets a ZpcError with exit code 3
+- [x] #7 plugins/zmx-peer-chat/README.md or design/zmx-peer-chat.md describes the no-daemon case
+- [x] #8 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: Registration gets a snapshot flag; prepare() catches DaemonError only from the open_daemon() call and keeps an empty snapshot. _find_thread opens the daemon through a retry helper (0.4 s apart until the bind deadline, then exit 5 naming the last error). bind_in_background appends '(no Codex daemon at registration)' to the labelled line. Fakes: an opener that fails N times. README bind paragraph + patch bump to 0.1.3.
+
+Commit: `4347986` - task-62: register a Codex session with an empty snapshot when no Codex daemon runs yet
+<!-- SECTION:NOTES:END -->
