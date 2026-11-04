@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import secrets
 import signal
 import sys
@@ -45,6 +46,8 @@ SEND_SECONDS = 60.0
 # socket slack of that sync plus a few seconds.
 LOCK_GRACE = SOCKET_SLACK + 5.0
 LISTEN_ENV = "AGENT_CHAT_LISTEN"
+# An event ID as an agent passes it: one optional leading "$", then this.
+EVENT_ID = re.compile(r"\$?([A-Za-z0-9_-]+)")
 
 
 def log(state: Path, line: str) -> None:
@@ -94,6 +97,88 @@ def message_content(body: str, to: list[str], server_name: str) -> dict[str, Any
     return {"msgtype": "m.text", "body": prefix + body, "m.mentions": {"user_ids": to}}
 
 
+def thread_id(value: str) -> str:
+    """Return ``value`` as a full event ID; refuse a malformed one with exit 2."""
+    m = EVENT_ID.fullmatch(value)
+    if m is None:
+        raise AgentChatError(
+            f"--thread {value!r} is not an event ID (letters, digits, _ and -, "
+            "with or without one leading $); nothing was sent",
+            2,
+        )
+    return "$" + m.group(1)
+
+
+def bare(event_id: str) -> str:
+    """Return ``event_id`` without its leading ``$``, the way agents see IDs."""
+    return event_id.removeprefix("$")
+
+
+def _relation(event: dict[str, Any] | None, event_id: str) -> dict[str, Any]:
+    """Return the ``m.relates_to`` of a message that may be in a thread.
+
+    Refuses an unknown event, a non-message, a redacted or empty one, and any
+    relation but none, a rich reply (``m.in_reply_to`` only) or ``m.thread``.
+    """
+    what = f"--thread {bare(event_id)}"
+    if event is None:
+        raise AgentChatError(f"{what}: no such event in the room; nothing was sent")
+    content = event.get("content")
+    unsigned = event.get("unsigned")
+    redacted = isinstance(unsigned, dict) and "redacted_because" in unsigned
+    if event.get("type") != "m.room.message":
+        raise AgentChatError(f"{what}: not a message; nothing was sent")
+    if redacted or not isinstance(content, dict) or not content:
+        raise AgentChatError(f"{what}: redacted or empty; nothing was sent")
+    rel = content.get("m.relates_to")
+    if rel is None:
+        return {}
+    kind = rel.get("rel_type") if isinstance(rel, dict) else "malformed"
+    if kind is None or kind == "m.thread":
+        return rel
+    raise AgentChatError(f"{what}: a relation ({kind}); nothing was sent")
+
+
+def thread_root(client: Client, room: str, event_id: str, deadline: float) -> str:
+    """Return the root of the thread ``event_id`` starts or belongs to.
+
+    The homeserver does not check thread roots, so this does: a thread child
+    leads to its root, which must itself be a message outside any thread.
+    """
+    rel = _relation(client.event(room, event_id, deadline), event_id)
+    if rel.get("rel_type") != "m.thread":
+        return event_id
+    root = rel.get("event_id")
+    if not isinstance(root, str) or EVENT_ID.fullmatch(root) is None:
+        raise AgentChatError(
+            f"--thread {bare(event_id)}: its thread root is malformed; nothing was sent"
+        )
+    if _relation(client.event(room, root, deadline), root).get("rel_type"):
+        raise AgentChatError(
+            f"--thread {bare(event_id)}: its root {bare(root)} is not a top-level "
+            "message; nothing was sent"
+        )
+    return root
+
+
+def thread_relation(
+    client: Client, room: str, event_id: str, deadline: float
+) -> dict[str, Any]:
+    """Return the ``m.relates_to`` that posts into ``event_id``'s thread.
+
+    ``m.in_reply_to`` names the thread's latest message, or the root while the
+    thread has no replies: the fallback for clients without threads.
+    """
+    root = thread_root(client, room, event_id, deadline)
+    latest = client.thread_latest(room, root, deadline) or root
+    return {
+        "rel_type": "m.thread",
+        "event_id": root,
+        "is_falling_back": True,
+        "m.in_reply_to": {"event_id": latest},
+    }
+
+
 def cmd_send(a: argparse.Namespace) -> int:
     """Post stdin, or a prepared message file, into the project's room.
 
@@ -108,6 +193,7 @@ def cmd_send(a: argparse.Namespace) -> int:
         empty = f"the prepared message {a.message_file} is empty; nothing was sent"
     if not body.strip():
         raise AgentChatError(empty, 2)
+    thread = None if a.thread is None else thread_id(a.thread)
     cfg, account, client = _setup(a.as_)
     to = list(dict.fromkeys(cfg.user_id(t) for t in a.to or []))
     content = message_content(body.rstrip("\n"), to, cfg.server_name)
@@ -122,6 +208,9 @@ def cmd_send(a: argparse.Namespace) -> int:
                 f"this project has no room {alias} (not onboarded); nothing was sent"
             )
         try:
+            if thread is not None:
+                rel = thread_relation(client, room, thread, deadline)
+                content["m.relates_to"] = rel
             event = client.send_message(room, txn, content, deadline)
             break
         except AuthError:
@@ -132,7 +221,8 @@ def cmd_send(a: argparse.Namespace) -> int:
             rooms.forget(alias)  # the cached room was rejected: resolve once more
     if prepared is not None:
         prepared.unlink(missing_ok=True)
-    print(f"sent to {alias} as {account}: {event}")
+    where = "" if thread is None else f" in thread {bare(rel['event_id'])}"
+    print(f"sent to {alias} as {account}{where}: {bare(event)}")
     return 0
 
 
@@ -269,6 +359,11 @@ def _parser() -> argparse.ArgumentParser:
         "--message-file",
         metavar="NAME",
         help="post the file prepare-message NAME created instead of stdin",
+    )
+    s.add_argument(
+        "--thread",
+        metavar="ID",
+        help="post into the thread of this event (its ID with or without the $)",
     )
     s.set_defaults(func=cmd_send)
 
