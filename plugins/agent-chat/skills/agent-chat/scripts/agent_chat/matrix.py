@@ -206,8 +206,11 @@ class Client:
                 left = deadline - self._now()
                 if watch.fired or left <= 0:
                     break
-                sock = socket.socket(family, kind, proto)
+                sock = None
                 try:
+                    # Inside the try: an address family this host cannot
+                    # create falls through to the next address.
+                    sock = socket.socket(family, kind, proto)
                     sock.settimeout(left)
                     if source_address:
                         sock.bind(source_address)
@@ -215,7 +218,8 @@ class Client:
                     return sock
                 except OSError as exc:
                     failure = exc
-                    sock.close()
+                    if sock is not None:
+                        sock.close()
             raise failure
 
         return create
