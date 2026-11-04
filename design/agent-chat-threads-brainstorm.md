@@ -197,9 +197,10 @@ then the mail.
 
 ## Open questions
 
-- **Rich reply as a root.** continuwuity 26.9.1 is expected to accept a thread rooted at a rich reply; task 1's live
-  check confirms it. If it refuses, a follow-up decides the fallback. Until then, send fails loudly with the server's
-  answer.
+- **Rich reply as a root.** Answered by the live check after both tasks merged: continuwuity 26.9.1 accepts a thread
+  rooted at a rich reply, and Element shows it as a thread on that reply. The check also found that the server's
+  relations lookup for the rich reply's own target lists the rich reply's thread replies too, after the target's own;
+  a follow-up task keeps only the events whose thread root is the one asked for.
 
 ## Hand-off
 
