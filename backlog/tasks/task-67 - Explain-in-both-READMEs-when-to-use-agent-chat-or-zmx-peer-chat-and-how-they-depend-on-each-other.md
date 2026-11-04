@@ -3,10 +3,10 @@ id: TASK-67
 title: >-
   Explain in both READMEs when to use agent-chat or zmx-peer-chat and how they
   depend on each other
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-04T06:43:00Z'
-updated_date: '2026-11-04T06:44:00Z'
+updated_date: '2026-11-04T07:04:00Z'
 labels:
   - agent-chat
   - zmx-peer-chat
@@ -58,11 +58,23 @@ Out of scope:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 plugins/agent-chat/README.md and plugins/zmx-peer-chat/README.md each have a section headed 'agent-chat or zmx-peer-chat?' with the same comparison table
-- [ ] #2 Both sections state that watch-codex in all-rooms mode reads zmx-peer-chat's zpc.* labels, that --thread mode does not, and that zmx-peer-chat does not depend on agent-chat
-- [ ] #3 Both sections state that the footer rule is copied into agent-chat and must change in both plugins together
-- [ ] #4 The description in both zmx-peer-chat SKILL.md files (Claude and Codex) names agent-chat for agents on other hosts and the user's project room
-- [ ] #5 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
-- [ ] #6 The version in both agent-chat plugin.json files and both zmx-peer-chat plugin.json files is one patch above the version current at merge
-- [ ] #7 The test that pins agent-chat's manifest version (test_agent_chat_codex.py) matches the bumped version
+- [x] #1 plugins/agent-chat/README.md and plugins/zmx-peer-chat/README.md each have a section headed 'agent-chat or zmx-peer-chat?' with the same comparison table
+- [x] #2 Both sections state that watch-codex in all-rooms mode reads zmx-peer-chat's zpc.* labels, that --thread mode does not, and that zmx-peer-chat does not depend on agent-chat
+- [x] #3 Both sections state that the footer rule is copied into agent-chat and must change in both plugins together
+- [x] #4 The description in both zmx-peer-chat SKILL.md files (Claude and Codex) names agent-chat for agents on other hosts and the user's project room
+- [x] #5 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
+- [x] #6 The version in both agent-chat plugin.json files and both zmx-peer-chat plugin.json files is one patch above the version current at merge
+- [x] #7 The test that pins agent-chat's manifest version (test_agent_chat_codex.py) matches the bumped version
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: insert one identical 'agent-chat or zmx-peer-chat?' section into both READMEs after the intro, add the agent-chat fence to both zmx-peer-chat SKILL.md descriptions, patch-bump agent-chat 0.2.2->0.2.3 and zmx-peer-chat 0.1.8->0.1.9 (TASK-66 had already moved it past the body's 0.1.7), update the test pin, link the section from the root README entries. Codex API cell also names 'daemon check', which talks to the daemon too (zpc/cli.py cmd_daemon).
+
+Commit: `6f7fb97` - task-67: compare agent-chat and zmx-peer-chat in both READMEs and fence zmx-peer-chat's skills off agent-chat
+
+Commit: `a259181` - task-67: limit the shared footer rule to registered sessions and name every daemon use
+
+Done. task-reviewer: first pass CHANGES REQUESTED (footer rule overstated for --thread mode; Codex API cell missed daemon skills; hard-wrapped paragraphs), all fixed in a259181; re-review APPROVED. ruff clean; pytest 575 passed, 1 known failure (test_decision_tree_helper). Root README entries link to the new section.
+<!-- SECTION:NOTES:END -->
