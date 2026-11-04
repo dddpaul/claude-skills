@@ -13,6 +13,7 @@ import http.client
 import json
 import os
 import socket
+import ssl
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -112,6 +113,13 @@ class _Watchdog:
         self._timer.join()
 
 
+def tls_context() -> ssl.SSLContext:
+    """Return the TLS context of a bounded request, as http.client makes it."""
+    ctx = ssl.create_default_context()
+    ctx.set_alpn_protocols(["http/1.1"])
+    return ctx
+
+
 def proxy_url(env: Mapping[str, str]) -> str | None:
     """Return the proxy from ``HTTPS_PROXY`` or ``https_proxy``, if any."""
     return env.get("HTTPS_PROXY") or env.get("https_proxy") or None
@@ -169,6 +177,28 @@ class Client:
         conn.set_tunnel(host, port, headers)
         return conn
 
+    def _connect(
+        self, conn: http.client.HTTPConnection, deadline: float, watch: _Watchdog
+    ) -> None:
+        """Connect a bounded request, the proxy tunnel and TLS included.
+
+        The watchdog cuts the TCP socket while it connects and tunnels. The
+        TLS handshake runs on a socket it cannot reach yet, so its one socket
+        timeout, which bounds the whole handshake, is the time left.
+        """
+        http.client.HTTPConnection.connect(conn)
+        if self._url.scheme == "https":
+            left = deadline - self._now()
+            if watch.fired or left <= 0:
+                raise TimeoutError("no time left for the TLS handshake")
+            conn.sock.settimeout(left)
+            conn.sock = tls_context().wrap_socket(
+                conn.sock, server_hostname=self._url.hostname
+            )
+        watch.hold()
+        if watch.fired:
+            raise TimeoutError("connected after the deadline")
+
     def _once(
         self,
         method: str,
@@ -182,9 +212,8 @@ class Client:
         # gets a watchdog that ends it at ``deadline``.
         watch = None if deadline is None else _Watchdog(conn, timeout)
         try:
-            if watch is not None:
-                conn.connect()
-                watch.hold()
+            if watch is not None and deadline is not None:
+                self._connect(conn, deadline, watch)
             headers = {"Authorization": f"Bearer {self._token}"}
             if body is not None:
                 headers["Content-Type"] = "application/json"
