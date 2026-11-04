@@ -10,7 +10,7 @@ import pytest
 from agent_chat.addressing import Wake, addressees, leading_mentions, wakes
 from agent_chat.cli import message_content
 from agent_chat.config import Config
-from agent_chat.note import CODEX_REPLY, Message, render
+from agent_chat.note import CODEX_REPLY, Message, notes, quote, render
 from agent_chat.threads import Thread, observe
 
 CFG = Config(
@@ -326,3 +326,106 @@ def test_the_codex_note_carries_the_codex_reply_line_with_thread() -> None:
         "apply_patch, then run `agent-chat send --as codex --message-file "
         "<fresh-name> --thread <id> --to <sender>`."
     ) in note
+
+
+def test_a_thread_this_account_started_is_labelled_as_its_own() -> None:
+    root = event(f.CODEX_A, "my plan") | {"event_id": "$root"}
+    t = a_thread(root, reply(1, f.HUMAN, "go on"))
+    note = render([Message(f.HUMAN, "go on", "$r1", t)], CFG, f.CODEX_A, f.ALIAS)
+    assert (
+        f"Thread root, started by {f.CODEX_A} (this account); the root is "
+        "history, not a new request:\n> my plan"
+    ) in note
+    assert "peer mail from another agent" not in note
+    # This host's other account is still a peer.
+    other = render([Message(f.HUMAN, "go on", "$r1", t)], CFG, f.CLAUDE_A, f.ALIAS)
+    assert f"started by {f.CODEX_A}, peer mail from another agent" in other
+
+
+# Codex notes that fit one `codex queue` argument
+
+
+def size(text: str) -> int:
+    return len(text.encode())
+
+
+def own_thread(n: int, body: str) -> Message:
+    """Mail ``$m<n>`` in thread ``$t<n>``, after 3 long earlier replies."""
+    root = event(f.HUMAN, f"root {n} " + "к" * 400) | {"event_id": f"$t{n}"}
+    earlier = [
+        in_thread(f.CLAUDE_B, "р" * 400, f"$t{n}") | {"event_id": f"$e{n}{i}"}
+        for i in range(3)
+    ]
+    mail = in_thread(f.HUMAN, body, f"$t{n}") | {"event_id": f"$m{n}"}
+    t = observe(f"$t{n}", root, list(reversed([*earlier, mail])), CFG)
+    return Message(f.HUMAN, body, f"$m{n}", t)
+
+
+def codex_notes(mail: list[Message], limit: int) -> list[str]:
+    return notes(mail, CFG, f.CODEX_A, f.ALIAS, CODEX_REPLY, limit)
+
+
+def test_a_note_that_fits_is_returned_as_it_renders() -> None:
+    mail = [own_thread(n, f"short {n}") for n in range(3)]
+    full = render(mail, CFG, f.CODEX_A, f.ALIAS, CODEX_REPLY)
+    assert codex_notes(mail, size(full)) == [full]
+
+
+def test_a_note_too_big_with_context_drops_only_the_earlier_context() -> None:
+    far = Message(f.HUMAN, "far", "$r99", a_thread(ROOT, reply(1, f.HUMAN)))
+    mail = [own_thread(n, f"short {n}") for n in range(3)] + [far]
+    full = render(mail, CFG, f.CODEX_A, f.ALIAS, CODEX_REPLY)
+    bare = render(mail, CFG, f.CODEX_A, f.ALIAS, CODEX_REPLY, context=False)
+    assert size(bare) < size(full)
+    [note] = codex_notes(mail, size(full) - 1)
+    assert note == bare
+    assert "Earlier" not in note and "left out" not in note
+    for root in ("t0", "t1", "t2", "root"):
+        assert f"Thread {root}, started by {f.HUMAN}" in note
+    assert all(f"> root {n} {'к' * 293}…" in note for n in range(3))
+
+
+def test_a_note_too_big_without_context_splits_into_whole_messages_in_order() -> None:
+    bodies = [f"{n} " + "ж" * 300 for n in range(8)]
+    mail = [own_thread(n, b) for n, b in enumerate(bodies[:6])]
+    mail += [Message(f.HUMAN, b, f"$top{n}") for n, b in enumerate(bodies[6:])]
+    limit = 4000
+    bare = render(mail, CFG, f.CODEX_A, f.ALIAS, CODEX_REPLY, context=False)
+    assert size(bare) > limit
+    parts = codex_notes(mail, limit)
+    assert len(parts) > 1
+    head = f"agent-chat: messages for {f.CODEX_A} in {f.ALIAS}. "
+    seen = []
+    for part in parts:
+        assert part.startswith(head) and part.count(head) == 1
+        assert size(part) <= limit
+        assert "Earlier" not in part
+        seen += [b for b in bodies if quote(b) in part]
+    assert seen == bodies
+
+
+@pytest.mark.parametrize("limit", [3000, 3001, 3002, 3003])
+def test_a_message_too_big_alone_is_cut_on_a_character_boundary(limit: int) -> None:
+    body = "\n".join(f"line {n} " + "🙂" * 60 for n in range(40))
+    raw = body.encode()
+    [note] = codex_notes([Message(f.HUMAN, body, "$big1")], limit)
+    assert size(note) <= limit
+    text, last = note.rsplit("\n", 1)
+    left = int(last.split()[3])
+    assert last == (
+        f"[cut by agent-chat: {left} more bytes of this message were left out; "
+        "it is event big1. Ask in its thread or tell the user.]"
+    )
+    kept = raw[: len(raw) - left].decode()  # a cut inside a character fails here
+    assert 0 < left < len(raw)
+    assert text.endswith(f"From {f.HUMAN}, the user speaking:\n{quote(kept)}")
+
+
+def test_a_cut_message_keeps_its_neighbours_whole() -> None:
+    small = [Message(f.HUMAN, f"small {n}", f"$s{n}") for n in range(2)]
+    big = Message(f.HUMAN, "ю" * 3000, "$big2")
+    parts = codex_notes([small[0], big, small[1]], 2500)
+    assert len(parts) == 3
+    assert "> small 0" in parts[0] and "> small 1" in parts[2]
+    assert "[cut by agent-chat: " in parts[1] and "event big2." in parts[1]
+    assert all(size(p) <= 2500 for p in parts)

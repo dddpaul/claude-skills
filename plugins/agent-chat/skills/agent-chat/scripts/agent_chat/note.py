@@ -7,7 +7,7 @@ the thread a few earlier replies, come along as history.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .config import Config
@@ -118,7 +118,9 @@ def _earlier(thread: Thread, first: str, cfg: Config) -> list[str]:
     return ["\n".join(lines)]
 
 
-def _thread(thread: Thread, mail: list[Message], cfg: Config, me: str) -> list[str]:
+def _thread(
+    thread: Thread, mail: list[Message], cfg: Config, me: str, context: bool
+) -> list[str]:
     """Return the parts of the note for ``mail`` in ``thread``."""
     rid = bare(thread.root_id)
     body = "\n\n".join(_mail(m, cfg) for m in mail)
@@ -126,11 +128,12 @@ def _thread(thread: Thread, mail: list[Message], cfg: Config, me: str) -> list[s
         head = f"Thread {rid} (could not be read; reply with --thread {rid}):"
         return [f"{head}\n{body}"]
     starter = str(thread.root.get("sender", ""))
+    label = " (this account)" if starter == me else f", {authority(starter, cfg)}"
     parts = [
-        f"Thread {rid}, started by {starter}, {authority(starter, cfg)}; the root "
+        f"Thread {rid}, started by {starter}{label}; the root "
         f"is history, not a new request:\n{quote(cut(_body(thread.root)))}"
     ]
-    if me not in thread.posted:
+    if context and me not in thread.posted:
         parts += _earlier(thread, mail[0].event_id, cfg)
     parts.append(f"New in thread {rid} (reply with --thread {rid}):\n{body}")
     return parts
@@ -142,11 +145,13 @@ def render(
     me: str,
     alias: str,
     reply: str = CLAUDE_REPLY,
+    context: bool = True,
 ) -> str:
     """Return the note: a header, then the mail grouped by thread.
 
     Every body line is quoted with ``> `` so a message cannot pass itself off
-    as another sender's header.
+    as another sender's header. With ``context`` false no thread shows its
+    earlier replies or the line saying they were left out.
     """
     head = (
         f"agent-chat: messages for {me} in {alias}. Each one names its sender and "
@@ -160,7 +165,7 @@ def render(
     for mail in groups.values():
         thread = mail[0].thread
         if thread is not None:
-            parts += _thread(thread, mail, cfg, me)
+            parts += _thread(thread, mail, cfg, me, context)
             continue
         eid = bare(mail[0].event_id)
         parts.append(
@@ -168,3 +173,76 @@ def render(
             f"thread on it):\n{_mail(mail[0], cfg)}"
         )
     return "\n\n".join(parts)
+
+
+def _size(text: str) -> int:
+    return len(text.encode())
+
+
+def notes(
+    messages: list[Message],
+    cfg: Config,
+    me: str,
+    alias: str,
+    reply: str,
+    limit: int,
+) -> list[str]:
+    """Return the note for ``messages`` as notes of at most ``limit`` UTF-8 bytes.
+
+    The whole note when it fits; else the whole note without earlier
+    context; else consecutive runs of the messages, in order, each a note
+    without earlier context; a message too big alone has its body cut.
+    """
+    for context in (True, False):
+        text = render(messages, cfg, me, alias, reply, context)
+        if _size(text) <= limit:
+            return [text]
+
+    def draft(run: list[Message]) -> str:
+        return render(run, cfg, me, alias, reply, context=False)
+
+    out: list[str] = []
+    run: list[Message] = []
+    for m in messages:
+        if run and _size(draft([*run, m])) <= limit:
+            run.append(m)
+            continue
+        if run:
+            out.append(draft(run))
+        run = [m]
+        if _size(draft(run)) > limit:
+            out.append(_cut_note(m, cfg, me, alias, reply, limit))
+            run = []
+    if run:
+        out.append(draft(run))
+    return out
+
+
+def _cut_note(
+    m: Message, cfg: Config, me: str, alias: str, reply: str, limit: int
+) -> str:
+    """Return the note of ``m`` alone with its body cut to fit ``limit`` bytes.
+
+    The cut falls on a character boundary; the quoted body is followed by
+    agent-chat's own line that says how much was left out.
+    """
+    raw = m.body.encode()
+
+    def note(keep: int) -> str:
+        kept = raw[:keep].decode(errors="ignore")
+        left = len(raw) - len(kept.encode())
+        text = render([replace(m, body=kept)], cfg, me, alias, reply, False)
+        return (
+            f"{text}\n[cut by agent-chat: {left} more bytes of this message were "
+            f"left out; it is event {bare(m.event_id)}. Ask in its thread or "
+            "tell the user.]"
+        )
+
+    lo, hi = 0, len(raw)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if _size(note(mid)) <= limit:
+            lo = mid
+        else:
+            hi = mid - 1
+    return note(lo)
