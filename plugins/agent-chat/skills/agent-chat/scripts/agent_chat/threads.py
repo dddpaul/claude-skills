@@ -8,8 +8,6 @@ it is not asked again; once the budget is spent every lookup fails at once.
 
 from __future__ import annotations
 
-import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -81,20 +79,17 @@ class Budget:
     Args:
         client: The listening account's homeserver client.
         cfg: The host's configuration.
-        seconds: The time every lookup of the batch shares.
-        now: A monotonic clock, overridable for tests.
+        seconds: The time every lookup of the batch shares; it runs on the
+            client's clock.
     """
 
     def __init__(
-        self,
-        client: Client,
-        cfg: Config,
-        seconds: float | None = None,
-        now: Callable[[], float] = time.monotonic,
+        self, client: Client, cfg: Config, seconds: float | None = None
     ) -> None:
         self.client = client
         self.cfg = cfg
-        self.deadline = now() + (BUDGET_SECONDS if seconds is None else seconds)
+        spend = BUDGET_SECONDS if seconds is None else seconds
+        self.deadline = client.now() + spend
         self._seen: dict[tuple[str, str], Thread] = {}
 
     def thread(self, room: str, root: str) -> Thread:

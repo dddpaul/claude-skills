@@ -86,6 +86,10 @@ class Client:
         self._now = now
         self.keep_going: Callable[[], bool] = lambda: True
 
+    def now(self) -> float:
+        """Return the client's monotonic clock, the one its deadlines use."""
+        return self._now()
+
     def _connection(self, timeout: float) -> http.client.HTTPConnection:
         https = self._url.scheme == "https"
         host = self._url.hostname or ""
