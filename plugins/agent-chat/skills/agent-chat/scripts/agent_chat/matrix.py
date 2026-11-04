@@ -28,6 +28,8 @@ BACKOFF_FIRST = 1.0
 BACKOFF_MAX = 30.0
 # A socket waits this much longer than the request's own long-poll timeout.
 SOCKET_SLACK = 10.0
+# How many of a thread's newest events a lookup reads.
+THREAD_WINDOW = 50
 
 
 class MatrixError(AgentChatError):
@@ -84,6 +86,10 @@ class Client:
         self._now = now
         self.keep_going: Callable[[], bool] = lambda: True
 
+    def now(self) -> float:
+        """Return the client's monotonic clock, the one its deadlines use."""
+        return self._now()
+
     def _connection(self, timeout: float) -> http.client.HTTPConnection:
         https = self._url.scheme == "https"
         host = self._url.hostname or ""
@@ -127,6 +133,7 @@ class Client:
         query: dict[str, str] | None = None,
         deadline: float | None = None,
         timeout: float = 0.0,
+        tries: int | None = None,
     ) -> dict[str, Any]:
         """Send one request, retrying network failures until ``deadline``.
 
@@ -137,6 +144,8 @@ class Client:
             query: Query parameters, if any.
             deadline: A ``now()`` value after which no retry starts.
             timeout: The request's own long-poll time in seconds.
+            tries: When set, the bounded mode: at most this many tries, and
+                no socket waits past ``deadline``.
 
         Raises:
             AuthError: On a 401.
@@ -147,9 +156,17 @@ class Client:
             path = f"{path}?{urlencode(query)}"
         data = None if body is None else json.dumps(body).encode()
         pause = BACKOFF_FIRST
+        tried = 0
         while True:
+            wait = timeout + SOCKET_SLACK
+            if tries is not None:
+                left = (deadline if deadline is not None else 0.0) - self._now()
+                if left <= 0:
+                    raise NetworkError("homeserver unreachable (no time left)")
+                wait = min(wait, left)
+            tried += 1
             try:
-                status, answer = self._once(method, path, data, timeout + SOCKET_SLACK)
+                status, answer = self._once(method, path, data, wait)
             except (OSError, http.client.HTTPException) as exc:
                 status, answer, why = 0, {}, f"{type(exc).__name__}: {exc}"
             else:
@@ -167,6 +184,8 @@ class Client:
             if status == 429 and isinstance(answer.get("retry_after_ms"), int):
                 pause = min(max(pause, answer["retry_after_ms"] / 1000), BACKOFF_MAX)
             late = deadline is None or self._now() + pause > deadline
+            if tries is not None and tried >= tries:
+                late = True
             if late or not self.keep_going():
                 raise NetworkError(f"homeserver unreachable ({why})")
             if not self._pause(pause):
@@ -296,3 +315,31 @@ class Client:
             if isinstance(latest, str) and latest:
                 return latest
         return None
+
+    def thread(
+        self, room_id: str, root: str, deadline: float
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Return ``root`` and the newest thread events under it, newest first.
+
+        Both requests run in the bounded mode: two tries each, and nothing
+        waits past ``deadline``.
+
+        Raises:
+            AuthError: On a 401.
+            AgentChatError: When either request fails.
+        """
+        room, event = quote(room_id, safe=""), quote(root, safe="")
+        got = self.request(
+            "GET", f"{API}/rooms/{room}/event/{event}", deadline=deadline, tries=2
+        )
+        children = self.request(
+            "GET",
+            f"{API_V1}/rooms/{room}/relations/{event}/m.thread",
+            query={"dir": "b", "limit": str(THREAD_WINDOW)},
+            deadline=deadline,
+            tries=2,
+        )
+        chunk = children.get("chunk")
+        if not isinstance(chunk, list):
+            return got, []
+        return got, [e for e in chunk if isinstance(e, dict)]

@@ -15,11 +15,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .addressing import wakes
+from .addressing import Wake, thread_root, wakes
 from .config import Config
 from .matrix import Client, MatrixError
 from .note import Message
 from .room import Rooms, alias_slug, read_json, write_json
+from .threads import Budget
 
 # Each /sync long-polls for at most this long, so a gone owner is noticed soon.
 SYNC_SECONDS = 30.0
@@ -135,13 +136,41 @@ class SyncLoop:
         """One ``/sync``; a subclass may wrap it."""
         return self.client.sync(since, filt, seconds, deadline)
 
-    def mail(self, events: list[Any]) -> list[Message]:
-        """Return the messages among ``events`` that wake this account."""
-        return [
-            Message(str(e["sender"]), str(e["content"]["body"]))
-            for e in since_join(events, self.account)
-            if isinstance(e, dict) and wakes(e, self.account, self.cfg)
-        ]
+    def candidates(self, events: list[Any]) -> list[tuple[dict[str, Any], Wake]]:
+        """Return the events that may wake this account, each with its verdict.
+
+        A verdict of :attr:`Wake.THREAD` still needs the thread's agents.
+        """
+        out = []
+        for e in since_join(events, self.account):
+            if isinstance(e, dict):
+                verdict = wakes(e, self.account, self.cfg)
+                if verdict is not Wake.NO:
+                    out.append((e, verdict))
+        return out
+
+    def budget(self) -> Budget:
+        """Return a fresh lookup budget for one batch."""
+        return Budget(self.client, self.cfg)
+
+    def mail(self, room: str, events: list[Any], budget: Budget) -> list[Message]:
+        """Return the messages among ``events`` of ``room`` that wake this account.
+
+        Each thread with mail is looked up once, within ``budget``.
+
+        Raises:
+            AuthError: When a lookup's token is refused.
+        """
+        out = []
+        for e, verdict in self.candidates(events):
+            content = e["content"]
+            root = thread_root(content)
+            thread = None if root is None else budget.thread(room, root)
+            if verdict is Wake.THREAD and thread and not thread.wakes(self.account):
+                continue
+            sender, body = str(e["sender"]), str(content["body"])
+            out.append(Message(sender, body, str(e.get("event_id", "")), thread))
+        return out
 
     def batches(
         self,
@@ -230,7 +259,7 @@ class Listener(SyncLoop):
                 )
                 if room is None:
                     return WaitResult("no-room")
-            mail = self.mail(timeline(rooms, room))
+            mail = self.mail(room, timeline(rooms, room), self.budget())
             if mail:
                 return WaitResult("mail", mail)
         return WaitResult("owner-gone" if self.owner_gone else "timeout")

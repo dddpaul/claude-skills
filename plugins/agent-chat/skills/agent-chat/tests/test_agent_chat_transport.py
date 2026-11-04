@@ -17,8 +17,9 @@ import ac_fakes as f
 import pytest
 from conftest import Host, Owner, PsOwner
 
-from agent_chat import cli
-from agent_chat.matrix import Client
+from agent_chat import cli, config, threads
+from agent_chat.listen import SyncLoop
+from agent_chat.matrix import AuthError, Client
 
 BIN = Path(__file__).resolve().parents[3] / "bin" / "agent-chat"
 
@@ -547,3 +548,141 @@ def test_a_plain_send_prints_its_event_id_without_the_dollar(
     assert code == 0
     assert out == f"sent to {f.ALIAS} as {f.CLAUDE_A}: {msg['event_id'][1:]}\n"
     assert "m.relates_to" not in msg["content"]
+
+
+# Thread lookups on receiving
+
+
+def reader(host: Host, account: str) -> SyncLoop:
+    """A sync loop for ``account`` whose mail() reads the fake server."""
+    cfg = config.load_config()
+    client = Client(cfg.homeserver, f.TOKENS[account])
+    return SyncLoop(client, cfg, account, host.state(account), "t")
+
+
+def room_events(hs: f.FakeHomeserver) -> list[dict[str, Any]]:
+    return [e for r, e in hs.events if r == f.ROOM]
+
+
+def in_thread(
+    hs: f.FakeHomeserver, sender: str, root: str, body: str, to: list[str] = ()
+) -> str:
+    content = {
+        "msgtype": "m.text",
+        "body": body,
+        "m.relates_to": thread(root),
+        "m.mentions": {"user_ids": list(to)},
+    }
+    return hs.add(f.ROOM, sender, content)
+
+
+def bodies(loop: SyncLoop, hs: f.FakeHomeserver, budget=None) -> list[str]:
+    budget = budget or loop.budget()
+    return [m.body for m in loop.mail(f.ROOM, room_events(hs), budget)]
+
+
+def test_only_the_newest_50_thread_events_make_the_threads_agents(
+    host: Host,
+) -> None:
+    hs = host.hs
+    root = hs.post(f.ROOM, f.HUMAN, "plan?")
+    in_thread(hs, f.CLAUDE_A, root, "early")  # pushed out of the window below
+    for n in range(48):
+        in_thread(hs, f.HUMAN, root, f"h{n}")
+    in_thread(hs, f.CLAUDE_B, root, "recent")
+    in_thread(hs, f.HUMAN, root, "so?")
+    assert bodies(reader(host, f.CLAUDE_B), hs)[-1:] == ["so?"]
+    assert "so?" not in bodies(reader(host, f.CLAUDE_A), hs)
+    [rel] = [q for _, p, q, _ in hs.requests if "/relations/" in p][:1]
+    assert (rel["dir"], rel["limit"]) == (["b"], ["50"])
+
+
+def test_a_failed_lookup_delivers_mail_and_is_asked_once_per_batch(
+    host: Host,
+) -> None:
+    hs = host.hs
+    root = hs.post(f.ROOM, f.HUMAN, "plan?")
+    in_thread(hs, f.CLAUDE_B, root, "mine")
+    hs.no_relations = True
+    in_thread(hs, f.HUMAN, root, "@claude-a: yours", [f.CLAUDE_A])
+    in_thread(hs, f.HUMAN, root, "anyone?")
+    loop = reader(host, f.CLAUDE_A)
+    mail = loop.mail(f.ROOM, room_events(hs), loop.budget())
+    assert [m.body for m in mail] == ["plan?", "@claude-a: yours", "anyone?"]
+    assert mail[1].thread is mail[2].thread and not mail[1].thread.read
+    assert len([p for p in hs.lookups() if "/relations/" in p]) == 1
+    assert len([p for p in hs.lookups() if "/event/" in p]) == 1
+
+
+def test_a_lookup_is_tried_at_most_twice(host: Host) -> None:
+    hs = host.hs
+    root = hs.post(f.ROOM, f.CLAUDE_B, "mine")
+    hs.lookup_fault = "drop"
+    in_thread(hs, f.HUMAN, root, "anyone?")
+    assert bodies(reader(host, f.CLAUDE_A), hs) == ["anyone?"]
+    assert len(hs.lookups()) == 2
+
+
+def test_a_spent_budget_delivers_addressed_mail_and_wakes_every_listener(
+    host: Host,
+) -> None:
+    hs = host.hs
+    root = hs.post(f.ROOM, f.CLAUDE_B, "mine")
+    in_thread(hs, f.HUMAN, root, "@claude-a: yours", [f.CLAUDE_A])
+    in_thread(hs, f.HUMAN, root, "anyone?")
+    loop = reader(host, f.CLAUDE_A)
+    spent = threads.Budget(loop.client, loop.cfg, seconds=0)
+    assert bodies(loop, hs, spent) == ["@claude-a: yours", "anyone?"]
+    assert hs.lookups() == []
+
+
+def test_a_lookup_during_an_outage_ends_within_the_budget(host: Host) -> None:
+    hs = host.hs
+    root = hs.post(f.ROOM, f.CLAUDE_B, "mine")
+    in_thread(hs, f.HUMAN, root, "anyone?")
+    other = hs.post(f.ROOM, f.CLAUDE_B, "another")
+    in_thread(hs, f.HUMAN, other, "and here?")
+    hs.lookup_fault = "stall"
+    loop = reader(host, f.CLAUDE_A)
+    started = time.monotonic()
+    budget = threads.Budget(loop.client, loop.cfg, seconds=0.5)
+    assert bodies(loop, hs, budget) == ["anyone?", "and here?"]
+    assert time.monotonic() - started < 1.5
+    assert len(hs.lookups()) == 1, "a spent budget asks the server no more"
+
+
+def test_a_401_during_a_lookup_is_raised(host: Host) -> None:
+    hs = host.hs
+    root = hs.post(f.ROOM, f.CLAUDE_B, "mine")
+    in_thread(hs, f.HUMAN, root, "anyone?")
+    hs.lookup_fault = "401"
+    with pytest.raises(AuthError):
+        bodies(reader(host, f.CLAUDE_A), hs)
+
+
+def test_a_401_during_a_lookup_makes_hook_wait_log_once_and_exit_0(
+    host: Host, owner: Owner, capsys, monkeypatch
+) -> None:
+    f.run(capsys, monkeypatch, "hook-wait", "--seconds", "0.1")
+    root = host.hs.post(f.ROOM, f.CLAUDE_B, "mine")
+    host.hs.lookup_fault = "401"
+    in_thread(host.hs, f.HUMAN, root, "anyone?")
+    assert f.run(capsys, monkeypatch, "hook-wait", "--seconds", "5")[:3] == (0, "", "")
+    lines = (host.state() / "log").read_text().splitlines()
+    assert len(lines) == 1 and "M_UNKNOWN_TOKEN" in lines[0]
+
+
+def test_hook_wait_delivers_through_a_lookup_outage(
+    host: Host, owner: Owner, capsys, monkeypatch
+) -> None:
+    monkeypatch.setattr(threads, "BUDGET_SECONDS", 0.5)
+    f.run(capsys, monkeypatch, "hook-wait", "--seconds", "0.1")
+    root = host.hs.post(f.ROOM, f.CLAUDE_B, "mine")
+    host.hs.lookup_fault = "stall"
+    in_thread(host.hs, f.HUMAN, root, "anyone?")
+    started = time.monotonic()
+    code, _, err, _ = f.run(capsys, monkeypatch, "hook-wait", "--seconds", "20")
+    assert code == 2 and time.monotonic() - started < 5
+    rid = root[1:]
+    assert f"Thread {rid} (could not be read; reply with --thread {rid}):" in err
+    assert "> anyone?" in err
