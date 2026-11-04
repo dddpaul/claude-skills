@@ -19,7 +19,7 @@ from conftest import Host, Owner, PsOwner
 
 from agent_chat import cli, config, note, threads
 from agent_chat.listen import SyncLoop
-from agent_chat.matrix import AuthError, Client
+from agent_chat.matrix import AuthError, Client, NetworkError
 
 BIN = Path(__file__).resolve().parents[3] / "bin" / "agent-chat"
 
@@ -794,3 +794,112 @@ def test_a_rich_replys_thread_neither_joins_nor_feeds_the_roots_thread(
     text = note.render(mail, loop.cfg, f.CODEX_A, f.ALIAS)
     assert "Earlier in this thread" in text and "> mine" in text
     assert "nested" not in text
+
+
+# The bounded mode's total deadline
+
+OK = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"
+HEAD = b"HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n"
+
+
+class Server:
+    """A local server whose answer to every request is ``answer(conn)``."""
+
+    def __init__(self, answer, accept: bool = True) -> None:
+        self.sock = socket.create_server(("127.0.0.1", 0), backlog=8)
+        self.url = f"http://127.0.0.1:{self.sock.getsockname()[1]}"
+        self._answer = answer
+        if accept:
+            threading.Thread(target=self._serve, daemon=True).start()
+
+    def _serve(self) -> None:
+        while True:
+            try:
+                conn, _ = self.sock.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._one, args=(conn,), daemon=True).start()
+
+    def _one(self, conn: socket.socket) -> None:
+        with conn:
+            try:
+                conn.recv(65536)
+                self._answer(conn)
+            except OSError:
+                pass
+
+    def close(self) -> None:
+        self.sock.close()
+
+
+def drip(data: bytes, gap: float = 0.02):
+    def answer(conn: socket.socket) -> None:
+        for i in range(len(data)):
+            conn.sendall(data[i : i + 1])
+            time.sleep(gap)
+
+    return answer
+
+
+def bounded(url: str, budget: float, now=time.monotonic) -> float:
+    """Run one bounded request; return how long it took to fail."""
+    client = Client(url, "unused", env={}, now=now)
+    started = time.monotonic()
+    with pytest.raises(NetworkError):
+        client.request("GET", "/x", deadline=client.now() + budget, tries=2)
+    return time.monotonic() - started
+
+
+@pytest.fixture
+def serve():
+    servers: list[Server] = []
+
+    def start(answer, accept: bool = True) -> Server:
+        servers.append(Server(answer, accept))
+        return servers[-1]
+
+    yield start
+    for s in servers:
+        s.close()
+
+
+def test_a_dripped_answer_ends_a_bounded_request_by_its_budget(serve) -> None:
+    server = serve(drip(OK + b" " * 100))
+    assert bounded(server.url, 0.15) < 0.65
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [drip(HEAD * 20), lambda conn: (conn.sendall(HEAD), drip(b"x" * 1000)(conn))],
+    ids=["slow-headers", "slow-body"],
+)
+def test_slow_headers_and_a_slow_body_end_by_the_budget(serve, answer) -> None:
+    assert bounded(serve(answer).url, 0.3) < 0.8
+
+
+def test_a_connection_never_accepted_ends_by_the_budget(serve) -> None:
+    server = serve(lambda conn: None, accept=False)
+    assert bounded(server.url, 0.3) < 0.8
+
+
+def test_an_answer_completed_after_the_deadline_is_a_failure(serve) -> None:
+    answered = threading.Event()
+
+    def answer(conn: socket.socket) -> None:
+        conn.sendall(OK)
+        answered.set()
+
+    server = serve(answer)
+    clock = lambda: 100.0 if answered.is_set() else 0.0  # noqa: E731
+    bounded(server.url, 5.0, now=clock)
+    unbounded = Client(server.url, "unused", env={})
+    assert unbounded.request("GET", "/x", deadline=unbounded.now() + 5) == {}
+
+
+def test_bounded_requests_leave_no_watchdog_alive(serve) -> None:
+    server = serve(lambda conn: conn.sendall(OK))
+    client = Client(server.url, "unused", env={})
+    for _ in range(50):
+        assert client.request("GET", "/x", deadline=client.now() + 5, tries=2) == {}
+    alive = [t for t in threading.enumerate() if t.name == "agent-chat-watchdog"]
+    assert alive == []
