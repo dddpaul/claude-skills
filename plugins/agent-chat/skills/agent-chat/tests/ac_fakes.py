@@ -67,6 +67,10 @@ class FakeHomeserver:
         self.lose_answers = 0  # handle this many requests, then close unanswered
         self.revoked: set[str] = set()
         self.no_relations = False  # answer the relations endpoint as unknown
+        # Like continuwuity, the relations answer for a root also lists the
+        # thread events of every rich reply to it: "after" the root's own,
+        # or "first". dir orders each part; limit cuts the joined list.
+        self.nested_relations: str | None = None
         # Thread lookups (the event and relations routes) fail this way:
         # "stall" never answers, "drop" closes the connection, "401" refuses
         # the token.
@@ -242,6 +246,24 @@ class FakeHomeserver:
             raise _Answer(403, "M_FORBIDDEN", "not in room")
         if rel != "m.thread":
             raise _Answer(400, "M_INVALID_PARAM", "only m.thread here")
+        backward = q.get("dir", ["f"])[0] == "b"
+        chunk = self._children(room_id, root, etype, backward)
+        if self.nested_relations is not None:
+            nested = [
+                c
+                for r, e in self.events
+                if r == room_id and _rich_reply_to(e, root)
+                for c in self._children(room_id, e["event_id"], etype, backward)
+            ]
+            first = self.nested_relations == "first"
+            chunk = nested + chunk if first else chunk + nested
+        limit = int(q.get("limit", ["50"])[0])
+        return {"chunk": chunk[:limit]}
+
+    def _children(
+        self, room_id: str, root: str, etype: str | None, backward: bool
+    ) -> list[dict[str, Any]]:
+        """Return the events of ``root``'s own thread, newest first if ``backward``."""
         chunk = []
         for r, e in self.events:
             relates = e.get("content", {}).get("m.relates_to") or {}
@@ -252,10 +274,7 @@ class FakeHomeserver:
                 and etype in (None, e["type"])
             ):
                 chunk.append(e)
-        if q.get("dir", ["f"])[0] == "b":
-            chunk.reverse()
-        limit = int(q.get("limit", ["50"])[0])
-        return {"chunk": chunk[:limit]}
+        return chunk[::-1] if backward else chunk
 
     def _route(
         self, method: str, path: str, q: dict[str, Any], body: Any, user: str
@@ -382,6 +401,13 @@ class FakeHomeserver:
                 self._serve("PUT")
 
         return Handler
+
+
+def _rich_reply_to(event: dict[str, Any], root: str) -> bool:
+    """Tell whether ``event`` is a rich reply to ``root`` with no ``rel_type``."""
+    relates = event.get("content", {}).get("m.relates_to") or {}
+    reply = relates.get("m.in_reply_to") or {}
+    return "rel_type" not in relates and reply.get("event_id") == root
 
 
 def _is_lookup(path: str) -> bool:
