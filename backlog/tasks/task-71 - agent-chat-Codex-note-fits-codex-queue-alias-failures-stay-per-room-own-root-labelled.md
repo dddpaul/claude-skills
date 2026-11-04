@@ -3,10 +3,10 @@ id: TASK-71
 title: >-
   agent-chat Codex note fits codex queue, alias failures stay per room, own root
   labelled
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-04T14:51:00Z'
-updated_date: '2026-11-04T15:18:00Z'
+updated_date: '2026-11-04T15:23:00Z'
 labels:
   - feature:agent-chat-threads
 dependencies: []
@@ -143,4 +143,6 @@ Commit the untracked review file `design/agent-chat-threads-review-2026-11-04.md
 Plan: note.notes() renders whole, then without earlier context, then greedy consecutive runs, cutting a lone oversized body by binary search on UTF-8 bytes; watch._deliver queues each part; _batch_mail gives each alias lookup min(deadline, now+ALIAS_SECONDS) and _alias_of catches NetworkError; _thread labels an own root '(this account)'. Tests in test_agent_chat_addressing.py (note) and test_agent_chat_codex.py (watcher, with a new alias_fault in ac_fakes).
 
 Commit: `959a229` - task-71: agent-chat splits Codex notes to fit codex queue, bounds alias lookups per room, labels an own thread root
+
+Done. notes() in note.py (whole → no earlier context → consecutive runs → a lone oversized body cut on a UTF-8 boundary with the unquoted cut line); watch.QUEUE_BYTES=100_000, ALIAS_SECONDS=10.0; _deliver logs (part k of n) / (parts k-n of n); _alias_of catches NetworkError; own root '(this account)' (shared by the Claude note via _thread, so the Claude SKILL.md got the same sentence). ac_fakes gains alias_fault. Review: ralph:task-reviewer APPROVED (score 9); one minor finding left as is: the split re-renders each run (quadratic), bounded by the 50-event timeline limit per room per sync.
 <!-- SECTION:NOTES:END -->
