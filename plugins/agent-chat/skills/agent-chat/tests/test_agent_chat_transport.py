@@ -346,3 +346,204 @@ def test_a_long_backoff_stops_within_a_second_once_the_owner_is_gone() -> None:
     client.keep_going = lambda: clock[0] < 2.5
     assert client._pause(30) is False
     assert clock[0] <= 3.0
+
+
+# Threads
+
+
+def thread(root: str) -> dict[str, Any]:
+    """The ``m.relates_to`` of a thread child of ``root``."""
+    return {"rel_type": "m.thread", "event_id": root}
+
+
+def child(hs: f.FakeHomeserver, root: str, body: str) -> str:
+    """Post a thread child of ``root`` from the human; return its ID."""
+    content = {"msgtype": "m.text", "body": body, "m.relates_to": thread(root)}
+    return hs.add(f.ROOM, f.HUMAN, content)
+
+
+def send_thread(capsys, monkeypatch, thread_id: str) -> tuple[int, str, str]:
+    code, out, err, _ = f.run(
+        capsys,
+        monkeypatch,
+        "send",
+        "--to",
+        "codex-a",
+        "--thread",
+        thread_id,
+        stdin="re",
+    )
+    return code, out, err
+
+
+def test_a_thread_send_on_a_top_level_message_starts_its_thread(
+    host: Host, capsys, monkeypatch
+) -> None:
+    root = host.hs.post(f.ROOM, f.HUMAN, "the plan")
+    code, out, err = send_thread(capsys, monkeypatch, root[1:])
+    assert (code, err) == (0, "")
+    msg = host.hs.messages(f.ROOM)[-1]
+    assert msg["content"] == {
+        "msgtype": "m.text",
+        "body": "@codex-a: re",
+        "m.mentions": {"user_ids": [f.CODEX_A]},
+        "m.relates_to": {
+            "rel_type": "m.thread",
+            "event_id": root,
+            "is_falling_back": True,
+            "m.in_reply_to": {"event_id": root},
+        },
+    }
+    assert out == (
+        f"sent to {f.ALIAS} as {f.CLAUDE_A} in thread {root[1:]}: "
+        f"{msg['event_id'][1:]}\n"
+    )
+
+
+def test_a_thread_send_on_a_child_replies_to_the_latest_message_of_its_root(
+    host: Host, capsys, monkeypatch
+) -> None:
+    root = host.hs.post(f.ROOM, f.HUMAN, "the plan")
+    first = child(host.hs, root, "one")
+    host.hs.post(f.ROOM, f.HUMAN, "elsewhere")
+    latest = child(host.hs, root, "two")
+    code, out, _ = send_thread(capsys, monkeypatch, first[1:])
+    assert code == 0
+    rel = host.hs.messages(f.ROOM)[-1]["content"]["m.relates_to"]
+    assert rel["event_id"] == root
+    assert rel["m.in_reply_to"] == {"event_id": latest}
+    assert f" in thread {root[1:]}: " in out
+    [lookup] = [p for p in host.hs.paths("GET") if "/relations/" in p]
+    assert lookup.startswith("/_matrix/client/v1/rooms/")
+    assert lookup.endswith(f"/relations/%24{root[1:]}/m.thread/m.room.message")
+
+
+def test_a_thread_send_on_a_rich_reply_makes_it_the_root(
+    host: Host, capsys, monkeypatch
+) -> None:
+    first = host.hs.post(f.ROOM, f.HUMAN, "question")
+    reply = host.hs.add(
+        f.ROOM,
+        f.CLAUDE_B,
+        {
+            "msgtype": "m.text",
+            "body": "answer",
+            "m.relates_to": {"m.in_reply_to": {"event_id": first}},
+        },
+    )
+    assert send_thread(capsys, monkeypatch, reply[1:])[0] == 0
+    rel = host.hs.messages(f.ROOM)[-1]["content"]["m.relates_to"]
+    assert rel["event_id"] == rel["m.in_reply_to"]["event_id"] == reply
+
+
+def _refused_ids(hs: f.FakeHomeserver) -> dict[str, tuple[str, str]]:
+    """Each refused case: (its --thread value, a phrase of the refusal)."""
+    text = {"msgtype": "m.text", "body": "x"}
+    top = hs.post(f.ROOM, f.HUMAN, "top")
+    nested_root = child(hs, top, "a child posing as a root")
+    nested = hs.add(f.ROOM, f.HUMAN, {**text, "m.relates_to": thread(nested_root)})
+    redaction = {"redacted_because": {"type": "m.room.redaction"}}
+    ids = {
+        "edit": (hs.post(f.ROOM, f.HUMAN, "* fix", edit=True), "m.replace"),
+        "reaction": (
+            hs.add(
+                f.ROOM,
+                f.HUMAN,
+                {"m.relates_to": {"rel_type": "m.annotation", "event_id": top}},
+                etype="m.reaction",
+            ),
+            "not a message",
+        ),
+        "reference": (
+            hs.add(
+                f.ROOM,
+                f.HUMAN,
+                {**text, "m.relates_to": {"rel_type": "m.reference", "event_id": top}},
+            ),
+            "m.reference",
+        ),
+        "redacted": (hs.add(f.ROOM, f.HUMAN, text, unsigned=redaction), "redacted"),
+        "empty": (hs.add(f.ROOM, f.HUMAN, {}), "empty"),
+        "state": (
+            hs.add(f.ROOM, f.HUMAN, {"topic": "t"}, "m.room.topic"),
+            "not a message",
+        ),
+        "unknown": ("$nosuchevent", "no such event"),
+        "nested": (nested, "not a top-level message"),
+    }
+    return {k: (v[1:], why) for k, (v, why) in ids.items()}
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "edit",
+        "reaction",
+        "reference",
+        "redacted",
+        "empty",
+        "state",
+        "unknown",
+        "nested",
+    ],
+)
+def test_a_thread_send_refuses_an_event_that_cannot_root_a_thread(
+    host: Host, capsys, monkeypatch, case: str
+) -> None:
+    thread_id, why = _refused_ids(host.hs)[case]
+    before = len(host.hs.events)
+    code, out, err = send_thread(capsys, monkeypatch, thread_id)
+    assert code != 0 and out == ""
+    assert why in err and "nothing was sent" in err and err.count("\n") == 1
+    assert len(host.hs.events) == before
+    assert host.hs.paths("PUT") == []
+
+
+@pytest.mark.parametrize("bad", ["$$x", "a b", "x:y", "", "$", "x/y"])
+def test_a_thread_send_refuses_a_malformed_id_with_exit_2(
+    host: Host, capsys, monkeypatch, bad: str
+) -> None:
+    code, out, err = send_thread(capsys, monkeypatch, bad)
+    assert (code, out) == (2, "")
+    assert "is not an event ID" in err and err.count("\n") == 1
+    assert host.hs.requests == []
+
+
+def test_a_missing_relations_endpoint_fails_the_send_and_keeps_the_room(
+    host: Host, capsys, monkeypatch
+) -> None:
+    root = host.hs.post(f.ROOM, f.HUMAN, "the plan")
+    host.hs.no_relations = True
+    code, out, err = send_thread(capsys, monkeypatch, root[1:])
+    assert (code, out) == (1, "")
+    assert "thread lookup failed" in err and err.count("\n") == 1
+    assert host.hs.paths("PUT") == []
+    assert len([p for p in host.hs.paths() if "/directory/room/" in p]) == 1
+
+
+def test_a_thread_id_with_or_without_its_dollar_gives_the_same_post(
+    host: Host, capsys, monkeypatch
+) -> None:
+    root = host.hs.post(f.ROOM, f.HUMAN, "the plan")
+    posts = []
+    for given in (root, root[1:]):
+        assert send_thread(capsys, monkeypatch, given)[0] == 0
+        posts.append(host.hs.events.pop()[1])  # the next send sees no reply
+    assert posts[0]["content"] == posts[1]["content"]
+    assert posts[0]["content"]["m.relates_to"]["event_id"] == root
+    paths = host.hs.paths()
+    assert (
+        f"/_matrix/client/v3/rooms/%21room0001%3Aexample.test/event/%24{root[1:]}"
+        in paths
+    )
+    assert not [p for p in paths if set("$!:") & set(p)]
+
+
+def test_a_plain_send_prints_its_event_id_without_the_dollar(
+    host: Host, capsys, monkeypatch
+) -> None:
+    code, out, _, _ = f.run(capsys, monkeypatch, "send", stdin="hi")
+    [msg] = host.hs.messages(f.ROOM)
+    assert code == 0
+    assert out == f"sent to {f.ALIAS} as {f.CLAUDE_A}: {msg['event_id'][1:]}\n"
+    assert "m.relates_to" not in msg["content"]

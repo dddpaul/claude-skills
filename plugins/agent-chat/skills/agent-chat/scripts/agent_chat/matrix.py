@@ -20,6 +20,8 @@ from urllib.parse import quote, urlencode, urlsplit
 from .config import AgentChatError
 
 API = "/_matrix/client/v3"
+# The relations endpoint exists only under v1.
+API_V1 = "/_matrix/client/v1"
 # Network failures and 5xx/429 answers are retried, the pause doubling from
 # BACKOFF_FIRST up to BACKOFF_MAX, as long as the caller's deadline allows.
 BACKOFF_FIRST = 1.0
@@ -256,3 +258,41 @@ class Client:
             deadline=deadline,
         )
         return str(got.get("event_id", ""))
+
+    def event(
+        self, room_id: str, event_id: str, deadline: float
+    ) -> dict[str, Any] | None:
+        """Return one event of ``room_id``, or None for an unknown ID."""
+        try:
+            return self.request(
+                "GET",
+                f"{API}/rooms/{quote(room_id, safe='')}/event/"
+                f"{quote(event_id, safe='')}",
+                deadline=deadline,
+            )
+        except MatrixError as exc:
+            if exc.status == 404 or exc.errcode == "M_NOT_FOUND":
+                return None
+            raise
+
+    def thread_latest(self, room_id: str, root: str, deadline: float) -> str | None:
+        """Return the ID of the latest message in ``root``'s thread, or None if none."""
+        try:
+            got = self.request(
+                "GET",
+                f"{API_V1}/rooms/{quote(room_id, safe='')}/relations/"
+                f"{quote(root, safe='')}/m.thread/m.room.message",
+                query={"dir": "b", "limit": "1"},
+                deadline=deadline,
+            )
+        except MatrixError as exc:
+            if exc.status != 404 or isinstance(exc, AuthError):
+                raise
+            # Not a MatrixError: a send must not take it for a rejected room.
+            raise AgentChatError(f"thread lookup failed: {exc}") from exc
+        chunk = got.get("chunk")
+        if isinstance(chunk, list) and chunk and isinstance(chunk[0], dict):
+            latest = chunk[0].get("event_id")
+            if isinstance(latest, str) and latest:
+                return latest
+        return None

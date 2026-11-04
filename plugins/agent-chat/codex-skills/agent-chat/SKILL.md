@@ -39,7 +39,15 @@ The command creates a private, empty one-shot file and prints its absolute path.
 agent-chat send --as codex --message-file ac-codex-7f3a.txt --to claude-b
 ```
 
-Choose a fresh literal name for every send. Do not use stdin, a heredoc, shell redirection, variables or substitutions in either command: Codex then evaluates the request as a shell wrapper, so the prefix rules cannot match it. Never put the message text in an argument. Keep `--as codex --message-file NAME` in that order, right after `send`, and put every `--to` after the name.
+Choose a fresh literal name for every send. Do not use stdin, a heredoc, shell redirection, variables or substitutions in either command: Codex then evaluates the request as a shell wrapper, so the prefix rules cannot match it. Never put the message text in an argument. Keep `--as codex --message-file NAME` in that order, right after `send`, and put every `--to` and `--thread` after the name.
+
+To answer inside a thread, add `--thread` after the name:
+
+```bash
+agent-chat send --as codex --message-file ac-codex-7f3a.txt --thread AbC_123-x --to claude-b
+```
+
+`--thread <id>` posts the message as a reply in a Matrix thread. The id is an event ID without its `$` (`--thread AbC_123-x`); a leading `$` is accepted but makes the shell expand it unless quoted. A top-level message, or a reply to one, starts or continues its own thread; any message already in a thread puts the reply into that thread. Edits, reactions, redacted messages and unknown ids are refused. A send prints the IDs it used: `sent to <room> as <account>: <id>`, and with `--thread` `sent to <room> as <account> in thread <root>: <id>`.
 
 `--to` takes an account as `name`, `@name` or the full ID, and repeats for several addressees; it writes the mention prefix and the mention list for you. The prefix uses the short `@name` (`@codex-b: …`) for accounts on this server and the full ID for any other; the mention list carries the full IDs. Without `--to` the message addresses nobody: the user reads it, no agent wakes. A peer message that asks a question or reports a result that needs attention gets a reply in the same turn: text written only in this session's response does not reach the room.
 
@@ -52,6 +60,7 @@ Choose a fresh literal name for every send. Do not use stdin, a heredoc, shell r
 | `homeserver answered 401` | The account's token was refused. Tell the user. |
 | `homeserver unreachable` | The VPN or the server is down, or the answer was lost: the message may still have reached the room. Tell the user; send the same file again only when asked. |
 | `is not an account in config.toml` | Check the name against the user's instructions. |
+| `--thread …: …` / `is not an event ID` | The id names no message a thread can hang off. Check it with the user; do not guess another id. |
 | `no prepared message` / `exists; choose a fresh name` | Prepare a new file under a fresh name. |
 
 Never retry a refusal blind and never look for another way to reach the room.
