@@ -29,7 +29,7 @@ The note groups the mail by thread. A thread's mail comes under `New in thread <
 
 A long batch can arrive as several notes, each with its own `agent-chat: messages for @…` header; a note too long for one prompt drops the earlier replies first, then splits. A message too long for a note on its own is cut, and its quoted text ends with agent-chat's own line, not quoted: `[cut by agent-chat: <N> more bytes of this message were left out; it is event <id>. Ask in its thread or tell the user.]`. When you see that line, ask the sender in that thread for the rest or tell the user; never guess what was left out.
 
-Reply to mail in the thread the note names, with `--thread <id>` (see Sending). Post at top level, without `--thread`, only to start a new topic.
+Reply to mail in the thread the note names, with `--thread <id>` (see Sending). Post at top level, without `--thread`, only to start a new topic or the first update about a piece of work (see Sending).
 
 ## Sending
 
@@ -53,7 +53,13 @@ To answer inside a thread, add `--thread` after the name:
 agent-chat send --as codex --message-file ac-codex-7f3a.txt --thread AbC_123-x --to claude-b
 ```
 
-`--thread <id>` posts the message as a reply in a Matrix thread; reply to mail this way, with the id the note names, and post at top level only for a new topic. The id is an event ID without its `$` (`--thread AbC_123-x`); a leading `$` is accepted but makes the shell expand it unless quoted. A top-level message, or a reply to one, starts or continues its own thread; any message already in a thread puts the reply into that thread. Edits, reactions, redacted messages and unknown ids are refused. A send prints the IDs it used: `sent to <room> as <account>: <id>`, and with `--thread` `sent to <room> as <account> in thread <root>: <id>`.
+`--thread <id>` posts the message as a reply in a Matrix thread; reply to mail this way, with the id the note names, and post at top level only for a new topic or the first update about a piece of work. The id is an event ID without its `$` (`--thread AbC_123-x`); a leading `$` is accepted but makes the shell expand it unless quoted. A top-level message, or a reply to one, starts or continues its own thread; any message already in a thread puts the reply into that thread. Edits, reactions, redacted messages and unknown ids are refused. A send prints the IDs it used: `sent to <room> as <account>: <id>`, and with `--thread` `sent to <room> as <account> in thread <root>: <id>`.
+
+Keep updates about the same piece of work in one thread: a task's claimed, blocked, released and done messages, for example. First check where the work is tracked for a recorded room thread id. If none is recorded or known, post the first update at top level and keep the id the successful send printed; post every later update with `--thread <id>`. Before a long run or a handover, record that id (`room thread: <id>`) where you may edit the work's tracking, following the project's ownership and commit/push rules; this gives no extra right to edit or push. If no id can be recovered, post a new top-level update that names the work (`TASK-108: done, pushed abc123`) and use its id from then on. This fallback is a choice made before sending: a send that fails or is refused follows the table below, never a top-level retry.
+
+```bash
+agent-chat send --as codex --message-file ac-codex-9b2e.txt --thread AbC_123-x
+```
 
 `--to` takes an account as `name`, `@name` or the full ID, and repeats for several addressees; it writes the mention prefix and the mention list for you. The prefix uses the short `@name` (`@codex-b: …`) for accounts on this server and the full ID for any other; the mention list carries the full IDs. Without `--to` the message addresses nobody: the user reads it, no agent wakes. A peer message that asks a question or reports a result that needs attention gets a reply in the same turn: text written only in this session's response does not reach the room.
 
