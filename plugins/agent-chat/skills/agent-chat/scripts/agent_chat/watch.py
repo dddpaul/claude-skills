@@ -24,12 +24,17 @@ from urllib.parse import unquote, urlsplit
 
 from .config import AgentChatError, Config
 from .listen import SyncLoop, timeline
-from .matrix import AuthError, Client, MatrixError
-from .note import CODEX_REPLY, Message, render
+from .matrix import AuthError, Client, MatrixError, NetworkError
+from .note import CODEX_REPLY, Message, notes
 from .room import Rooms, alias_slug, project_alias, read_json
 
 CODEX_ENV = "AGENT_CHAT_CODEX"
 ZMX_ENV = "AGENT_CHAT_ZMX"
+# The most UTF-8 bytes of one `codex queue --message` text; Linux caps one
+# argument at 131072 (MAX_ARG_STRLEN).
+QUEUE_BYTES = 100_000
+# How long the alias lookup of one room may take within a batch.
+ALIAS_SECONDS = 10.0
 # How often the watcher joins the rooms of newly registered Codex sessions.
 SWEEP_SECONDS = 300.0
 # The longest pause between attempts after a failed sync.
@@ -288,8 +293,8 @@ class CodexWatcher(SyncLoop):
     def _alias_of(self, room: str, deadline: float) -> str | None:
         """Return the alias of joined ``room``: from the room cache, else its state.
 
-        A room without an alias is asked again next time, since onboarding
-        may set one later.
+        A room without an alias, or whose alias could not be read, is asked
+        again next time, since onboarding may set one later.
         """
         if room in self._aliases:
             return self._aliases[room]
@@ -302,8 +307,11 @@ class CodexWatcher(SyncLoop):
                 alias = self.client.canonical_alias(room, deadline)
             except AuthError:
                 raise
-            except MatrixError as exc:
-                self.log(f"cannot read the alias of {room}: {exc}")
+            except (MatrixError, NetworkError) as exc:
+                self.log(
+                    f"cannot read the alias of {room}: {exc}; its mail in this "
+                    "batch is not delivered"
+                )
         if alias is not None:
             self._aliases[room] = alias
         return alias
@@ -330,13 +338,17 @@ class CodexWatcher(SyncLoop):
         if thread is None:
             self.log(f"not queued: {what}: {why}")
             return
-        text = render(mail, self.cfg, self.account, alias, CODEX_REPLY)
-        try:
-            self.queue(thread, text)
-        except AgentChatError as exc:
-            self.log(f"not queued: {what} to thread {thread}: {exc}")
-            return
-        self.log(f"queued {what} to thread {thread}")
+        texts = notes(mail, self.cfg, self.account, alias, CODEX_REPLY, QUEUE_BYTES)
+        n = len(texts)
+        for k, text in enumerate(texts, 1):
+            try:
+                self.queue(thread, text)
+            except AgentChatError as exc:
+                parts = f" (parts {k}-{n} of {n})" if n > 1 else ""
+                self.log(f"not queued: {what} to thread {thread}{parts}: {exc}")
+                return
+            part = f" (part {k} of {n})" if n > 1 else ""
+            self.log(f"queued {what} to thread {thread}{part}")
 
     def _batch_mail(
         self, rooms: dict[str, Any], deadline: float
@@ -345,12 +357,16 @@ class CodexWatcher(SyncLoop):
 
         The rooms are checked first and every lookup runs before any delivery,
         so neither an unserved room nor a slow ``codex queue`` spends the
-        batch's lookup budget.
+        batch's lookup budget. Each room's alias lookup has its own
+        :data:`ALIAS_SECONDS`, so one failing room holds up no other.
         """
         served = []
         for room in rooms.get("join") or {}:
             events = timeline(rooms, room)
-            if self.candidates(events) and (alias := self._served(room, deadline)):
+            if not self.candidates(events):
+                continue
+            until = min(deadline, self.client.now() + ALIAS_SECONDS)
+            if alias := self._served(room, until):
                 served.append((room, alias, events))
         budget = self.budget()
         found = [(a, self.mail(room, events, budget)) for room, a, events in served]

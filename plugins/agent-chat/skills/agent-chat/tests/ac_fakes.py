@@ -75,6 +75,8 @@ class FakeHomeserver:
         # "stall" never answers, "drop" closes the connection, "401" refuses
         # the token.
         self.lookup_fault: str | None = None
+        # The canonical alias route fails the same ways.
+        self.alias_fault: str | None = None
         self._released = threading.Event()
         # A real server may answer a long poll early; this one does after
         # max_poll seconds, so a wait checks its owner often in tests.
@@ -362,6 +364,8 @@ class FakeHomeserver:
                 body = json.loads(self.rfile.read(n)) if n else None
                 hs.requests.append((method, u.path, q, body))
                 fault = hs.lookup_fault if _is_lookup(u.path) else None
+                if u.path.endswith("/state/m.room.canonical_alias"):
+                    fault = hs.alias_fault
                 if fault == "stall":
                     hs._released.wait(30)
                     return

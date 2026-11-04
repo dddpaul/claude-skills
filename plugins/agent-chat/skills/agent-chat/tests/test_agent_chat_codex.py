@@ -194,7 +194,7 @@ def test_the_codex_manifest_points_at_the_codex_skill_and_an_empty_hooks_file() 
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     assert codex["name"] == claude["name"] == "agent-chat"
-    assert codex["version"] == claude["version"] == "0.4.1"
+    assert codex["version"] == claude["version"] == "0.4.2"
     assert codex["skills"] == "./codex-skills/"
     assert codex["hooks"] == "./codex/hooks.json"
     assert json.loads((PLUGIN / "codex" / "hooks.json").read_text()) == {"hooks": {}}
@@ -877,3 +877,106 @@ def test_a_slow_delivery_does_not_spend_another_rooms_lookup_budget(
     run.stop()
     assert "not for codex" not in delivered
     assert host.hs.lookups(other), "the thread was looked up"
+
+
+# Notes that fit `codex queue`, alias lookups that fail
+
+
+def test_a_long_batch_is_queued_as_parts_each_within_the_argument_limit(
+    host: Host, fakes: Fakes
+) -> None:
+    hs = host.hs
+    roots = []
+    for n in range(50):
+        root = hs.post(f.ROOM, f.HUMAN, f"root {n} " + "к" * 400)
+        for _ in range(3):
+            in_thread(hs, f.ROOM, f.CLAUDE_B, root, "р" * 400)
+        roots.append(root)
+    Running(THREAD, f.ALIAS).stop()  # the cursor now stands here
+    bodies = [f"@codex-a: mail {n:02} " + "ж" * 1000 for n in range(50)]
+    for root, body in zip(roots, bodies, strict=True):
+        in_thread(hs, f.ROOM, f.HUMAN, root, body)
+    run = Running(THREAD, f.ALIAS)
+    until(lambda: bodies[-1] in fakes.texts(), 30)
+    run.stop()
+    texts = [c["argv"][-1] for c in fakes.calls()]
+    assert len(texts) > 1
+    head = f"agent-chat: messages for {f.CODEX_A} in {f.ALIAS}. "
+    seen = []
+    for text in texts:
+        assert text.startswith(head)
+        assert len(text.encode()) <= watch.QUEUE_BYTES == 100_000
+        seen += [b for b in bodies if f"> {b}" in text]
+    assert seen == bodies, "every mail once, the parts queued in order"
+    n = len(texts)
+    queued = [line for line in run.lines if line.startswith("queued")]
+    assert [line.rsplit(" (", 1)[1] for line in queued] == [
+        f"part {k} of {n})" for k in range(1, n + 1)
+    ]
+
+
+def test_a_failed_part_stops_the_rest_of_the_batch(
+    host: Host, fakes: Fakes, monkeypatch
+) -> None:
+    monkeypatch.setattr(watch, "QUEUE_BYTES", 3000)
+    run = Running(THREAD, f.ALIAS)
+    fakes.fail(True)
+    for n in range(3):
+        host.hs.post(f.ROOM, f.HUMAN, f"@codex-a: {n} " + "ж" * 1000)
+    until(lambda: any(line.startswith("not queued") for line in run.lines))
+    run.stop()
+    [line] = [x for x in run.lines if x.startswith("not queued")]
+    assert " (parts 1-" in line and "codex queue failed" in line
+
+
+def alias_deadlines(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Record how far past the client's now each alias lookup may run."""
+    gaps: list[float] = []
+    real = matrix.Client.canonical_alias
+
+    def spy(self: matrix.Client, room_id: str, deadline: float) -> str | None:
+        gaps.append(deadline - self.now())
+        return real(self, room_id, deadline)
+
+    monkeypatch.setattr(matrix.Client, "canonical_alias", spy)
+    return gaps
+
+
+def test_a_failing_alias_lookup_holds_up_no_other_rooms_mail(
+    host: Host, fakes: Fakes, work: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(watch, "ALIAS_SECONDS", 0.5)
+    gaps = alias_deadlines(monkeypatch)
+    host.hs.room(SIDE, SIDE_ROOM, joined={f.HUMAN, f.CODEX_A}, invited=set())
+    Running().stop()  # the cursor now stands here
+    host.hs.alias_fault = "drop"
+    host.hs.post(SIDE_ROOM, f.HUMAN, "@codex-a: in the side room")
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: in the project room")
+    run = Running()
+    until(lambda: "in the project room" in fakes.texts())
+    until(lambda: any("cannot read the alias" in line for line in run.lines))
+    run.stop()
+    assert "in the side room" not in fakes.texts()
+    [line] = [x for x in run.lines if "cannot read the alias" in x]
+    assert line.startswith(f"cannot read the alias of {SIDE_ROOM}: homeserver ")
+    assert line.endswith("; its mail in this batch is not delivered")
+    assert gaps and all(0 < g <= 0.5 for g in gaps)
+
+
+def test_a_refused_token_on_the_alias_lookup_still_ends_the_watcher(
+    host: Host, fakes: Fakes, work: Path, monkeypatch
+) -> None:
+    gaps = alias_deadlines(monkeypatch)
+    host.hs.room(SIDE, SIDE_ROOM, joined={f.HUMAN, f.CODEX_A}, invited=set())
+    Running().stop()  # the cursor now stands here
+    host.hs.alias_fault = "401"
+    host.hs.post(SIDE_ROOM, f.HUMAN, "@codex-a: in the side room")
+    cfg = config.load_config()
+    account = cfg.account("codex")
+    client = matrix.Client(cfg.homeserver, config.read_token(account))
+    w = watch.CodexWatcher(client, cfg, account, config.state_dir(account), print)
+    with pytest.raises(matrix.AuthError):
+        w.run()
+    assert watch.ALIAS_SECONDS == 10.0
+    assert gaps and all(0 < g <= 10.0 for g in gaps)
+    assert fakes.calls() == []
