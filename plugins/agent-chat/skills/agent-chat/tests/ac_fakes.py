@@ -124,20 +124,36 @@ class FakeHomeserver:
             content["m.relates_to"] = {"rel_type": "m.replace", "event_id": "$x"}
         return self._append(room_id, sender, content)
 
-    def _append(self, room_id: str, sender: str, content: dict[str, Any]) -> str:
+    def add(
+        self,
+        room_id: str,
+        sender: str,
+        content: dict[str, Any],
+        etype: str = "m.room.message",
+        unsigned: dict[str, Any] | None = None,
+    ) -> str:
+        """Add any event: a thread child, a reaction, a redacted one; return its ID."""
+        return self._append(room_id, sender, content, etype, unsigned)
+
+    def _append(
+        self,
+        room_id: str,
+        sender: str,
+        content: dict[str, Any],
+        etype: str = "m.room.message",
+        unsigned: dict[str, Any] | None = None,
+    ) -> str:
         with self.cond:
             event_id = f"$e{len(self.events)}"
-            self.events.append(
-                (
-                    room_id,
-                    {
-                        "type": "m.room.message",
-                        "sender": sender,
-                        "event_id": event_id,
-                        "content": content,
-                    },
-                )
-            )
+            event = {
+                "type": etype,
+                "sender": sender,
+                "event_id": event_id,
+                "content": content,
+            }
+            if unsigned is not None:
+                event["unsigned"] = unsigned
+            self.events.append((room_id, event))
             self.cond.notify_all()
         return event_id
 
@@ -200,6 +216,31 @@ class FakeHomeserver:
                         }
         return {"next_batch": f"s{end}", "rooms": rooms}
 
+    def _thread(
+        self, user: str, parts: list[str], q: dict[str, list[str]]
+    ) -> dict[str, Any]:
+        """Answer ``/relations/{id}/m.thread[/{type}]``: the thread's events."""
+        room_id, root, rel = unquote(parts[5]), unquote(parts[7]), parts[8]
+        etype = unquote(parts[9]) if len(parts) > 9 else None
+        if user not in self.joined.get(room_id, set()):
+            raise _Answer(403, "M_FORBIDDEN", "not in room")
+        if rel != "m.thread":
+            raise _Answer(400, "M_INVALID_PARAM", "only m.thread here")
+        chunk = []
+        for r, e in self.events:
+            relates = e.get("content", {}).get("m.relates_to") or {}
+            if (
+                r == room_id
+                and relates.get("rel_type") == "m.thread"
+                and relates.get("event_id") == root
+                and etype in (None, e["type"])
+            ):
+                chunk.append(e)
+        if q.get("dir", ["f"])[0] == "b":
+            chunk.reverse()
+        limit = int(q.get("limit", ["50"])[0])
+        return {"chunk": chunk[:limit]}
+
     def _route(
         self, method: str, path: str, q: dict[str, Any], body: Any, user: str
     ) -> Any:
@@ -248,6 +289,18 @@ class FakeHomeserver:
             return {"filter_id": fid}
         if method == "GET" and path == f"{api}/sync":
             return self._sync(user, q)
+        if method == "GET" and path.startswith(f"{api}/rooms/") and "/event/" in path:
+            parts = path.split("/")
+            room_id, event_id = unquote(parts[5]), unquote(parts[7])
+            if user not in self.joined.get(room_id, set()):
+                raise _Answer(403, "M_FORBIDDEN", "not in room")
+            for r, e in self.events:
+                if r == room_id and e.get("event_id") == event_id:
+                    return e
+            raise _Answer(404, "M_NOT_FOUND", "Event not found")
+        relations = "/_matrix/client/v1/rooms/"
+        if method == "GET" and path.startswith(relations) and "/relations/" in path:
+            return self._thread(user, path.split("/"), q)
         if method == "PUT" and "/send/m.room.message/" in path:
             parts = path.split("/")
             room_id, txn = unquote(parts[5]), unquote(parts[8])

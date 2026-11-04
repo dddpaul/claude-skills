@@ -194,7 +194,7 @@ def test_the_codex_manifest_points_at_the_codex_skill_and_an_empty_hooks_file() 
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     assert codex["name"] == claude["name"] == "agent-chat"
-    assert codex["version"] == claude["version"] == "0.2.3"
+    assert codex["version"] == claude["version"] == "0.3.0"
     assert codex["skills"] == "./codex-skills/"
     assert codex["hooks"] == "./codex/hooks.json"
     assert json.loads((PLUGIN / "codex" / "hooks.json").read_text()) == {"hooks": {}}
@@ -242,6 +242,11 @@ CODEX_BIN = shutil.which("codex")
         (
             ["agent-chat", "send", "--as", "codex", "--message-file", "m.txt"]
             + ["--to", "claude-b"],
+            "allow",
+        ),
+        (
+            ["agent-chat", "send", "--as", "codex", "--message-file", "x.txt"]
+            + ["--thread", "abc_DEF-123", "--to", "claude-b"],
             "allow",
         ),
         (["agent-chat", "send", "--as", "codex", "--stdin"], None),
@@ -353,6 +358,58 @@ def test_a_failed_send_keeps_the_prepared_file(
     )
     assert code == 1 and "not onboarded" in err
     assert (box / "m2.txt").read_text() == "hello"
+
+
+def test_a_thread_send_from_a_prepared_file_posts_into_the_thread(
+    host: Host, box: Path, capsys, monkeypatch
+) -> None:
+    root = host.hs.post(f.ROOM, f.HUMAN, "the plan")
+    f.run(capsys, monkeypatch, "prepare-message", "m3.txt")
+    (box / "m3.txt").write_text("in the thread")
+    code, out, err, _ = f.run(
+        capsys,
+        monkeypatch,
+        "send",
+        "--as",
+        "codex",
+        "--message-file",
+        "m3.txt",
+        "--thread",
+        root[1:],
+        "--to",
+        "claude-b",
+    )
+    assert (code, err) == (0, "")
+    msg = host.hs.messages(f.ROOM)[-1]
+    assert msg["content"]["m.relates_to"]["event_id"] == root
+    assert out == (
+        f"sent to {f.ALIAS} as {f.CODEX_A} in thread {root[1:]}: "
+        f"{msg['event_id'][1:]}\n"
+    )
+    assert not (box / "m3.txt").exists()
+
+
+def test_a_refused_thread_keeps_the_prepared_file(
+    host: Host, box: Path, capsys, monkeypatch
+) -> None:
+    edit = host.hs.post(f.ROOM, f.HUMAN, "* fix", edit=True)
+    f.run(capsys, monkeypatch, "prepare-message", "m4.txt")
+    (box / "m4.txt").write_text("hello")
+    for thread in (edit[1:], "x:y"):
+        code, _, err, _ = f.run(
+            capsys,
+            monkeypatch,
+            "send",
+            "--as",
+            "codex",
+            "--message-file",
+            "m4.txt",
+            "--thread",
+            thread,
+        )
+        assert code != 0 and "nothing was sent" in err, thread
+    assert (box / "m4.txt").read_text() == "hello"
+    assert len(host.hs.messages(f.ROOM)) == 1
 
 
 # The watcher
