@@ -71,12 +71,13 @@ def in_thread(event: Any, root: str) -> bool:
 class _Watchdog:
     """Shut a bounded request's socket down once its time is up.
 
-    Until ``hold`` pins the connected socket, the timer reaches for whatever
-    socket the connection has, so a slow proxy tunnel is cut too. ``cancel``
-    runs before the connection is closed, so the final close never races a
-    shutdown. The only closed sockets the timer can reach are ones http.client
-    closed itself (a ``Connection: close`` answer) or ssl detached while
-    wrapping; their descriptor is -1, so that shutdown fails harmlessly.
+    ``adopt`` pins each socket as soon as it connects, before http.client sees
+    it, so a slow proxy tunnel is cut too; ``hold`` re-pins it once it is
+    wrapped in TLS. ``cancel`` runs before the connection is closed, so the
+    final close never races a shutdown. The only closed sockets the timer can
+    reach are ones http.client closed itself (a ``Connection: close`` answer)
+    or ssl detached while wrapping; their descriptor is -1, so that shutdown
+    fails harmlessly.
     """
 
     def __init__(self, conn: http.client.HTTPConnection, seconds: float) -> None:
@@ -112,6 +113,8 @@ class _Watchdog:
             if self._done:
                 return
             self.fired = True
+            # A guard only: adopt has pinned the socket before the connection
+            # holds one.
             sock = self._sock or self._conn.sock
             if sock is not None:
                 try:
