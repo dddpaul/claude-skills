@@ -219,3 +219,44 @@ def test_a_wait_takes_over_the_lock_of_an_orphaned_wait(
     assert (code, out) == (2, "")
     # Exiting at once would have returned 0: the mail proves the takeover.
     assert err.count("after the mode switch") == 1
+
+
+# Threads
+
+
+def in_thread(hs: f.FakeHomeserver, sender: str, root: str, body: str) -> str:
+    rel = {"rel_type": "m.thread", "event_id": root}
+    return hs.add(
+        f.ROOM, sender, {"msgtype": "m.text", "body": body, "m.relates_to": rel}
+    )
+
+
+def test_the_users_unaddressed_thread_message_wakes_only_the_threads_agents(
+    host: Host, owner: Owner, capsys, monkeypatch
+) -> None:
+    hook(capsys, monkeypatch, 0.1)
+    theirs = host.hs.post(f.ROOM, f.HUMAN, "@claude-b: yours", [f.CLAUDE_B])
+    in_thread(host.hs, f.CLAUDE_B, theirs, "on it")
+    in_thread(host.hs, f.HUMAN, theirs, "and the tests?")
+    assert hook(capsys, monkeypatch, 1) == (0, "", "")
+    ours = host.hs.post(f.ROOM, f.HUMAN, "@claude-a: yours", [f.CLAUDE_A])
+    hook(capsys, monkeypatch)  # the top-level mail
+    in_thread(host.hs, f.CLAUDE_A, ours, "on it")
+    in_thread(host.hs, f.HUMAN, ours, "and the docs?")
+    code, _, err = hook(capsys, monkeypatch)
+    assert code == 2 and "> and the docs?" in err
+    rid = ours[1:]
+    assert f"New in thread {rid} (reply with --thread {rid}):" in err
+    assert "Earlier" not in err, "an agent in the thread gets no earlier replies"
+
+
+def test_the_users_unaddressed_message_in_a_thread_without_agents_wakes_all(
+    host: Host, owner: Owner, capsys, monkeypatch
+) -> None:
+    hook(capsys, monkeypatch, 0.1)
+    root = host.hs.post(f.ROOM, f.HUMAN, "a thought")
+    hook(capsys, monkeypatch)
+    in_thread(host.hs, f.HUMAN, root, "more of it")
+    code, _, err = hook(capsys, monkeypatch)
+    assert code == 2 and "> more of it" in err
+    assert f"Thread {root[1:]}, started by {f.HUMAN}, the user speaking;" in err
