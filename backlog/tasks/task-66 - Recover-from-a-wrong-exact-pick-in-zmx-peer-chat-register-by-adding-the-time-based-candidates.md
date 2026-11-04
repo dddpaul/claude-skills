@@ -3,10 +3,10 @@ id: TASK-66
 title: >-
   Recover from a wrong exact pick in zmx-peer-chat register by adding the
   time-based candidates
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-04T06:43:00Z'
-updated_date: '2026-11-04T06:48:00Z'
+updated_date: '2026-11-04T06:54:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -69,4 +69,8 @@ Out of scope:
 Plan: in _find_thread, track whether an exact candidate failed a footer check; then merge _candidates() after the exact ones in the least-recently-tried rotation; _exact's poll takes that flag and re-runs latest_thread() once for --last; Registration.left_exact drives the '(after the exact pick)' log suffix. Tests with FakeDaemon.last accepting a list of answers.
 
 Commit: `647887a` - task-66: add the time-based candidates after a failed exact pick in register
+
+Commit: `2ace42c` - task-66: say when a wrong exact pick names another TUI's thread or waits FALLBACK_SECONDS
+
+Implemented: after an exact candidate fails one footer check, _find_thread adds _candidates() after the exact ones in the least-recently-tried rotation; --last re-queries latest_thread() once; Registration.left_exact adds '(after the exact pick)' to the labelled log line. Docs and README updated; version 0.1.8. task-reviewer: CHANGES REQUESTED (bind-time and other-TUI sentences, docstring wrap) then APPROVED after 2ace42c.
 <!-- SECTION:NOTES:END -->
