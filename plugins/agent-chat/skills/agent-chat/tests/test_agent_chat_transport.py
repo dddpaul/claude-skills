@@ -462,7 +462,7 @@ def _refused_ids(hs: f.FakeHomeserver) -> dict[str, tuple[str, str]]:
             ),
             "m.reference",
         ),
-        "redacted": (hs.add(f.ROOM, f.HUMAN, {}, unsigned=redaction), "redacted"),
+        "redacted": (hs.add(f.ROOM, f.HUMAN, text, unsigned=redaction), "redacted"),
         "empty": (hs.add(f.ROOM, f.HUMAN, {}), "empty"),
         "state": (
             hs.add(f.ROOM, f.HUMAN, {"topic": "t"}, "m.room.topic"),
@@ -509,6 +509,18 @@ def test_a_thread_send_refuses_a_malformed_id_with_exit_2(
     assert host.hs.requests == []
 
 
+def test_a_missing_relations_endpoint_fails_the_send_and_keeps_the_room(
+    host: Host, capsys, monkeypatch
+) -> None:
+    root = host.hs.post(f.ROOM, f.HUMAN, "the plan")
+    host.hs.no_relations = True
+    code, out, err = send_thread(capsys, monkeypatch, root[1:])
+    assert (code, out) == (1, "")
+    assert "thread lookup failed" in err and err.count("\n") == 1
+    assert host.hs.paths("PUT") == []
+    assert len([p for p in host.hs.paths() if "/directory/room/" in p]) == 1
+
+
 def test_a_thread_id_with_or_without_its_dollar_gives_the_same_post(
     host: Host, capsys, monkeypatch
 ) -> None:
@@ -522,7 +534,7 @@ def test_a_thread_id_with_or_without_its_dollar_gives_the_same_post(
     paths = host.hs.paths()
     assert (
         f"/_matrix/client/v3/rooms/%21room0001%3Aexample.test/event/%24{root[1:]}"
-        in (paths)
+        in paths
     )
     assert not [p for p in paths if set("$!:") & set(p)]
 

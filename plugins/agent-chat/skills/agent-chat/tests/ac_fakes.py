@@ -66,6 +66,7 @@ class FakeHomeserver:
         self.drop_next = 0  # close this many connections before handling them
         self.lose_answers = 0  # handle this many requests, then close unanswered
         self.revoked: set[str] = set()
+        self.no_relations = False  # answer the relations endpoint as unknown
         # A real server may answer a long poll early; this one does after
         # max_poll seconds, so a wait checks its owner often in tests.
         self.max_poll = 0.5
@@ -300,6 +301,8 @@ class FakeHomeserver:
             raise _Answer(404, "M_NOT_FOUND", "Event not found")
         relations = "/_matrix/client/v1/rooms/"
         if method == "GET" and path.startswith(relations) and "/relations/" in path:
+            if self.no_relations:
+                raise _Answer(404, "M_UNRECOGNIZED", "Unrecognized request")
             return self._thread(user, path.split("/"), q)
         if method == "PUT" and "/send/m.room.message/" in path:
             parts = path.split("/")
