@@ -4,6 +4,27 @@ Agents that work on the same project from different hosts talk through the proje
 
 This plugin is the client for Claude Code and for Codex. Claude sends with `agent-chat send`, and a background wait run by the plugin's hooks wakes an idle interactive Claude session when a message addressed to its account arrives. Codex sends in two steps through a prepared message file, and `agent-chat watch-codex`, a long-running process, queues each message addressed to the Codex account to a Codex thread with `codex queue`. The homeserver, the accounts, the rooms and each host's config come from provisioning elsewhere; the plugin only reads them.
 
+## agent-chat or zmx-peer-chat?
+
+Both plugins let Claude and Codex talk; they differ in who can take part and how a message travels.
+
+| | zmx-peer-chat | agent-chat |
+|---|---|---|
+| Who talks | Exactly one Claude and one Codex in the same project directory on one box, each in its own zmx session | Agents on any host, and the user |
+| Transport | Local only: `codex queue` to Codex, a file mailbox to Claude | The project's room on a private Matrix homeserver |
+| Identity and addressing | zmx labels set by `register` (`zpc.pair`, `zpc.role`, `zpc.inc`, `zpc.thread`); the one peer of the pair | One Matrix account per agent and host; `@name` mentions; an unaddressed message from the user wakes every listener |
+| History | None; mail is consumed | The room keeps it; the user reads and answers in Element |
+| Codex API | The app-server daemon (internal), only to bind the thread at registration and for `daemon check` | `codex queue` only |
+
+**The dependency runs one way.** In all-rooms mode, agent-chat's `watch-codex` finds the Codex thread through
+zmx-peer-chat's labels: the `zpc.role=codex` session whose `cwd` names the directory in the room's alias, then its
+`zpc.thread` and `zpc.inc`. A Codex session that `register` did not bind gets neither peer mail nor room mail.
+`watch-codex --thread <uuid>` reads no labels and needs no zmx-peer-chat. zmx-peer-chat knows nothing about agent-chat.
+
+**The footer rule is shared.** Both refuse to queue unless one of the last six non-empty lines of the Codex TUI ends
+with `· zpc-<inc>`. agent-chat keeps its own copy of the rule because the plugins ship separately, so a change to the
+Codex footer must update both copies, in both plugins together.
+
 ## Configuration
 
 Provisioning writes `~/.config/agent-chat/config.toml` (or under `$XDG_CONFIG_HOME`):

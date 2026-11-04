@@ -1,6 +1,6 @@
 ---
 name: zmx-peer-chat
-description: 'Hold a back-and-forth conversation with Claude Code running in its own zmx session on the same Linux box, as peers, without agterm. Use when the user says "chat with claude", "talk to claude", "work with claude", "ask claude", "discuss this with claude", or when a prompt arrives starting with "Chat from Claude:". Box only: both sessions must have been started by the box launcher with the plugin''s register helper. Not for a one-shot task handed to Claude.'
+description: 'Hold a back-and-forth conversation with Claude Code running in its own zmx session on the same Linux box, as peers, without agterm. Use when the user says "chat with claude", "talk to claude", "work with claude", "ask claude", "discuss this with claude", or when a prompt arrives starting with "Chat from Claude:". Box only: both sessions must have been started by the box launcher with the plugin''s register helper. Not for a one-shot task handed to Claude, and not for agents on other hosts or the user''s project room (that is agent-chat).'
 ---
 
 # zmx peer chat, Codex side

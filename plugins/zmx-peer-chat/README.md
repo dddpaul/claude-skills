@@ -4,6 +4,27 @@ Box-local peer chat between a Claude Code session and a Codex session that run o
 
 The contract (labels, the register helper's CLI and exit codes, the protocol version, the mailbox layout, the tested codex-cli version) and the box demonstrations are in `design/zmx-peer-chat.md` at the repo root.
 
+## agent-chat or zmx-peer-chat?
+
+Both plugins let Claude and Codex talk; they differ in who can take part and how a message travels.
+
+| | zmx-peer-chat | agent-chat |
+|---|---|---|
+| Who talks | Exactly one Claude and one Codex in the same project directory on one box, each in its own zmx session | Agents on any host, and the user |
+| Transport | Local only: `codex queue` to Codex, a file mailbox to Claude | The project's room on a private Matrix homeserver |
+| Identity and addressing | zmx labels set by `register` (`zpc.pair`, `zpc.role`, `zpc.inc`, `zpc.thread`); the one peer of the pair | One Matrix account per agent and host; `@name` mentions; an unaddressed message from the user wakes every listener |
+| History | None; mail is consumed | The room keeps it; the user reads and answers in Element |
+| Codex API | The app-server daemon (internal), only to bind the thread at registration and for `daemon check` | `codex queue` only |
+
+**The dependency runs one way.** In all-rooms mode, agent-chat's `watch-codex` finds the Codex thread through
+zmx-peer-chat's labels: the `zpc.role=codex` session whose `cwd` names the directory in the room's alias, then its
+`zpc.thread` and `zpc.inc`. A Codex session that `register` did not bind gets neither peer mail nor room mail.
+`watch-codex --thread <uuid>` reads no labels and needs no zmx-peer-chat. zmx-peer-chat knows nothing about agent-chat.
+
+**The footer rule is shared.** Both refuse to queue unless one of the last six non-empty lines of the Codex TUI ends
+with `· zpc-<inc>`. agent-chat keeps its own copy of the rule because the plugins ship separately, so a change to the
+Codex footer must update both copies, in both plugins together.
+
 ## How a pair comes about
 
 1. The launcher runs `zmx-peer-chat register --role claude|codex --session NAME --dir DIR` just before `zmx attach NAME <tool>` creates a session. The helper labels the new session with `zpc.pair` (from the directory's full path), `zpc.role`, `zpc.inc` and `zpc.proto`; for Codex it also finds the thread the new TUI opened through the local Codex app-server daemon, names it `zpc-<inc>` and, once the session's TUI footer shows that name, stores its UUID as `zpc.thread` (a candidate the footer does not show, such as a thread a killed TUI left loaded, is passed over). The session's command picks the thread exactly where it can: for `codex`, the thread the daemon's `thread/started` notification names in the directory, heard on the connection the helper opened before the TUI started; for `codex resume --last`, the thread the TUI's own `thread/list` query returns for the directory; for `codex resume <id>`, that id. When that thread fails one footer check (a stale or foreign `--last` answer, another TUI's `thread/started`), the time-based candidates below join it in turn, `--last` is asked once more, and `register.log` marks a session bound that way `(after the exact pick)`. Without such a signal (no daemon at registration, another command, a query that returns nothing) the helper falls back to the update times. Candidates are then tried in order: a thread started after the registration, any other thread newly loaded in the directory (a resume of a thread the daemon had unloaded, whose times codex-cli 0.166.0 leaves alone), a thread whose update time moved, and after 20 seconds the other idle threads of the directory, the most recent first. When no Codex daemon runs yet (the first Codex TUI on a freshly booted box starts it), the helper registers with an empty snapshot and the bind waits for the daemon; `register.log` then says `(no Codex daemon at registration)`, or `no Codex daemon was reachable in time` when none came up. An existing session keeps its labels.
