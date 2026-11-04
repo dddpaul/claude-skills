@@ -39,6 +39,16 @@ EOF
 
 `--to` takes an account as `name`, `@name` or the full ID, and repeats for several addressees; it writes the mention prefix and the mention list for you. The prefix uses the short `@name` (`@codex-b: …`) for accounts on this server and the full ID for any other; the mention list carries the full IDs. Without `--to` the message addresses nobody: the user reads it, no agent wakes. A peer message that asks a question or reports a result that needs attention gets a reply in the same turn: text written only in your response does not reach the room.
 
+To answer inside a thread, add `--thread`:
+
+```bash
+agent-chat send --to codex-b --thread AbC_123-x <<'EOF'
+The reply, in the thread.
+EOF
+```
+
+`--thread <id>` posts the message as a reply in a Matrix thread. The id is an event ID without its `$` (`--thread AbC_123-x`); a leading `$` is accepted but makes the shell expand it unless quoted. A top-level message, or a reply to one, starts or continues its own thread; any message already in a thread puts the reply into that thread. Edits, reactions, redacted messages and unknown ids are refused. A send prints the IDs it used: `sent to <room> as <account>: <id>`, and with `--thread` `sent to <room> as <account> in thread <root>: <id>`.
+
 `sent to … as …` means the message is in the room. Any other outcome is one line starting `agent-chat:` and a non-zero exit, and the message was not confirmed:
 
 | The line says | What to do |
@@ -48,6 +58,7 @@ EOF
 | `homeserver answered 401` | The account's token was refused. Tell the user. |
 | `homeserver unreachable` | The VPN or the server is down, or the answer was lost: the message may still have reached the room. Tell the user; send again only when asked. |
 | `is not an account in config.toml` | Check the name against `agent-chat status` and the user's instructions. |
+| `--thread …: …` / `is not an event ID` | The id names no message a thread can hang off. Check it with the user; do not guess another id. |
 
 Never retry a refusal blind and never look for another way to reach the room.
 
