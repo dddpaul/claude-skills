@@ -921,6 +921,27 @@ def test_several_unreachable_addresses_share_one_budget(
     assert asked == ["proxy.example" if env else "matrix.example"]
 
 
+def test_a_connect_finished_after_the_deadline_does_not_reach_the_tunnel(
+    serve, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proxy = serve(drip(b"HTTP/1.1 200 Connection established\r\n\r\n", gap=0.05))
+
+    class Late(socket.socket):
+        """A socket whose connect succeeds, then returns after its timeout."""
+
+        def connect(self, address) -> None:
+            timeout = self.gettimeout() or 0.0
+            super().connect(address)
+            time.sleep(timeout + 0.05)
+
+    monkeypatch.setattr(socket, "socket", Late)
+    client = Client("http://matrix.example", "unused", env={"HTTPS_PROXY": proxy.url})
+    started = time.monotonic()
+    with pytest.raises(NetworkError):
+        client.request("GET", "/x", deadline=client.now() + 0.3, tries=2)
+    assert time.monotonic() - started < 0.8
+
+
 def test_an_address_family_the_host_cannot_create_is_skipped(
     serve, monkeypatch: pytest.MonkeyPatch
 ) -> None:

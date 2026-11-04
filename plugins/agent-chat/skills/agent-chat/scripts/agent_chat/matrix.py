@@ -90,6 +90,18 @@ class _Watchdog:
         self._timer.daemon = True
         self._timer.start()
 
+    def adopt(self, sock: socket.socket) -> bool:
+        """Pin a freshly connected socket; False when the time is already up.
+
+        Taking the socket under the lock leaves no moment in which the timer
+        fires with nothing to shut, so the proxy tunnel that follows is cut.
+        """
+        with self._lock:
+            if self.fired:
+                return False
+            self._sock = sock
+            return True
+
     def hold(self) -> None:
         """Pin the socket once connected, tunnelled and wrapped in TLS."""
         with self._lock:
@@ -215,11 +227,15 @@ class Client:
                     if source_address:
                         sock.bind(source_address)
                     sock.connect(addr)
-                    return sock
                 except OSError as exc:
                     failure = exc
                     if sock is not None:
                         sock.close()
+                    continue
+                if watch.adopt(sock):
+                    return sock
+                sock.close()
+                raise TimeoutError("connected after the deadline")
             raise failure
 
         return create
