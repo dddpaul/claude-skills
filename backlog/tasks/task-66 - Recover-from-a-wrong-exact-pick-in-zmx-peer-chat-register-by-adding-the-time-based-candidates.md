@@ -3,10 +3,10 @@ id: TASK-66
 title: >-
   Recover from a wrong exact pick in zmx-peer-chat register by adding the
   time-based candidates
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-04T06:43:00Z'
-updated_date: '2026-11-04T06:44:00Z'
+updated_date: '2026-11-04T06:48:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -52,13 +52,19 @@ Out of scope:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A test where the --last answer names a thread the footer never shows while the TUI shows another thread of the directory ends with zpc.thread naming the shown thread before the deadline, and the --last thread gets its previous name back
-- [ ] #2 A test where the first latest_thread() answer is stale and the second, run after the first failed footer check, names the shown thread binds that thread
-- [ ] #3 A test where the exact candidate is right but a dialog hides the footer for longer than CONFIRM_SECONDS still binds it once the footer shows its name
-- [ ] #4 A test where cmd is codex and the only thread/started for the directory belongs to another TUI binds the thread the footer shows through the added time-based candidates
-- [ ] #5 A test where the exact candidate is shown at once never names a time-based candidate
-- [ ] #6 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
-- [ ] #7 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
-- [ ] #8 The register.log labelled line says when the bind left the exact pick
-- [ ] #9 design/zmx-peer-chat.md (Register helper) and plugins/zmx-peer-chat/README.md describe the recovery from a wrong exact pick
+- [x] #1 A test where the --last answer names a thread the footer never shows while the TUI shows another thread of the directory ends with zpc.thread naming the shown thread before the deadline, and the --last thread gets its previous name back
+- [x] #2 A test where the first latest_thread() answer is stale and the second, run after the first failed footer check, names the shown thread binds that thread
+- [x] #3 A test where the exact candidate is right but a dialog hides the footer for longer than CONFIRM_SECONDS still binds it once the footer shows its name
+- [x] #4 A test where cmd is codex and the only thread/started for the directory belongs to another TUI binds the thread the footer shows through the added time-based candidates
+- [x] #5 A test where the exact candidate is shown at once never names a time-based candidate
+- [x] #6 The version in both zmx-peer-chat plugin.json files is one patch above the version current at merge
+- [x] #7 uv run ruff check . passes and uv run pytest passes, except the known test_decision_tree_helper failure (un-vendored node_modules)
+- [x] #8 The register.log labelled line says when the bind left the exact pick
+- [x] #9 design/zmx-peer-chat.md (Register helper) and plugins/zmx-peer-chat/README.md describe the recovery from a wrong exact pick
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: in _find_thread, track whether an exact candidate failed a footer check; then merge _candidates() after the exact ones in the least-recently-tried rotation; _exact's poll takes that flag and re-runs latest_thread() once for --last; Registration.left_exact drives the '(after the exact pick)' log suffix. Tests with FakeDaemon.last accepting a list of answers.
+<!-- SECTION:NOTES:END -->

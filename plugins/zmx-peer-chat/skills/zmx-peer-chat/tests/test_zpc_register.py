@@ -7,7 +7,9 @@ loaded threads and binds the one thread the new TUI shows in the session
 directory. The session's command picks it exactly where it can: ``codex`` binds
 the thread of the first ``thread/started`` notification in the directory,
 ``codex resume --last`` the thread the TUI's own ``thread/list`` query returns,
-``codex resume <id>`` that id. Without such a signal the fallback infers it:
+``codex resume <id>`` that id. Once an exact candidate fails a footer check the
+time-based candidates join it, and ``--last`` is asked once more. Without such a
+signal the fallback infers it at once:
 candidates are tried in order: a newly loaded id created after the
 snapshot, any other newly loaded id whatever its times (codex-cli 0.166.0
 leaves the times of a resumed, unloaded thread alone), a thread whose
@@ -226,6 +228,140 @@ def test_resume_of_an_id_binds_that_id_once_loaded(tmp_path: Path) -> None:
     assert got["zpc.thread"] == THREAD_B
     assert daemon.names == {THREAD_B: f"zpc-{reg.inc}"}
     assert daemon.queries == []
+
+
+def _work(tmp_path: Path) -> str:
+    (tmp_path / "work").mkdir()
+    return str((tmp_path / "work").resolve())
+
+
+def test_a_wrong_last_answer_gives_way_to_the_thread_the_tui_shows(
+    tmp_path: Path,
+) -> None:
+    # The --last query names A, which another TUI shows, so the footer never
+    # shows it; the new TUI shows C. After A's failed check the time-based
+    # candidates join, C is bound and A gets its own name back.
+    work = _work(tmp_path)
+    snap = {THREAD_A: ThreadInfo(THREAD_A, work, "idle", "mine", 3, 9)}
+    later = dict(snap)
+    later[THREAD_C] = thread(THREAD_C, work, SINCE + 1, created=SINCE + 1)
+    daemon, clock = FakeDaemon([snap, later], last=THREAD_A), Clock()
+    reg, got = _register(
+        tmp_path, daemon, FakeZmx(), clock, THREAD_C, None, "codex resume --last"
+    )
+    assert got["zpc.thread"] == THREAD_C
+    assert daemon.names == {THREAD_A: "mine", THREAD_C: f"zpc-{reg.inc}"}
+    assert reg.left_exact
+    assert clock.t < FALLBACK_SECONDS < BIND_SECONDS
+
+
+def test_a_stale_last_answer_is_asked_again_after_a_failed_check(
+    tmp_path: Path,
+) -> None:
+    # Both threads were loaded at the snapshot and no time moves, so the
+    # time-based pick could not tell C before FALLBACK_SECONDS; the second
+    # query, run after A's failed check, names C.
+    work = _work(tmp_path)
+    snap = {THREAD_A: thread(THREAD_A, work, 9), THREAD_C: thread(THREAD_C, work, 7)}
+    daemon, clock = FakeDaemon([snap], last=[THREAD_A, THREAD_C]), Clock()
+    reg, got = _register(
+        tmp_path, daemon, FakeZmx(), clock, THREAD_C, None, "codex resume --last"
+    )
+    assert got["zpc.thread"] == THREAD_C
+    assert daemon.queries == [work, work]
+    assert daemon.names == {
+        THREAD_A: f"zpc-{reg.inc}-unbound",
+        THREAD_C: f"zpc-{reg.inc}",
+    }
+    assert not reg.left_exact
+    assert clock.t < FALLBACK_SECONDS
+
+
+def test_a_right_exact_pick_behind_a_dialog_is_still_bound(tmp_path: Path) -> None:
+    # A dialog hides the footer for 8 s, past CONFIRM_SECONDS: resumed A fails
+    # its first check, newly loaded C joins and is tried, then A again, now
+    # shown.
+    work = _work(tmp_path)
+    table = {
+        THREAD_A: thread(THREAD_A, work, 7, created=3),
+        THREAD_C: thread(THREAD_C, work, SINCE + 1, created=SINCE + 1),
+    }
+    clock = Clock()
+    daemon, zmx = FakeDaemon([{}, table]), FakeZmx()
+    footer = tui_footer(daemon, THREAD_A)
+    zmx.footers["w-codex"] = lambda: "" if clock.t < 8 else footer()
+    cmd = f"codex resume {THREAD_A}"
+    reg, got = _register(tmp_path, daemon, zmx, clock, None, None, cmd)
+    assert got["zpc.thread"] == THREAD_A
+    assert daemon.names == {
+        THREAD_C: f"zpc-{reg.inc}-unbound",
+        THREAD_A: f"zpc-{reg.inc}",
+    }
+    assert not reg.left_exact
+
+
+def _foreign_start(tmp_path: Path) -> FakeDaemon:
+    """A ``codex`` start whose only thread/started is another TUI's thread E."""
+    work = _work(tmp_path)
+    opened = {
+        THREAD_E: thread(THREAD_E, work, SINCE + 1, created=SINCE + 1),
+        THREAD_C: thread(THREAD_C, work, SINCE + 1, created=SINCE + 1),
+    }
+    return FakeDaemon([{}, opened], started={1: [(THREAD_E, work)]})
+
+
+def test_another_tuis_thread_started_gives_way_to_the_shown_thread(
+    tmp_path: Path,
+) -> None:
+    daemon, clock = _foreign_start(tmp_path), Clock()
+    reg, got = _register(tmp_path, daemon, FakeZmx(), clock, THREAD_C, cmd="codex")
+    assert got["zpc.thread"] == THREAD_C
+    assert daemon.names == {
+        THREAD_E: f"zpc-{reg.inc}-unbound",
+        THREAD_C: f"zpc-{reg.inc}",
+    }
+    assert reg.left_exact
+
+
+def test_the_log_says_when_the_bind_left_the_exact_pick(tmp_path: Path) -> None:
+    daemon, zmx, clock = _foreign_start(tmp_path), FakeZmx(), Clock()
+    zmx.footers["w-codex"] = tui_footer(daemon, THREAD_C)
+    reg = _prepare(tmp_path, daemon, zmx, "codex")
+    log = tmp_path / "register.log"
+    assert reg.lock is not None
+    reg.lock.close()
+    bind_in_background(
+        reg, log, lambda: bind(reg, zmx, lambda: daemon, 10, clock.sleep, clock.now)
+    )
+    for _ in range(100):
+        if log.exists() and log.read_text().endswith("\n"):
+            break
+        time.sleep(0.05)
+    line = log.read_text()
+    assert "w-codex: labelled " in line and f"zpc.thread={THREAD_C}" in line
+    assert line.endswith(" (after the exact pick)\n")
+
+
+@pytest.mark.parametrize("cmd", ["codex", "codex resume --last", "resume-id"])
+def test_an_exact_pick_shown_at_once_names_no_time_based_candidate(
+    tmp_path: Path, cmd: str
+) -> None:
+    # B is the exact pick; started C and resumed A come first in the
+    # time-based order but are never named.
+    work = _work(tmp_path)
+    snap = {THREAD_A: thread(THREAD_A, work, 9)}
+    later = {
+        THREAD_A: thread(THREAD_A, work, SINCE + 1),
+        THREAD_B: thread(THREAD_B, work, SINCE + 1, created=SINCE + 1),
+        THREAD_C: thread(THREAD_C, work, SINCE + 1, created=SINCE + 1),
+    }
+    started = {1: [(THREAD_B, work)]}
+    daemon = FakeDaemon([snap, later], started=started, last=THREAD_B)
+    cmd = f"codex resume {THREAD_B}" if cmd == "resume-id" else cmd
+    reg, got = _register(tmp_path, daemon, FakeZmx(), Clock(), THREAD_B, cmd=cmd)
+    assert got["zpc.thread"] == THREAD_B
+    assert daemon.names == {THREAD_B: f"zpc-{reg.inc}"}
+    assert not reg.left_exact
 
 
 @pytest.mark.parametrize("cmd", [None, "bash", "codex --yolo", "codex resume --last"])
