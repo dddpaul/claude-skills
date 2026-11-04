@@ -16,7 +16,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 import pytest
 
@@ -67,6 +67,11 @@ class FakeHomeserver:
         self.lose_answers = 0  # handle this many requests, then close unanswered
         self.revoked: set[str] = set()
         self.no_relations = False  # answer the relations endpoint as unknown
+        # Thread lookups (the event and relations routes) fail this way:
+        # "stall" never answers, "drop" closes the connection, "401" refuses
+        # the token.
+        self.lookup_fault: str | None = None
+        self._released = threading.Event()
         # A real server may answer a long poll early; this one does after
         # max_poll seconds, so a wait checks its owner often in tests.
         self.max_poll = 0.5
@@ -77,6 +82,7 @@ class FakeHomeserver:
 
     def close(self) -> None:
         """Stop serving and wake every long poll."""
+        self._released.set()
         with self.cond:
             self.cond.notify_all()
         self.httpd.shutdown()
@@ -167,6 +173,15 @@ class FakeHomeserver:
     def paths(self, method: str | None = None) -> list[str]:
         """Return the request paths seen, optionally for one method."""
         return [p for m, p, _, _ in self.requests if method in (None, m)]
+
+    def lookups(self, room_id: str | None = None) -> list[str]:
+        """Return the paths of the thread lookups seen, optionally in one room."""
+        room = None if room_id is None else quote(room_id, safe="")
+        return [
+            p
+            for p in self.paths("GET")
+            if _is_lookup(p) and (room is None or p.split("/")[5] == room)
+        ]
 
     def _sync(self, user: str, q: dict[str, list[str]]) -> dict[str, Any]:
         filt = q.get("filter", [""])[0]
@@ -327,8 +342,12 @@ class FakeHomeserver:
                 n = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(n)) if n else None
                 hs.requests.append((method, u.path, q, body))
-                if hs.drop_next > 0:
-                    hs.drop_next -= 1
+                fault = hs.lookup_fault if _is_lookup(u.path) else None
+                if fault == "stall":
+                    hs._released.wait(30)
+                    return
+                if hs.drop_next > 0 or fault == "drop":
+                    hs.drop_next -= fault != "drop"
                     self.close_connection = True
                     self.connection.shutdown(socket.SHUT_RDWR)
                     return
@@ -336,7 +355,7 @@ class FakeHomeserver:
                 token = auth.removeprefix("Bearer ")
                 user = next((u for u, t in TOKENS.items() if t == token), None)
                 try:
-                    if user is None or token in hs.revoked:
+                    if user is None or token in hs.revoked or fault == "401":
                         raise _Answer(401, "M_UNKNOWN_TOKEN", "Invalid access token")
                     status, answer = 200, hs._route(method, u.path, q, body, user)
                 except _Answer as a:
@@ -363,6 +382,13 @@ class FakeHomeserver:
                 self._serve("PUT")
 
         return Handler
+
+
+def _is_lookup(path: str) -> bool:
+    """Tell whether ``path`` reads one event or a thread's relations."""
+    return path.startswith("/_matrix/client/") and (
+        "/event/" in path or "/relations/" in path
+    )
 
 
 class _Answer(Exception):

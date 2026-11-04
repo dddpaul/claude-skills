@@ -389,10 +389,15 @@ class CodexWatcher(SyncLoop):
             try:
                 self._sweep(deadline)
                 for rooms in self.batches(deadline, lambda: not self.stopping):
+                    budget = self.budget()
                     for room in rooms.get("join") or {}:
-                        mail = self.mail(timeline(rooms, room))
-                        alias = self._served(room, deadline) if mail else None
-                        if alias:
+                        events = timeline(rooms, room)
+                        if not self.candidates(events):
+                            continue
+                        # A room it does not serve spends none of the budget.
+                        alias = self._served(room, deadline)
+                        mail = self.mail(room, events, budget) if alias else []
+                        if alias and mail:
                             self._deliver(alias, mail)
                     pause = 1.0
                     if self.stopping:
