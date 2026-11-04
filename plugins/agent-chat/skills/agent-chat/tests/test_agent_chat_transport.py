@@ -884,6 +884,27 @@ def test_a_connection_never_accepted_ends_by_the_budget(serve) -> None:
     assert bounded(server.url, 0.3) < 0.8
 
 
+def test_several_unreachable_addresses_share_one_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waited: list[float] = []
+
+    class Stalled(socket.socket):
+        """A socket whose connect stalls for its whole timeout."""
+
+        def connect(self, address) -> None:
+            waited.append(self.gettimeout() or 0.0)
+            time.sleep(self.gettimeout() or 0.0)
+            raise TimeoutError("timed out")
+
+    stream = (socket.AF_INET, socket.SOCK_STREAM, 6, "")
+    addrs = [(*stream, (f"192.0.2.{i}", 80)) for i in (1, 2, 3)]
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: addrs)
+    monkeypatch.setattr(socket, "socket", Stalled)
+    assert bounded("http://matrix.example", 0.3) < 0.8
+    assert sum(waited) <= 0.31
+
+
 def test_an_answer_completed_after_the_deadline_is_a_failure(serve) -> None:
     answered = threading.Event()
 

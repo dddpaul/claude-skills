@@ -73,8 +73,10 @@ class _Watchdog:
 
     Until ``hold`` pins the connected socket, the timer reaches for whatever
     socket the connection has, so a slow proxy tunnel is cut too. ``cancel``
-    runs before the connection is closed, so the timer never touches a closed
-    socket.
+    runs before the connection is closed, so the final close never races a
+    shutdown. The only closed sockets the timer can reach are ones http.client
+    closed itself (a ``Connection: close`` answer) or ssl detached while
+    wrapping; their descriptor is -1, so that shutdown fails harmlessly.
     """
 
     def __init__(self, conn: http.client.HTTPConnection, seconds: float) -> None:
@@ -114,9 +116,15 @@ class _Watchdog:
 
 
 def tls_context() -> ssl.SSLContext:
-    """Return the TLS context of a bounded request, as http.client makes it."""
+    """Return the TLS context of a bounded request.
+
+    It has the settings http.client gives its own default context; an
+    override of ``ssl._create_default_https_context`` does not reach it.
+    """
     ctx = ssl.create_default_context()
     ctx.set_alpn_protocols(["http/1.1"])
+    if ctx.post_handshake_auth is not None:
+        ctx.post_handshake_auth = True
     return ctx
 
 
@@ -177,15 +185,52 @@ class Client:
         conn.set_tunnel(host, port, headers)
         return conn
 
+    def _dial(self, deadline: float, watch: _Watchdog) -> Callable[..., socket.socket]:
+        """Return a ``create_connection`` whose addresses share the time left.
+
+        ``socket.create_connection`` gives every address the full timeout, so
+        a host with several unreachable addresses would take that many budgets.
+        """
+
+        def create(
+            address: tuple[str, int],
+            timeout: object = None,
+            source_address: tuple[str, int] | None = None,
+            **_: object,
+        ) -> socket.socket:
+            host, port = address
+            failure: OSError = TimeoutError("no time left to connect")
+            for family, kind, proto, _name, addr in socket.getaddrinfo(
+                host, port, 0, socket.SOCK_STREAM
+            ):
+                left = deadline - self._now()
+                if watch.fired or left <= 0:
+                    break
+                sock = socket.socket(family, kind, proto)
+                try:
+                    sock.settimeout(left)
+                    if source_address:
+                        sock.bind(source_address)
+                    sock.connect(addr)
+                    return sock
+                except OSError as exc:
+                    failure = exc
+                    sock.close()
+            raise failure
+
+        return create
+
     def _connect(
         self, conn: http.client.HTTPConnection, deadline: float, watch: _Watchdog
     ) -> None:
         """Connect a bounded request, the proxy tunnel and TLS included.
 
-        The watchdog cuts the TCP socket while it connects and tunnels. The
-        TLS handshake runs on a socket it cannot reach yet, so its one socket
-        timeout, which bounds the whole handshake, is the time left.
+        Each address tried gets only the time left, so a host with several
+        addresses shares one budget. The watchdog cuts the TCP socket while it
+        tunnels. The TLS handshake runs on a socket it cannot reach yet, so its
+        one socket timeout, which bounds the whole handshake, is the time left.
         """
+        conn._create_connection = self._dial(deadline, watch)
         http.client.HTTPConnection.connect(conn)
         if self._url.scheme == "https":
             left = deadline - self._now()
