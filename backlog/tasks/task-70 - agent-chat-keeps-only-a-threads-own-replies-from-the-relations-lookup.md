@@ -4,7 +4,7 @@ title: agent-chat keeps only a thread's own replies from the relations lookup
 status: In Progress
 assignee: []
 created_date: '2026-11-04T13:37:00Z'
-updated_date: '2026-11-04T13:43:00Z'
+updated_date: '2026-11-04T13:46:00Z'
 labels:
   - feature:agent-chat-threads
 dependencies: []
@@ -98,7 +98,7 @@ test_agent_chat_transport.py.
 - [x] #7 TASK-68's implementation notes end with the live-check record given in the description
 - [x] #8 uv run ruff check . is clean and uv run pytest plugins/agent-chat passes
 - [x] #9 A test with nested_relations=after shows the user's unaddressed message in the root's thread does not wake an agent that posted only in the rich reply's thread while the root thread's own agent wakes, and an agent the root mentions that has not posted gets earlier context with no nested reply in it
-- [ ] #10 The design file's working-tree change is committed as it is (git status --short shows nothing modified under the design directory)
+- [x] #10 The design file's working-tree change is committed as it is (git status --short shows nothing modified under the design directory)
 <!-- AC:END -->
 
 ## Implementation Notes
