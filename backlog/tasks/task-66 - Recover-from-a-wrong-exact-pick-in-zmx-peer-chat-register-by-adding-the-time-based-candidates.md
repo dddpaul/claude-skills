@@ -67,4 +67,6 @@ Out of scope:
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: in _find_thread, track whether an exact candidate failed a footer check; then merge _candidates() after the exact ones in the least-recently-tried rotation; _exact's poll takes that flag and re-runs latest_thread() once for --last; Registration.left_exact drives the '(after the exact pick)' log suffix. Tests with FakeDaemon.last accepting a list of answers.
+
+Commit: `647887a` - task-66: add the time-based candidates after a failed exact pick in register
 <!-- SECTION:NOTES:END -->
