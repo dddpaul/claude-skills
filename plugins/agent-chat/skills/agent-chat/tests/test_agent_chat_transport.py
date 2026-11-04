@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import errno
 import http.client
 import json
 import os
+import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import threading
@@ -17,9 +20,9 @@ import ac_fakes as f
 import pytest
 from conftest import Host, Owner, PsOwner
 
-from agent_chat import cli, config, note, threads
+from agent_chat import cli, config, matrix, note, threads
 from agent_chat.listen import SyncLoop
-from agent_chat.matrix import AuthError, Client
+from agent_chat.matrix import AuthError, Client, NetworkError
 
 BIN = Path(__file__).resolve().parents[3] / "bin" / "agent-chat"
 
@@ -794,3 +797,221 @@ def test_a_rich_replys_thread_neither_joins_nor_feeds_the_roots_thread(
     text = note.render(mail, loop.cfg, f.CODEX_A, f.ALIAS)
     assert "Earlier in this thread" in text and "> mine" in text
     assert "nested" not in text
+
+
+# The bounded mode's total deadline
+
+OK = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"
+HEAD = b"HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n"
+
+
+class Server:
+    """A local server whose answer to every request is ``answer(conn)``."""
+
+    def __init__(self, answer, accept: bool = True) -> None:
+        self.sock = socket.create_server(("127.0.0.1", 0), backlog=8)
+        self.url = f"http://127.0.0.1:{self.sock.getsockname()[1]}"
+        self._answer = answer
+        if accept:
+            threading.Thread(target=self._serve, daemon=True).start()
+
+    def _serve(self) -> None:
+        while True:
+            try:
+                conn, _ = self.sock.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._one, args=(conn,), daemon=True).start()
+
+    def _one(self, conn: socket.socket) -> None:
+        with conn:
+            try:
+                conn.recv(65536)
+                self._answer(conn)
+            except OSError:
+                pass
+
+    def close(self) -> None:
+        self.sock.close()
+
+
+def drip(data: bytes, gap: float = 0.02):
+    def answer(conn: socket.socket) -> None:
+        for i in range(len(data)):
+            conn.sendall(data[i : i + 1])
+            time.sleep(gap)
+
+    return answer
+
+
+def bounded(url: str, budget: float, now=time.monotonic) -> float:
+    """Run one bounded request; return how long it took to fail."""
+    client = Client(url, "unused", env={}, now=now)
+    started = time.monotonic()
+    with pytest.raises(NetworkError):
+        client.request("GET", "/x", deadline=client.now() + budget, tries=2)
+    return time.monotonic() - started
+
+
+@pytest.fixture
+def serve():
+    servers: list[Server] = []
+
+    def start(answer, accept: bool = True) -> Server:
+        servers.append(Server(answer, accept))
+        return servers[-1]
+
+    yield start
+    for s in servers:
+        s.close()
+
+
+def test_a_dripped_answer_ends_a_bounded_request_by_its_budget(serve) -> None:
+    server = serve(drip(OK + b" " * 100))
+    assert bounded(server.url, 0.15) < 0.65
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [drip(HEAD * 20), lambda conn: (conn.sendall(HEAD), drip(b"x" * 1000)(conn))],
+    ids=["slow-headers", "slow-body"],
+)
+def test_slow_headers_and_a_slow_body_end_by_the_budget(serve, answer) -> None:
+    assert bounded(serve(answer).url, 0.3) < 0.8
+
+
+def test_a_connection_never_accepted_ends_by_the_budget(serve) -> None:
+    server = serve(lambda conn: None, accept=False)
+    assert bounded(server.url, 0.3) < 0.8
+
+
+@pytest.mark.parametrize(
+    "env",
+    [{}, {"HTTPS_PROXY": "http://proxy.example:3128"}],
+    ids=["direct", "proxy"],
+)
+def test_several_unreachable_addresses_share_one_budget(
+    monkeypatch: pytest.MonkeyPatch, env: dict[str, str]
+) -> None:
+    waited: list[float] = []
+    asked: list[str] = []
+
+    class Stalled(socket.socket):
+        """A socket whose connect stalls for its whole timeout."""
+
+        def connect(self, address) -> None:
+            waited.append(self.gettimeout() or 0.0)
+            time.sleep(self.gettimeout() or 0.0)
+            raise TimeoutError("timed out")
+
+    def resolve(host: str, *_: object, **__: object) -> list[tuple]:
+        asked.append(host)
+        return addrs
+
+    stream = (socket.AF_INET, socket.SOCK_STREAM, 6, "")
+    addrs = [(*stream, (f"192.0.2.{i}", 80)) for i in (1, 2, 3)]
+    monkeypatch.setattr(socket, "getaddrinfo", resolve)
+    monkeypatch.setattr(socket, "socket", Stalled)
+    client = Client("http://matrix.example", "unused", env=env)
+    started = time.monotonic()
+    with pytest.raises(NetworkError):
+        client.request("GET", "/x", deadline=client.now() + 0.3, tries=2)
+    assert time.monotonic() - started < 0.8
+    assert sum(waited) <= 0.31
+    assert asked == ["proxy.example" if env else "matrix.example"]
+
+
+def test_a_connect_finished_after_the_deadline_does_not_reach_the_tunnel(
+    serve, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proxy = serve(drip(b"HTTP/1.1 200 Connection established\r\n\r\n", gap=0.05))
+
+    class Late(socket.socket):
+        """A socket whose connect succeeds, then returns after its timeout."""
+
+        def connect(self, address) -> None:
+            timeout = self.gettimeout() or 0.0
+            super().connect(address)
+            time.sleep(timeout + 0.05)
+
+    monkeypatch.setattr(socket, "socket", Late)
+    client = Client("http://matrix.example", "unused", env={"HTTPS_PROXY": proxy.url})
+    started = time.monotonic()
+    with pytest.raises(NetworkError):
+        client.request("GET", "/x", deadline=client.now() + 0.3, tries=2)
+    assert time.monotonic() - started < 0.8
+
+
+def test_an_address_family_the_host_cannot_create_is_skipped(
+    serve, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server = serve(lambda conn: conn.sendall(OK))
+    port = int(server.url.rsplit(":", 1)[1])
+    real = socket.socket
+
+    def make(family: int = socket.AF_INET, *args: object, **kwargs: object):
+        if family == socket.AF_INET6:
+            raise OSError(errno.EAFNOSUPPORT, "Address family not supported")
+        return real(family, *args, **kwargs)
+
+    v6 = (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", port, 0, 0))
+    v4 = (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: [v6, v4])
+    monkeypatch.setattr(socket, "socket", make)
+    client = Client(server.url, "unused", env={})
+    assert client.request("GET", "/x", deadline=client.now() + 5, tries=2) == {}
+
+
+def test_an_answer_completed_after_the_deadline_is_a_failure(serve) -> None:
+    answered = threading.Event()
+
+    def answer(conn: socket.socket) -> None:
+        answered.set()
+        conn.sendall(OK)
+
+    server = serve(answer)
+    clock = lambda: 100.0 if answered.is_set() else 0.0  # noqa: E731
+    bounded(server.url, 5.0, now=clock)
+    unbounded = Client(server.url, "unused", env={})
+    assert unbounded.request("GET", "/x", deadline=unbounded.now() + 5) == {}
+
+
+def test_bounded_requests_leave_no_watchdog_alive(serve) -> None:
+    server = serve(lambda conn: conn.sendall(OK))
+    client = Client(server.url, "unused", env={})
+    for _ in range(50):
+        assert client.request("GET", "/x", deadline=client.now() + 5, tries=2) == {}
+    alive = [t for t in threading.enumerate() if t.name == "agent-chat-watchdog"]
+    assert alive == []
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="needs openssl")
+def test_a_slow_tunnel_and_tls_handshake_end_by_the_budget(
+    serve, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cert, key = tmp_path / "c.pem", tmp_path / "k.pem"
+    subprocess.run(
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1"]
+        + ["-subj", "/CN=matrix.example", "-keyout", key, "-out", cert],
+        check=True,
+        capture_output=True,
+    )
+    server_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_ctx.load_cert_chain(cert, key)
+    client_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    client_ctx.check_hostname = False
+    client_ctx.verify_mode = ssl.CERT_NONE
+    monkeypatch.setattr(matrix, "tls_context", lambda: client_ctx)
+
+    def proxy(conn: socket.socket) -> None:
+        time.sleep(0.2)
+        conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+        time.sleep(0.15)
+        drip(OK + b" " * 100)(server_ctx.wrap_socket(conn, server_side=True))
+
+    url = f"http://127.0.0.1:{serve(proxy).sock.getsockname()[1]}"
+    client = Client("https://matrix.example", "unused", env={"HTTPS_PROXY": url})
+    started = time.monotonic()
+    with pytest.raises(NetworkError):
+        client.request("GET", "/x", deadline=client.now() + 0.3, tries=2)
+    assert time.monotonic() - started < 0.8
