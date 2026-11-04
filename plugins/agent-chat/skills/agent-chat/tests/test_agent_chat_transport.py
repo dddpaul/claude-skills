@@ -5,7 +5,9 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import threading
@@ -17,7 +19,7 @@ import ac_fakes as f
 import pytest
 from conftest import Host, Owner, PsOwner
 
-from agent_chat import cli, config, note, threads
+from agent_chat import cli, config, matrix, note, threads
 from agent_chat.listen import SyncLoop
 from agent_chat.matrix import AuthError, Client, NetworkError
 
@@ -886,8 +888,8 @@ def test_an_answer_completed_after_the_deadline_is_a_failure(serve) -> None:
     answered = threading.Event()
 
     def answer(conn: socket.socket) -> None:
-        conn.sendall(OK)
         answered.set()
+        conn.sendall(OK)
 
     server = serve(answer)
     clock = lambda: 100.0 if answered.is_set() else 0.0  # noqa: E731
@@ -903,3 +905,35 @@ def test_bounded_requests_leave_no_watchdog_alive(serve) -> None:
         assert client.request("GET", "/x", deadline=client.now() + 5, tries=2) == {}
     alive = [t for t in threading.enumerate() if t.name == "agent-chat-watchdog"]
     assert alive == []
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="needs openssl")
+def test_a_slow_tunnel_and_tls_handshake_end_by_the_budget(
+    serve, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cert, key = tmp_path / "c.pem", tmp_path / "k.pem"
+    subprocess.run(
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1"]
+        + ["-subj", "/CN=matrix.example", "-keyout", key, "-out", cert],
+        check=True,
+        capture_output=True,
+    )
+    server_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_ctx.load_cert_chain(cert, key)
+    client_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    client_ctx.check_hostname = False
+    client_ctx.verify_mode = ssl.CERT_NONE
+    monkeypatch.setattr(matrix, "tls_context", lambda: client_ctx)
+
+    def proxy(conn: socket.socket) -> None:
+        time.sleep(0.2)
+        conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+        time.sleep(0.15)
+        drip(OK + b" " * 100)(server_ctx.wrap_socket(conn, server_side=True))
+
+    url = f"http://127.0.0.1:{serve(proxy).sock.getsockname()[1]}"
+    client = Client("https://matrix.example", "unused", env={"HTTPS_PROXY": url})
+    started = time.monotonic()
+    with pytest.raises(NetworkError):
+        client.request("GET", "/x", deadline=client.now() + 0.3, tries=2)
+    assert time.monotonic() - started < 0.8
