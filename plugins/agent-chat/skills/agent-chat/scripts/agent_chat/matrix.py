@@ -277,13 +277,19 @@ class Client:
 
     def thread_latest(self, room_id: str, root: str, deadline: float) -> str | None:
         """Return the ID of the latest message in ``root``'s thread, or None if none."""
-        got = self.request(
-            "GET",
-            f"{API_V1}/rooms/{quote(room_id, safe='')}/relations/"
-            f"{quote(root, safe='')}/m.thread/m.room.message",
-            query={"dir": "b", "limit": "1"},
-            deadline=deadline,
-        )
+        try:
+            got = self.request(
+                "GET",
+                f"{API_V1}/rooms/{quote(room_id, safe='')}/relations/"
+                f"{quote(root, safe='')}/m.thread/m.room.message",
+                query={"dir": "b", "limit": "1"},
+                deadline=deadline,
+            )
+        except MatrixError as exc:
+            if exc.status != 404 or isinstance(exc, AuthError):
+                raise
+            # Not a MatrixError: a send must not take it for a rejected room.
+            raise AgentChatError(f"thread lookup failed: {exc}") from exc
         chunk = got.get("chunk")
         if isinstance(chunk, list) and chunk and isinstance(chunk[0], dict):
             latest = chunk[0].get("event_id")
