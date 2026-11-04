@@ -12,6 +12,9 @@ import base64
 import http.client
 import json
 import os
+import socket
+import ssl
+import threading
 import time
 from collections.abc import Callable, Mapping
 from typing import Any
@@ -63,6 +66,81 @@ def in_thread(event: Any, root: str) -> bool:
         and rel.get("rel_type") == "m.thread"
         and rel.get("event_id") == root
     )
+
+
+class _Watchdog:
+    """Shut a bounded request's socket down once its time is up.
+
+    ``adopt`` pins each socket as soon as it connects, before http.client sees
+    it, so a slow proxy tunnel is cut too; ``hold`` re-pins it once it is
+    wrapped in TLS. ``cancel`` runs before the connection is closed, so the
+    final close never races a shutdown. The only closed sockets the timer can
+    reach are ones http.client closed itself (a ``Connection: close`` answer)
+    or ssl detached while wrapping; their descriptor is -1, so that shutdown
+    fails harmlessly.
+    """
+
+    def __init__(self, conn: http.client.HTTPConnection, seconds: float) -> None:
+        self._conn = conn
+        self._sock: socket.socket | None = None
+        self._lock = threading.Lock()
+        self._done = False
+        self.fired = False
+        self._timer = threading.Timer(seconds, self._fire)
+        self._timer.name = "agent-chat-watchdog"
+        self._timer.daemon = True
+        self._timer.start()
+
+    def adopt(self, sock: socket.socket) -> bool:
+        """Pin a freshly connected socket; False when the time is already up.
+
+        Taking the socket under the lock leaves no moment in which the timer
+        fires with nothing to shut, so the proxy tunnel that follows is cut.
+        """
+        with self._lock:
+            if self.fired:
+                return False
+            self._sock = sock
+            return True
+
+    def hold(self) -> None:
+        """Pin the socket once connected, tunnelled and wrapped in TLS."""
+        with self._lock:
+            self._sock = self._conn.sock
+
+    def _fire(self) -> None:
+        with self._lock:
+            if self._done:
+                return
+            self.fired = True
+            # A guard only: adopt has pinned the socket before the connection
+            # holds one.
+            sock = self._sock or self._conn.sock
+            if sock is not None:
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+    def cancel(self) -> None:
+        """Stop the timer and wait for its thread to end."""
+        with self._lock:
+            self._done = True
+        self._timer.cancel()
+        self._timer.join()
+
+
+def tls_context() -> ssl.SSLContext:
+    """Return the TLS context of a bounded request.
+
+    It has the settings http.client gives its own default context; an
+    override of ``ssl._create_default_https_context`` does not reach it.
+    """
+    ctx = ssl.create_default_context()
+    ctx.set_alpn_protocols(["http/1.1"])
+    if ctx.post_handshake_auth is not None:
+        ctx.post_handshake_auth = True
+    return ctx
 
 
 def proxy_url(env: Mapping[str, str]) -> str | None:
@@ -122,11 +200,88 @@ class Client:
         conn.set_tunnel(host, port, headers)
         return conn
 
+    def _dial(self, deadline: float, watch: _Watchdog) -> Callable[..., socket.socket]:
+        """Return a ``create_connection`` whose addresses share the time left.
+
+        ``socket.create_connection`` gives every address the full timeout, so
+        a host with several unreachable addresses would take that many budgets.
+        """
+
+        def create(
+            address: tuple[str, int],
+            timeout: object = None,
+            source_address: tuple[str, int] | None = None,
+            **_: object,
+        ) -> socket.socket:
+            host, port = address
+            failure: OSError = TimeoutError("no time left to connect")
+            for family, kind, proto, _name, addr in socket.getaddrinfo(
+                host, port, 0, socket.SOCK_STREAM
+            ):
+                left = deadline - self._now()
+                if watch.fired or left <= 0:
+                    break
+                sock = None
+                try:
+                    # Inside the try: an address family this host cannot
+                    # create falls through to the next address.
+                    sock = socket.socket(family, kind, proto)
+                    sock.settimeout(left)
+                    if source_address:
+                        sock.bind(source_address)
+                    sock.connect(addr)
+                except OSError as exc:
+                    failure = exc
+                    if sock is not None:
+                        sock.close()
+                    continue
+                if watch.adopt(sock):
+                    return sock
+                sock.close()
+                raise TimeoutError("connected after the deadline")
+            raise failure
+
+        return create
+
+    def _connect(
+        self, conn: http.client.HTTPConnection, deadline: float, watch: _Watchdog
+    ) -> None:
+        """Connect a bounded request, the proxy tunnel and TLS included.
+
+        Each address tried gets only the time left, so a host with several
+        addresses shares one budget. The watchdog cuts the TCP socket while it
+        tunnels. The TLS handshake runs on a socket it cannot reach yet, so its
+        one socket timeout, which bounds the whole handshake, is the time left.
+        """
+        conn._create_connection = self._dial(deadline, watch)
+        http.client.HTTPConnection.connect(conn)
+        if self._url.scheme == "https":
+            left = deadline - self._now()
+            if watch.fired or left <= 0:
+                raise TimeoutError("no time left for the TLS handshake")
+            conn.sock.settimeout(left)
+            conn.sock = tls_context().wrap_socket(
+                conn.sock, server_hostname=self._url.hostname
+            )
+        watch.hold()
+        if watch.fired:
+            raise TimeoutError("connected after the deadline")
+
     def _once(
-        self, method: str, path: str, body: bytes | None, timeout: float
+        self,
+        method: str,
+        path: str,
+        body: bytes | None,
+        timeout: float,
+        deadline: float | None = None,
     ) -> tuple[int, dict[str, Any]]:
         conn = self._connection(timeout)
+        # Socket timeouts bound each wait, not the request: a bounded one also
+        # gets a watchdog that ends it at ``deadline``.
+        watch = None if deadline is None else _Watchdog(conn, timeout)
         try:
+            if watch is not None and deadline is not None:
+                self._connect(conn, deadline, watch)
             headers = {"Authorization": f"Bearer {self._token}"}
             if body is not None:
                 headers["Content-Type"] = "application/json"
@@ -134,7 +289,12 @@ class Client:
             resp = conn.getresponse()
             raw = resp.read()
         finally:
+            if watch is not None:
+                watch.cancel()
             conn.close()
+        if watch is not None and deadline is not None:
+            if watch.fired or self._now() > deadline:
+                raise TimeoutError("no complete answer before the deadline")
         try:
             data = json.loads(raw) if raw else {}
         except ValueError:
@@ -160,8 +320,9 @@ class Client:
             query: Query parameters, if any.
             deadline: A ``now()`` value after which no retry starts.
             timeout: The request's own long-poll time in seconds.
-            tries: When set, the bounded mode: at most this many tries, and
-                no socket waits past ``deadline``.
+            tries: When set, the bounded mode: at most this many tries, each
+                ending by ``deadline`` whatever the server does; the hostname
+                lookup is not bounded.
 
         Raises:
             AuthError: On a 401.
@@ -182,7 +343,9 @@ class Client:
                 wait = min(wait, left)
             tried += 1
             try:
-                status, answer = self._once(method, path, data, wait)
+                status, answer = self._once(
+                    method, path, data, wait, None if tries is None else deadline
+                )
             except (OSError, http.client.HTTPException) as exc:
                 status, answer, why = 0, {}, f"{type(exc).__name__}: {exc}"
             else:
@@ -340,8 +503,8 @@ class Client:
         Only the events of ``root``'s own thread are kept, so the window of
         THREAD_WINDOW events may yield fewer.
 
-        Both requests run in the bounded mode: two tries each, and nothing
-        waits past ``deadline``.
+        Both requests run in the bounded mode: two tries each, all ending by
+        ``deadline``.
 
         Raises:
             AuthError: On a 401.
