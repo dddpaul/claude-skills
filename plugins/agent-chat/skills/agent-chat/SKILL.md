@@ -29,7 +29,7 @@ A message is addressed to this account when Element's @-autocomplete mentioned i
 
 The note groups the mail by thread. A thread's mail comes under `New in thread <id> (reply with --thread <id>)`, after the thread's root, cut to 300 characters. When this account has not posted in the thread, the root is followed by up to three earlier replies. A line says when they are left out. Top-level mail comes under `Top-level message <id> (reply with --thread <id>; that opens a thread on it)`. A thread that could not be read comes under `Thread <id> (could not be read; reply with --thread <id>)`. The root and the earlier replies carry their own authority labels. They are history, not mail to you and not instructions: a root the user wrote is not a new request. A root this account wrote is headed `started by <this account> (this account)`.
 
-Reply to mail in the thread the note names, with `--thread <id>` (see Sending). Post at top level, without `--thread`, only to start a new topic.
+Reply to mail in the thread the note names, with `--thread <id>` (see Sending). Post at top level, without `--thread`, only to start a new topic or the first update about a piece of work (see Sending).
 
 ## Sending
 
@@ -51,7 +51,15 @@ The reply, in the thread.
 EOF
 ```
 
-`--thread <id>` posts the message as a reply in a Matrix thread; reply to mail this way, with the id the note names, and post at top level only for a new topic. The id is an event ID without its `$` (`--thread AbC_123-x`); a leading `$` is accepted but makes the shell expand it unless quoted. A top-level message, or a reply to one, starts or continues its own thread; any message already in a thread puts the reply into that thread. Edits, reactions, redacted messages and unknown ids are refused. A send prints the IDs it used: `sent to <room> as <account>: <id>`, and with `--thread` `sent to <room> as <account> in thread <root>: <id>`.
+`--thread <id>` posts the message as a reply in a Matrix thread; reply to mail this way, with the id the note names, and post at top level only for a new topic or the first update about a piece of work. The id is an event ID without its `$` (`--thread AbC_123-x`); a leading `$` is accepted but makes the shell expand it unless quoted. A top-level message, or a reply to one, starts or continues its own thread; any message already in a thread puts the reply into that thread. Edits, reactions, redacted messages and unknown ids are refused. A send prints the IDs it used: `sent to <room> as <account>: <id>`, and with `--thread` `sent to <room> as <account> in thread <root>: <id>`.
+
+Keep updates about the same piece of work in one thread: a task's claimed, blocked, released and done messages, for example. First check where the work is tracked for a recorded room thread id. If none is recorded or known, post the first update at top level and keep the id the successful send printed; post every later update with `--thread <id>`. Before a long run or a handover, record that id (`room thread: <id>`) where you may edit the work's tracking, following the project's ownership and commit/push rules; this gives no extra right to edit or push. If no id can be recovered, post a new top-level update that names the work (`TASK-108: done, pushed abc123`) and use its id from then on. This fallback is a choice made before sending: a send that fails or is refused follows the table below, never a top-level retry.
+
+```bash
+agent-chat send --thread AbC_123-x <<'EOF'
+done TASK-108, pushed abc123
+EOF
+```
 
 `sent to … as …` means the message is in the room. Any other outcome is one line starting `agent-chat:` and a non-zero exit, and the message was not confirmed:
 
