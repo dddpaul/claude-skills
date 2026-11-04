@@ -25,11 +25,18 @@ says which thread the TUI shows, so ``bind`` picks it exactly when it can:
   returns for the session directory (``Daemon.latest_thread``), once loaded;
 - ``codex resume <id>``: that id, once loaded.
 
-Only these candidates are named then. Without an exact signal (no daemon at
-registration, so the ``thread/started`` may have come before register could
-listen; another command; a query that returns nothing) the bind falls back to
-inferring the thread from the times. They only order the threads of the
-directory that the TUI may show, tried in this order:
+Only these candidates are named at first. The exact answer can be wrong: the
+``--last`` query ran before the TUI's own lookup, may name a thread another
+TUI shows, or may filter by another model provider than the TUI's profile, and
+another TUI's ``thread/started`` in the same directory can come first. So once
+an exact candidate has failed one footer check, the time-based candidates
+below join the rotation after the exact ones, and for ``--last`` the query
+runs once more and its answer joins when it names another thread. Without an
+exact signal (no daemon at registration, so the ``thread/started`` may have
+come before register could listen; another command; a query that returns
+nothing) the bind falls back to inferring the thread from the times at once.
+They only order the threads of the directory that the TUI may show, tried in
+this order:
 
 - started: not loaded at the snapshot, created at or after it;
 - newly loaded: not loaded at the snapshot, whatever its times. With codex-cli
@@ -122,6 +129,9 @@ class Registration:
     # The daemon connection of the snapshot, kept open so that the bind reads
     # the thread/started notification of a TUI that starts after it.
     watch: Daemon | None = None
+    # True when the bound thread is not one the session's command picked
+    # exactly: an exact candidate failed and a time-based one was shown.
+    left_exact: bool = False
     lock: IO[str] | None = None
 
 
@@ -257,8 +267,12 @@ def _command(cmd: str | None) -> tuple[str, str | None] | None:
 
 def _exact(
     d: Daemon, reg: Registration, cmd: str | None
-) -> Callable[[], list[str]] | None:
-    """Return a poll for the exact thread ``cmd`` shows, or None without one."""
+) -> Callable[[bool], list[str]] | None:
+    """Return a poll for the exact thread ``cmd`` shows, or None without one.
+
+    The poll takes whether an exact candidate has failed a footer check; for
+    ``codex resume --last`` the first such poll runs the query once more.
+    """
     how = _command(cmd)
     if how is None:
         return None
@@ -268,7 +282,7 @@ def _exact(
             return None  # its thread/started may have come before this connection
         seen: list[str] = []
 
-        def started() -> list[str]:
+        def started(missed: bool) -> list[str]:
             d.loaded_threads()  # a call reads the notifications sent so far
             for t, cwd in d.started_threads():
                 if t not in seen and os.path.realpath(cwd) == reg.directory:
@@ -280,7 +294,19 @@ def _exact(
         tid = d.latest_thread(reg.directory)
     if tid is None:
         return None
-    return lambda: [tid] if tid in d.loaded_threads() else []
+    ids, asked = [tid], kind != "last"
+
+    def named(missed: bool) -> list[str]:
+        nonlocal asked
+        if missed and not asked:
+            asked = True  # the first answer may be stale: ask once more
+            again = d.latest_thread(reg.directory)
+            if again is not None and again not in ids:
+                ids.append(again)
+        loaded = d.loaded_threads()
+        return [t for t in ids if t in loaded]
+
+    return named
 
 
 def _shown(
@@ -333,18 +359,22 @@ def _find_thread(
     fallback_at = now() + FALLBACK_SECONDS
     with reg.watch or _open_until(open_daemon, deadline, sleep, now) as d:
         exact = _exact(d, reg, cmd)
+        missed = False  # an exact candidate has failed a footer check
         while True:
-            if exact is not None:
-                match = exact()
-            else:
-                match = _candidates(d, reg, now() >= fallback_at)
+            picked = exact(missed) if exact is not None else []
+            match = list(picked)
+            if exact is None or missed:
+                timed = _candidates(d, reg, now() >= fallback_at)
+                match += [t for t in timed if t not in match]
             if match:
                 t = min(match, key=lambda m: tried.index(m) if m in tried else -1)
                 previous = d.read_thread(t).name
                 d.set_thread_name(t, name)
                 if _shown(reg, zmx, deadline, sleep, now):
+                    reg.left_exact = exact is not None and t not in picked
                     return t
                 d.set_thread_name(t, previous or _unbound_name(reg.inc))
+                missed = missed or t in picked
                 if t in tried:
                     tried.remove(t)
                 tried.append(t)
@@ -432,6 +462,8 @@ def bind_in_background(
         )
         if not reg.snapshot:
             line += " (no Codex daemon at registration)"
+        if reg.left_exact:
+            line += " (after the exact pick)"
     except ZpcError as exc:
         code, line = exc.code, f"{reg.session}: {exc}"
     except Exception as exc:  # noqa: BLE001 - the log is the only witness

@@ -71,7 +71,8 @@ class FakeDaemon:
     named, its ``createdAt`` and ``updatedAt`` read as ``wall()`` at the read.
     ``started`` maps a ``loaded_threads`` call number (0 first) to the
     ``thread/started`` notifications (id, cwd) read with it; ``last`` is the
-    thread the ``codex resume --last`` query returns.
+    thread the ``codex resume --last`` query returns, or a list of its answers
+    to successive queries, the last one repeating.
     """
 
     def __init__(
@@ -80,7 +81,7 @@ class FakeDaemon:
         leftovers: set[str] | None = None,
         wall: Callable[[], float] | None = None,
         started: dict[int, list[tuple[str, str]]] | None = None,
-        last: str | None = None,
+        last: str | list[str | None] | None = None,
     ) -> None:
         self.timeline = timeline
         self.calls = 0
@@ -115,6 +116,8 @@ class FakeDaemon:
 
     def latest_thread(self, cwd: str) -> str | None:
         self.queries.append(cwd)
+        if isinstance(self.last, list):
+            return self.last[min(len(self.queries), len(self.last)) - 1]
         return self.last
 
     def read_thread(self, thread_id: str) -> ThreadInfo:

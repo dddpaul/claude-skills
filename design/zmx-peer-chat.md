@@ -56,7 +56,8 @@ Registration                       (the launcher [prov], just before the session
   bind         wait for NAME to appear in zmx ls; read its cmd=
                exact pick by cmd: codex -> the thread/started notification   (!2)
                  for <dir> on the kept connection; codex resume --last -> the
-                 TUI's own thread/list query; codex resume <id> -> that id
+                 TUI's own thread/list query; codex resume <id> -> that id;
+                 after its first failed footer check the time-based ones join
                without one, poll the daemon for a thread in <dir>, in order: a
                  new id created after S, any other id loaded since S, one whose
                  updatedAt moved past S, and after FALLBACK_SECONDS the idle
@@ -123,7 +124,7 @@ Every demonstration below "Box demonstrations" ran on 2026-10-20 with these vers
 | Path in `plugins/zmx-peer-chat/` | For | What it is |
 |-----------------------------------|-----|------------|
 | `bin/zmx-peer-chat` | both | The one command: register helper, router, mailbox, wait, daemon client. Python 3, stdlib only; the code is in `skills/zmx-peer-chat/scripts/zpc/`. |
-| `.claude-plugin/plugin.json` | Claude | Manifest, version `0.1.7`. Claude Code puts `bin/` on the Bash tool's `PATH`. |
+| `.claude-plugin/plugin.json` | Claude | Manifest, version `0.1.8`. Claude Code puts `bin/` on the Bash tool's `PATH`. |
 | `skills/zmx-peer-chat/SKILL.md` | Claude | How Claude receives, replies and refuses. |
 | `hooks/hooks.json` | Claude | `SessionStart`, `UserPromptSubmit`, `Stop` and `StopFailure` hooks that run `zmx-peer-chat hook-wait` with `asyncRewake`. |
 | `.codex-plugin/plugin.json` | Codex | Manifest: `"skills": "./codex-skills/"` and `"hooks": "./codex/hooks.json"`. |
@@ -172,7 +173,7 @@ The Codex thread pick, in `zpc/register.py`, starts from the session's command, 
 | `codex resume --last` | the thread the TUI's own lookup returns (`Daemon.latest_thread`): `thread/list` with `limit` 1, `sortKey` `updated_at`, the directory as `cwd`, `sourceKinds` `cli` and `vscode`, `archived` false and the history model provider (`config/read` for the directory, `openai` when it names none), first with `useStateDbOnly` true, then false, taking the thread only when its rollout file exists; tried once it is loaded | the query returns no thread |
 | `codex resume <id>` | that id, once loaded | never |
 
-Only that thread is named, and only once the footer shows it is it bound; the bind waits for it until the deadline and never falls back while it waits. Any other command, or a missing signal, falls back to the pick from the times, unchanged since TASK-63:
+At first only that thread is named, and only once the footer shows it is it bound. The exact answer can still be wrong: the `--last` query runs once at the bind's start, so it can be stale; it can name a thread another TUI shows; a profile or a session flag can pick a model provider that `config/read` does not report, so the TUI's own lookup filters differently; and another TUI starting a thread in the same directory at the same moment can send the only `thread/started` for a while. So once an exact candidate has failed one footer check, the bind adds the pick from the times below (with its `FALLBACK_SECONDS` timer, counted from the bind's start) to the rotation after the exact candidates, and for `codex resume --last` it runs the query once more and adds its answer when it names another thread. The rotation stays least recently tried first, so the exact candidate is tried again in turn, and a right one whose footer a startup dialog hid is still bound once the dialog closes. A session bound to a thread that was not an exact candidate logs `labelled … (after the exact pick)`. Any other command, or a missing signal, falls back to the pick from the times at once, unchanged since TASK-63:
 
 | Tried | Thread of the directory | For |
 |-------|-------------------------|-----|
@@ -261,7 +262,7 @@ Codex loads a plugin's `hooks/hooks.json` unless the manifest's `hooks` names an
 1. Before `zmx attach NAME <tool>` creates a session, run `zmx-peer-chat register --role <tool> --session NAME --dir <dir>` (only for `claude` and `codex`), from any directory.
 2. A non-zero exit means no label will be set; the launcher may start the session anyway, and its sends then refuse.
 3. A registration that fails in the background (codes 3, 4 and 5) is logged to `register.log` in the mail root and leaves the session unlabelled.
-4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (under two seconds with codex-cli 0.163.0; with 0.166.0 and the exact pick about 1.6 seconds for `codex` and for `codex resume --last`, the thread loaded or not; just over `FALLBACK_SECONDS`, 20, only when the exact pick has no signal, for another command or a `--last` query that returns no thread, and the thread is a still-loaded resume; a fallback for a fresh start or an unloaded resume binds as soon as the thread loads); one that only runs a turn there is ignored, and a thread another TUI shows is never bound because the new session's footer does not show it. Such a thread can still be tried: once `FALLBACK_SECONDS` have passed an idle one may carry `zpc-<inc>` for up to `CONFIRM_SECONDS` before it gets its name back, and sends to that TUI refuse meanwhile.
+4. Start one session per directory at a time; a second registration in the same directory while one binds exits 4. No other Codex TUI may start or resume a thread in that directory during the bind, which lasts up to `--timeout` (under two seconds with codex-cli 0.163.0; with 0.166.0 and the exact pick about 1.6 seconds for `codex` and for `codex resume --last`, the thread loaded or not; just over `FALLBACK_SECONDS`, 20, only when the thread is a still-loaded resume that the exact pick does not find: it has no signal, for another command or a `--last` query that returns no thread, or its answer is wrong both times it is asked; a fallback for a fresh start or an unloaded resume binds as soon as the thread loads); one that only runs a turn there is ignored, and a thread another TUI shows is never bound because the new session's footer does not show it. Such a thread can still be tried: a wrong exact pick names it at once, and once `FALLBACK_SECONDS` have passed any idle one may be named; it carries `zpc-<inc>` for up to `CONFIRM_SECONDS` before it gets its name back, and sends to that TUI refuse meanwhile.
 
 ## Box demonstrations
 
