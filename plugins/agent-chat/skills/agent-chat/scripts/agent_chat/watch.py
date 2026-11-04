@@ -338,6 +338,24 @@ class CodexWatcher(SyncLoop):
             return
         self.log(f"queued {what} to thread {thread}")
 
+    def _batch_mail(
+        self, rooms: dict[str, Any], deadline: float
+    ) -> list[tuple[str, list[Message]]]:
+        """Return each served room's alias and mail in one sync's ``rooms``.
+
+        The rooms are checked first and every lookup runs before any delivery,
+        so neither an unserved room nor a slow ``codex queue`` spends the
+        batch's lookup budget.
+        """
+        served = []
+        for room in rooms.get("join") or {}:
+            events = timeline(rooms, room)
+            if self.candidates(events) and (alias := self._served(room, deadline)):
+                served.append((room, alias, events))
+        budget = self.budget()
+        found = [(a, self.mail(room, events, budget)) for room, a, events in served]
+        return [(alias, mail) for alias, mail in found if mail]
+
     def _sweep(self, deadline: float) -> None:
         """Join the rooms of registered Codex sessions (all-rooms mode only)."""
         if self.alias is not None or self._now() < self._next_sweep:
@@ -389,16 +407,8 @@ class CodexWatcher(SyncLoop):
             try:
                 self._sweep(deadline)
                 for rooms in self.batches(deadline, lambda: not self.stopping):
-                    budget = self.budget()
-                    for room in rooms.get("join") or {}:
-                        events = timeline(rooms, room)
-                        if not self.candidates(events):
-                            continue
-                        # A room it does not serve spends none of the budget.
-                        alias = self._served(room, deadline)
-                        mail = self.mail(room, events, budget) if alias else []
-                        if alias and mail:
-                            self._deliver(alias, mail)
+                    for alias, mail in self._batch_mail(rooms, deadline):
+                        self._deliver(alias, mail)
                     pause = 1.0
                     if self.stopping:
                         break

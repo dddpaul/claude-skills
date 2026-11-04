@@ -12,7 +12,7 @@ Both plugins let Claude and Codex talk; they differ in who can take part and how
 |---|---|---|
 | Who talks | Exactly one Claude and one Codex in the same project directory on one box, each in its own zmx session | Agents on any host, and the user |
 | Transport | Local only: `codex queue` to Codex, a file mailbox to Claude | The project's room on a private Matrix homeserver |
-| Identity and addressing | zmx labels set by `register` (`zpc.pair`, `zpc.role`, `zpc.inc`, `zpc.thread`); the one peer of the pair | One Matrix account per agent and host; `@name` mentions; an unaddressed message from the user wakes every listener |
+| Identity and addressing | zmx labels set by `register` (`zpc.pair`, `zpc.role`, `zpc.inc`, `zpc.thread`); the one peer of the pair | One Matrix account per agent and host; `@name` mentions; an unaddressed top-level message from the user wakes every listener, one in a thread only the thread's agents |
 | History | None; mail is consumed | The room keeps it; the user reads and answers in Element |
 | Codex API | `codex queue` to send; the app-server daemon (internal) only to bind the thread at registration and for `daemon check` and `daemon skills` | `codex queue` only |
 
