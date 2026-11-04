@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import http.client
 import json
 import os
@@ -884,10 +885,16 @@ def test_a_connection_never_accepted_ends_by_the_budget(serve) -> None:
     assert bounded(server.url, 0.3) < 0.8
 
 
+@pytest.mark.parametrize(
+    "env",
+    [{}, {"HTTPS_PROXY": "http://proxy.example:3128"}],
+    ids=["direct", "proxy"],
+)
 def test_several_unreachable_addresses_share_one_budget(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, env: dict[str, str]
 ) -> None:
     waited: list[float] = []
+    asked: list[str] = []
 
     class Stalled(socket.socket):
         """A socket whose connect stalls for its whole timeout."""
@@ -897,12 +904,41 @@ def test_several_unreachable_addresses_share_one_budget(
             time.sleep(self.gettimeout() or 0.0)
             raise TimeoutError("timed out")
 
+    def resolve(host: str, *_: object, **__: object) -> list[tuple]:
+        asked.append(host)
+        return addrs
+
     stream = (socket.AF_INET, socket.SOCK_STREAM, 6, "")
     addrs = [(*stream, (f"192.0.2.{i}", 80)) for i in (1, 2, 3)]
-    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: addrs)
+    monkeypatch.setattr(socket, "getaddrinfo", resolve)
     monkeypatch.setattr(socket, "socket", Stalled)
-    assert bounded("http://matrix.example", 0.3) < 0.8
+    client = Client("http://matrix.example", "unused", env=env)
+    started = time.monotonic()
+    with pytest.raises(NetworkError):
+        client.request("GET", "/x", deadline=client.now() + 0.3, tries=2)
+    assert time.monotonic() - started < 0.8
     assert sum(waited) <= 0.31
+    assert asked == ["proxy.example" if env else "matrix.example"]
+
+
+def test_an_address_family_the_host_cannot_create_is_skipped(
+    serve, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server = serve(lambda conn: conn.sendall(OK))
+    port = int(server.url.rsplit(":", 1)[1])
+    real = socket.socket
+
+    def make(family: int = socket.AF_INET, *args: object, **kwargs: object):
+        if family == socket.AF_INET6:
+            raise OSError(errno.EAFNOSUPPORT, "Address family not supported")
+        return real(family, *args, **kwargs)
+
+    v6 = (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", port, 0, 0))
+    v4 = (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: [v6, v4])
+    monkeypatch.setattr(socket, "socket", make)
+    client = Client(server.url, "unused", env={})
+    assert client.request("GET", "/x", deadline=client.now() + 5, tries=2) == {}
 
 
 def test_an_answer_completed_after_the_deadline_is_a_failure(serve) -> None:
