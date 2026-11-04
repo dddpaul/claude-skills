@@ -17,7 +17,7 @@ import ac_fakes as f
 import pytest
 from conftest import Host, Owner, PsOwner
 
-from agent_chat import cli, config, threads
+from agent_chat import cli, config, note, threads
 from agent_chat.listen import SyncLoop
 from agent_chat.matrix import AuthError, Client
 
@@ -417,6 +417,8 @@ def test_a_thread_send_on_a_child_replies_to_the_latest_message_of_its_root(
     [lookup] = [p for p in host.hs.paths("GET") if "/relations/" in p]
     assert lookup.startswith("/_matrix/client/v1/rooms/")
     assert lookup.endswith(f"/relations/%24{root[1:]}/m.thread/m.room.message")
+    [query] = [q for _, p, q, _ in host.hs.requests if "/relations/" in p]
+    assert (query["dir"], query["limit"]) == (["b"], ["50"])
 
 
 def test_a_thread_send_on_a_rich_reply_makes_it_the_root(
@@ -686,3 +688,109 @@ def test_hook_wait_delivers_through_a_lookup_outage(
     rid = root[1:]
     assert f"Thread {rid} (could not be read; reply with --thread {rid}):" in err
     assert "> anyone?" in err
+
+
+# A relations answer that also lists the threads of rich replies to the root
+
+
+def rich_reply(hs: f.FakeHomeserver, sender: str, to: str, body: str) -> str:
+    """Post a rich reply to ``to`` (``m.in_reply_to`` only); return its ID."""
+    content = {
+        "msgtype": "m.text",
+        "body": body,
+        "m.relates_to": {"m.in_reply_to": {"event_id": to}},
+    }
+    return hs.add(f.ROOM, sender, content)
+
+
+def nested_thread(hs: f.FakeHomeserver) -> tuple[str, list[str], str]:
+    """Root G with replies C1, C2 and a rich reply R to G with reply C3.
+
+    Returns:
+        G, [C1, C2] and C3.
+    """
+    root = hs.post(f.ROOM, f.HUMAN, "plan?")
+    own = [child(hs, root, "c1"), child(hs, root, "c2")]
+    reply = rich_reply(hs, f.HUMAN, root, "answer")
+    return root, own, child(hs, reply, "c3")
+
+
+def ids(chunk: list[dict[str, Any]]) -> list[str]:
+    return [e["event_id"] for e in chunk]
+
+
+def test_the_fake_server_lists_a_rich_replys_thread_after_the_roots_own(
+    host: Host,
+) -> None:
+    hs = host.hs
+    root, (c1, c2), c3 = nested_thread(hs)
+    hs.nested_relations = "after"
+    client = Client(config.load_config().homeserver, f.TOKENS[f.CLAUDE_A])
+    path = f"/_matrix/client/v1/rooms/{f.ROOM}/relations/{root}/m.thread"
+    for limit, want in (("3", [c2, c1, c3]), ("1", [c2])):
+        got = client.request(
+            "GET", path, query={"dir": "b", "limit": limit}, deadline=time.time() + 5
+        )
+        assert ids(got["chunk"]) == want
+
+
+def test_a_thread_lookup_keeps_only_the_roots_own_replies_newest_first(
+    host: Host,
+) -> None:
+    hs = host.hs
+    root, (c1, c2), _ = nested_thread(hs)
+    hs.nested_relations = "after"
+    client = Client(config.load_config().homeserver, f.TOKENS[f.CLAUDE_A])
+    got, chunk = client.thread(f.ROOM, root, client.now() + 5)
+    assert got["event_id"] == root
+    assert ids(chunk) == [c2, c1]
+
+
+def test_a_thread_send_replies_to_the_roots_own_latest_whatever_the_order(
+    host: Host, capsys, monkeypatch
+) -> None:
+    hs = host.hs
+    root, (_, c2), _ = nested_thread(hs)
+    hs.nested_relations = "first"
+    assert send_thread(capsys, monkeypatch, root[1:])[0] == 0
+    rel = hs.messages(f.ROOM)[-1]["content"]["m.relates_to"]
+    assert rel["event_id"] == root
+    assert rel["m.in_reply_to"] == {"event_id": c2}
+
+
+def test_a_thread_send_replies_to_the_root_when_none_of_the_window_belongs(
+    host: Host, capsys, monkeypatch
+) -> None:
+    hs = host.hs
+    root = hs.post(f.ROOM, f.HUMAN, "plan?")
+    child(hs, root, "pushed out of the window")
+    reply = rich_reply(hs, f.HUMAN, root, "answer")
+    for n in range(50):
+        child(hs, reply, f"n{n}")
+    hs.nested_relations = "first"
+    assert send_thread(capsys, monkeypatch, root[1:])[0] == 0
+    rel = hs.messages(f.ROOM)[-1]["content"]["m.relates_to"]
+    assert rel["event_id"] == rel["m.in_reply_to"]["event_id"] == root
+
+
+def test_a_rich_replys_thread_neither_joins_nor_feeds_the_roots_thread(
+    host: Host,
+) -> None:
+    hs = host.hs
+    hs.nested_relations = "after"
+    root = hs.post(f.ROOM, f.HUMAN, "plan?", mentions=[f.CODEX_A])
+    in_thread(hs, f.CLAUDE_B, root, "mine")
+    reply = rich_reply(hs, f.HUMAN, root, "answer")
+    in_thread(hs, f.CLAUDE_A, reply, "nested")
+    in_thread(hs, f.HUMAN, root, "anyone?")
+    assert "anyone?" not in bodies(reader(host, f.CLAUDE_A), hs)
+    assert bodies(reader(host, f.CLAUDE_B), hs)[-1:] == ["anyone?"]
+    loop = reader(host, f.CODEX_A)
+    mail = [
+        m
+        for m in loop.mail(f.ROOM, room_events(hs), loop.budget())
+        if m.body == "anyone?"
+    ]
+    text = note.render(mail, loop.cfg, f.CODEX_A, f.ALIAS)
+    assert "Earlier in this thread" in text and "> mine" in text
+    assert "nested" not in text
