@@ -34,8 +34,9 @@ below join the rotation after the exact ones, and for ``--last`` the query
 runs once more and its answer joins when it names another thread. Without an
 exact signal (no daemon at registration, so the ``thread/started`` may have
 come before register could listen; another command; a query that returns
-nothing) the bind falls back to inferring the thread from the times at once. They only order the threads of the
-directory that the TUI may show, tried in this order:
+nothing) the bind falls back to inferring the thread from the times at once.
+They only order the threads of the directory that the TUI may show, tried in
+this order:
 
 - started: not loaded at the snapshot, created at or after it;
 - newly loaded: not loaded at the snapshot, whatever its times. With codex-cli
