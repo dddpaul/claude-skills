@@ -35,7 +35,7 @@ from .config import (
 from .listen import SYNC_SECONDS, Listener
 from .lock import WaitLock
 from .matrix import SOCKET_SLACK, AuthError, Client, MatrixError
-from .note import render
+from .note import bare, render
 from .room import Rooms, alias_slug, project_alias
 
 # The wait ends a little before the hooks' 24 h timeout; the next hook starts another.
@@ -107,11 +107,6 @@ def thread_id(value: str) -> str:
             2,
         )
     return "$" + m.group(1)
-
-
-def bare(event_id: str) -> str:
-    """Return ``event_id`` without its leading ``$``, the way agents see IDs."""
-    return event_id.removeprefix("$")
 
 
 def _relation(event: dict[str, Any] | None, event_id: str) -> dict[str, Any]:

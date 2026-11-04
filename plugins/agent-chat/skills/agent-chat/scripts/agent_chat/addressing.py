@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from enum import Enum
 from typing import Any
 
 from .config import Config
@@ -62,20 +63,41 @@ def is_edit(content: dict[str, Any]) -> bool:
     return isinstance(rel, dict) and rel.get("rel_type") == "m.replace"
 
 
-def wakes(event: dict[str, Any], me: str, cfg: Config) -> bool:
+def thread_root(content: dict[str, Any]) -> str | None:
+    """Return the root ID of the thread the content was posted in, if any."""
+    rel = content.get("m.relates_to")
+    if not isinstance(rel, dict) or rel.get("rel_type") != "m.thread":
+        return None
+    root = rel.get("event_id")
+    return root if isinstance(root, str) and root else None
+
+
+class Wake(Enum):
+    """Whether a message wakes a listener: no, yes, or as its thread decides."""
+
+    NO = "no"
+    YES = "yes"
+    THREAD = "ask the thread"
+
+
+def wakes(event: dict[str, Any], me: str, cfg: Config) -> Wake:
     """Tell whether ``event`` wakes the listener of account ``me``.
 
     A message wakes ``me`` when it addresses ``me``; a message from the human
-    that addresses nobody wakes every listener; an agent's message that
-    addresses nobody, an edit, and ``me``'s own messages wake nobody.
+    that addresses nobody wakes every listener, unless it was posted in a
+    thread: then the thread's agents decide (:attr:`Wake.THREAD`). An agent's
+    message that addresses nobody, an edit, and ``me``'s own messages wake
+    nobody.
     """
     content = event.get("content")
     sender = event.get("sender")
     if event.get("type") != "m.room.message" or not isinstance(content, dict):
-        return False
+        return Wake.NO
     if sender == me or is_edit(content) or not isinstance(content.get("body"), str):
-        return False
+        return Wake.NO
     to = addressees(content, cfg.server_name)
     if to:
-        return me in to
-    return sender == cfg.human
+        return Wake.YES if me in to else Wake.NO
+    if sender != cfg.human:
+        return Wake.NO
+    return Wake.THREAD if thread_root(content) else Wake.YES

@@ -25,7 +25,7 @@ import ac_fakes as f
 import pytest
 from conftest import Host
 
-from agent_chat import config, listen, matrix, watch
+from agent_chat import config, listen, matrix, threads, watch
 
 PLUGIN = Path(__file__).resolve().parents[3]
 REPO = PLUGIN.parents[1]
@@ -194,7 +194,7 @@ def test_the_codex_manifest_points_at_the_codex_skill_and_an_empty_hooks_file() 
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     assert codex["name"] == claude["name"] == "agent-chat"
-    assert codex["version"] == claude["version"] == "0.3.0"
+    assert codex["version"] == claude["version"] == "0.4.0"
     assert codex["skills"] == "./codex-skills/"
     assert codex["hooks"] == "./codex/hooks.json"
     assert json.loads((PLUGIN / "codex" / "hooks.json").read_text()) == {"hooks": {}}
@@ -805,3 +805,75 @@ def test_sigterm_during_a_delivery_lets_it_finish(
     log = err.read_text()
     assert f"queued 1 message(s) from {f.HUMAN}" in log
     assert log.rstrip().endswith("stopped; the cursor is saved")
+
+
+# Threads
+
+
+def in_thread(
+    hs: f.FakeHomeserver, room: str, sender: str, root: str, body: str, **extra: Any
+) -> str:
+    rel = {"rel_type": "m.thread", "event_id": root}
+    content = {"msgtype": "m.text", "body": body, "m.relates_to": rel, **extra}
+    return hs.add(room, sender, content)
+
+
+def test_the_users_unaddressed_thread_message_reaches_codex_only_in_its_threads(
+    host: Host, fakes: Fakes
+) -> None:
+    hs = host.hs
+    theirs = hs.post(f.ROOM, f.CLAUDE_B, "a note for the user")
+    ours = hs.post(f.ROOM, f.CODEX_A, "a note of mine")
+    run = Running(THREAD, f.ALIAS)
+    in_thread(hs, f.ROOM, f.HUMAN, theirs, "not for codex")
+    in_thread(hs, f.ROOM, f.HUMAN, ours, "for codex")
+    until(lambda: "for codex" in fakes.texts())
+    run.stop()
+    texts = fakes.texts()
+    assert "not for codex" not in texts
+    rid = ours[1:]
+    assert f"New in thread {rid} (reply with --thread {rid}):" in texts
+    assert "--message-file <fresh-name> --thread <id> --to <sender>" in texts
+
+
+def test_watch_codex_makes_no_lookup_for_a_room_it_does_not_serve(
+    host: Host, fakes: Fakes
+) -> None:
+    gen = "!gen:example.test"
+    host.hs.room(f"#general:{f.SERVER}", gen, {f.CODEX_A, f.HUMAN}, set())
+    root = host.hs.post(gen, f.HUMAN, "elsewhere")
+    run = Running()
+    mention = {"m.mentions": {"user_ids": [f.CODEX_A]}}
+    in_thread(host.hs, gen, f.HUMAN, root, "@codex-a: in a thread", **mention)
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: sentinel")  # no session: logged
+    until(lambda: any(f"in {f.ALIAS}" in line for line in run.lines))
+    run.stop()
+    assert host.hs.lookups(gen) == []
+    assert fakes.calls() == []
+
+
+def test_a_slow_delivery_does_not_spend_another_rooms_lookup_budget(
+    host: Host, fakes: Fakes, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(threads, "BUDGET_SECONDS", 0.5)
+    delivered: list[str] = []
+
+    def slow(self: watch.CodexWatcher, alias: str, mail: list) -> None:
+        delivered.extend(m.body for m in mail)
+        time.sleep(0.8)  # longer than the whole budget
+
+    monkeypatch.setattr(watch.CodexWatcher, "_deliver", slow)
+    other = "!other02:example.test"
+    host.hs.room(f"#agents-other:{f.SERVER}", other, {f.CODEX_A, f.HUMAN}, set())
+    root = host.hs.post(other, f.CLAUDE_B, "a note for the user")
+    Running().stop()  # the cursor now stands here
+    # One batch: the first room's delivery comes before the other's lookup.
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: first room")
+    in_thread(host.hs, other, f.HUMAN, root, "not for codex")
+    host.hs.post(other, f.HUMAN, "@codex-a: sentinel")
+    run = Running()
+    until(lambda: "@codex-a: sentinel" in delivered)
+    assert delivered[0] == "@codex-a: first room"
+    run.stop()
+    assert "not for codex" not in delivered
+    assert host.hs.lookups(other), "the thread was looked up"
