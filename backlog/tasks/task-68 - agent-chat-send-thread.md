@@ -4,7 +4,7 @@ title: agent-chat send --thread
 status: Done
 assignee: []
 created_date: '2026-11-04T12:05:00Z'
-updated_date: '2026-11-04T12:24:00Z'
+updated_date: '2026-11-04T13:41:00Z'
 labels:
   - feature:agent-chat-threads
 dependencies: []
@@ -133,4 +133,6 @@ Commit: `47695d8` - task-68: agent-chat send --thread posts into a Matrix thread
 Commit: `bf81c5b` - task-68: a missing relations endpoint fails the send without dropping the room cache
 
 Implemented: matrix.Client.event() (None on 404) and thread_latest() (v1 relations, dir=b limit=1; a 404 there becomes a plain AgentChatError so send does not drop its room cache). cli send --thread: id regex $?[A-Za-z0-9_-]+ (exit 2 otherwise), root resolution inside the room loop (403 still re-resolves a stale room; 404 on the event = refusal), refusals for non-message, empty, redacted, any rel_type but none/rich reply/m.thread, and a root that is itself in a thread. Output prints ids without $. Fake homeserver gained the event and relations routes, add() for any event, and a no_relations toggle. Docs: plugin README Threads row + Codex rules note, both SKILL.md (Sending + refusal row), root README. Version 0.3.0. AC #8: the execpolicy case is in the parametrized test but codex is not installed in this container, so it skipped here; the live allow is unobserved. Final: ruff clean, pytest plugins/agent-chat 140 passed 5 skipped. Review: ralph:task-reviewer APPROVED (score 7, three minors), the minors were fixed in bf81c5b, and a re-review gave APPROVED (score 10). Still open: the post-merge live check in Element (send --thread on a top-level message, a rich reply and a thread child) needs the user and a host that can reach the homeserver.
+
+Live check after merge (agent-chat 0.4.0, continuwuity 26.9.1, one host, posts without mentions): send --thread on a top-level message opened a thread on it; send --thread on that thread's child, given with its $, posted into the same thread with m.in_reply_to on the latest reply; a rich reply (m.in_reply_to only) to the top-level message was accepted as a thread root by send --thread. The user confirmed all three in Element. Found: the relations lookup of the top-level message (dir=b) also listed the reply in the rich reply's thread, after the root's own replies; dir=f returned nothing. TASK-70 keeps only the events whose thread root is the one asked for.
 <!-- SECTION:NOTES:END -->
