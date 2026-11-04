@@ -1,10 +1,10 @@
 ---
 id: TASK-70
 title: agent-chat keeps only a thread's own replies from the relations lookup
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-04T13:37:00Z'
-updated_date: '2026-11-04T13:46:00Z'
+updated_date: '2026-11-04T13:49:00Z'
 labels:
   - feature:agent-chat-threads
 dependencies: []
@@ -109,4 +109,6 @@ Plan: add matrix.in_thread(event, root); Client.thread() filters the chunk with 
 Commit: `d6fc255` - task-70: record the live-check answer in the agent-chat threads design
 
 Commit: `5da3e82` - task-70: agent-chat keeps only a thread's own replies from the relations lookup
+
+Implemented: matrix.in_thread(event, root) tells whether an event belongs to root's own thread; Client.thread() keeps only those (newest first, still a 50-event window); Client.thread_latest() asks 50 with dir=b and the m.room.message suffix and returns the first that belongs, else None (send falls back to the root). Fake homeserver: nested_relations None/after/first; dir orders each part, limit cuts the joined list, so after+dir=b reproduces the observed [C2, C1, C3]. Six tests added or extended in test_agent_chat_transport.py; five fail against master's matrix.py. Version 0.4.1. TASK-68 live-check record appended; design file committed as is. Final: ruff clean, pytest plugins/agent-chat 174 passed 5 skipped. Review: ralph:task-reviewer CHANGES REQUESTED (AC 10 unchecked), fixed in dcf9b4c, then APPROVED (score 10).
 <!-- SECTION:NOTES:END -->
