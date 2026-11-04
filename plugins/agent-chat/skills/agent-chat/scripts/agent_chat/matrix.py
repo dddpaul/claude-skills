@@ -49,6 +49,22 @@ class NetworkError(AgentChatError):
     """The homeserver could not be reached before the deadline."""
 
 
+def in_thread(event: Any, root: str) -> bool:
+    """Tell whether ``event`` is a reply in ``root``'s own thread.
+
+    A server's relations answer may also list the thread replies of a rich
+    reply to ``root``; their ``m.relates_to`` names that reply, not ``root``.
+    """
+    if not isinstance(event, dict) or not isinstance(event.get("content"), dict):
+        return False
+    rel = event["content"].get("m.relates_to")
+    return (
+        isinstance(rel, dict)
+        and rel.get("rel_type") == "m.thread"
+        and rel.get("event_id") == root
+    )
+
+
 def proxy_url(env: Mapping[str, str]) -> str | None:
     """Return the proxy from ``HTTPS_PROXY`` or ``https_proxy``, if any."""
     return env.get("HTTPS_PROXY") or env.get("https_proxy") or None
@@ -301,7 +317,7 @@ class Client:
                 "GET",
                 f"{API_V1}/rooms/{quote(room_id, safe='')}/relations/"
                 f"{quote(root, safe='')}/m.thread/m.room.message",
-                query={"dir": "b", "limit": "1"},
+                query={"dir": "b", "limit": str(THREAD_WINDOW)},
                 deadline=deadline,
             )
         except MatrixError as exc:
@@ -310,16 +326,19 @@ class Client:
             # Not a MatrixError: a send must not take it for a rejected room.
             raise AgentChatError(f"thread lookup failed: {exc}") from exc
         chunk = got.get("chunk")
-        if isinstance(chunk, list) and chunk and isinstance(chunk[0], dict):
-            latest = chunk[0].get("event_id")
-            if isinstance(latest, str) and latest:
-                return latest
+        for event in chunk if isinstance(chunk, list) else []:
+            if in_thread(event, root):
+                latest = event.get("event_id")
+                return latest if isinstance(latest, str) and latest else None
         return None
 
     def thread(
         self, room_id: str, root: str, deadline: float
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Return ``root`` and the newest thread events under it, newest first.
+
+        Only the events of ``root``'s own thread are kept, so the window of
+        THREAD_WINDOW events may yield fewer.
 
         Both requests run in the bounded mode: two tries each, and nothing
         waits past ``deadline``.
@@ -342,4 +361,4 @@ class Client:
         chunk = children.get("chunk")
         if not isinstance(chunk, list):
             return got, []
-        return got, [e for e in chunk if isinstance(e, dict)]
+        return got, [e for e in chunk if in_thread(e, root)]
