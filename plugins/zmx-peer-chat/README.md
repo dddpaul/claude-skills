@@ -14,16 +14,11 @@ Both plugins let Claude and Codex talk; they differ in who can take part and how
 | Transport | Local only: `codex queue` to Codex, a file mailbox to Claude | The project's room on a private Matrix homeserver |
 | Identity and addressing | zmx labels set by `register` (`zpc.pair`, `zpc.role`, `zpc.inc`, `zpc.thread`); the one peer of the pair | One Matrix account per agent and host; `@name` mentions; an unaddressed message from the user wakes every listener |
 | History | None; mail is consumed | The room keeps it; the user reads and answers in Element |
-| Codex API | The app-server daemon (internal), only to bind the thread at registration and for `daemon check` | `codex queue` only |
+| Codex API | `codex queue` to send; the app-server daemon (internal) only to bind the thread at registration and for `daemon check` and `daemon skills` | `codex queue` only |
 
-**The dependency runs one way.** In all-rooms mode, agent-chat's `watch-codex` finds the Codex thread through
-zmx-peer-chat's labels: the `zpc.role=codex` session whose `cwd` names the directory in the room's alias, then its
-`zpc.thread` and `zpc.inc`. A Codex session that `register` did not bind gets neither peer mail nor room mail.
-`watch-codex --thread <uuid>` reads no labels and needs no zmx-peer-chat. zmx-peer-chat knows nothing about agent-chat.
+**The dependency runs one way.** In all-rooms mode, agent-chat's `watch-codex` finds the Codex thread through zmx-peer-chat's labels: the `zpc.role=codex` session whose `cwd` names the directory in the room's alias, then its `zpc.thread` and `zpc.inc`. A Codex session that `register` did not bind gets neither peer mail nor room mail. `watch-codex --thread <uuid>` reads no labels and needs no zmx-peer-chat. zmx-peer-chat knows nothing about agent-chat.
 
-**The footer rule is shared.** Both refuse to queue unless one of the last six non-empty lines of the Codex TUI ends
-with `· zpc-<inc>`. agent-chat keeps its own copy of the rule because the plugins ship separately, so a change to the
-Codex footer must update both copies, in both plugins together.
+**The footer rule is shared.** Before they queue to a registered Codex session, zmx-peer-chat's `send` and `watch-codex` in all-rooms mode both refuse unless one of the last six non-empty lines of its TUI ends with `· zpc-<inc>`; `watch-codex --thread <uuid>` checks no screen. agent-chat keeps its own copy of the rule because the plugins ship separately, so a change to the Codex footer must update both copies, in both plugins together.
 
 ## How a pair comes about
 
