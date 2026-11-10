@@ -442,12 +442,17 @@ def cmd_status(a: argparse.Namespace) -> int:
     print(f"{LISTEN_ENV}: {os.environ.get(LISTEN_ENV, 'unset')}")
     waiting = WaitLock(state, alias_slug(alias)).held()
     print(f"waiting: {'yes' if waiting else 'no'}")
-    if cfg.hub_alias is not None:
-        print(f"hub: {cfg.hub_alias}: {hub_coverage(state, alias, waiting)}")
+    watcher = None
     if a.as_ == "codex":
-        locks = ("watch-codex", f"watch-codex-{alias_slug(alias)}")
-        watching = any(WaitLock(state, name).held() for name in locks)
-        print(f"watch-codex: {'running' if watching else 'not running'}")
+        locks = (f"watch-codex-{alias_slug(alias)}", "watch-codex")
+        watcher = next((n for n in locks if WaitLock(state, n).held()), None)
+    if cfg.hub_alias is not None:
+        if a.as_ == "codex":
+            print(f"hub: {cfg.hub_alias}: {watch_coverage(state, watcher)}")
+        else:
+            print(f"hub: {cfg.hub_alias}: {hub_coverage(state, alias, waiting)}")
+    if a.as_ == "codex":
+        print(f"watch-codex: {'running' if watcher else 'not running'}")
     print(f"state: {state}")
     return 0
 
@@ -464,6 +469,21 @@ def hub_coverage(state: Path, alias: str, waiting: bool) -> str:
     except OSError:
         return "unknown (the wait does not report the hub)"
     return said.strip() or "unknown (the wait does not report the hub)"
+
+
+def watch_coverage(state: Path, watcher: str | None) -> str:
+    """Say whether watch-codex covers the hub, from its ``<lock name>.hub`` file.
+
+    ``watcher`` is the lock name of the running watch-codex, None for none.
+    """
+    if watcher is None:
+        return "not covered (no watch-codex runs)"
+    unknown = "unknown (watch-codex does not report the hub)"
+    try:
+        said = (state / f"{watcher}.hub").read_text(encoding="utf-8")
+    except OSError:
+        return unknown
+    return said.strip() or unknown
 
 
 def _parser() -> argparse.ArgumentParser:
