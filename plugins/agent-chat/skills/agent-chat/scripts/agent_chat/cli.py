@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from . import outbox, procs, watch
+from .addressing import HUB_FIELD
 from .config import (
     PROJECT_TOKEN,
     AgentChatError,
@@ -49,8 +50,6 @@ LOCK_GRACE = SOCKET_SLACK + 5.0
 LISTEN_ENV = "AGENT_CHAT_LISTEN"
 # An event ID as an agent passes it: one optional leading "$", then this.
 EVENT_ID = re.compile(r"\$?([A-Za-z0-9_-]+)")
-# The content field that names a hub message's sender project and addressees.
-HUB_FIELD = "agent_chat.hub"
 
 
 def log(state: Path, line: str) -> None:
@@ -393,6 +392,9 @@ def _hook_wait(
         return 0
     deadline = time.monotonic() + seconds
     alias = project_alias(cfg)
+    if alias == cfg.hub_alias:
+        log(state, f"hook-wait: this project's room {alias} is the hub; not waiting")
+        return 0
     lock = WaitLock(state, alias_slug(alias))
     if not lock.try_acquire():
         holder = lock.holder()
@@ -408,9 +410,16 @@ def _hook_wait(
     client.keep_going = owner_alive
     try:
         lock.record(owner)
-        result = Listener(client, cfg, account, state, alias).wait(
-            deadline, owner_alive
+        listener = Listener(
+            client,
+            cfg,
+            account,
+            state,
+            alias,
+            project_name(),
+            lambda line: log(state, f"hook-wait: {line}"),
         )
+        result = listener.wait(deadline, owner_alive)
     finally:
         lock.release()
     if result.outcome != "mail":
@@ -431,12 +440,28 @@ def cmd_status(a: argparse.Namespace) -> int:
     print(f"{LISTEN_ENV}: {os.environ.get(LISTEN_ENV, 'unset')}")
     waiting = WaitLock(state, alias_slug(alias)).held()
     print(f"waiting: {'yes' if waiting else 'no'}")
+    if cfg.hub_alias is not None:
+        print(f"hub: {cfg.hub_alias}: {hub_coverage(state, alias, waiting)}")
     if a.as_ == "codex":
         locks = ("watch-codex", f"watch-codex-{alias_slug(alias)}")
         watching = any(WaitLock(state, name).held() for name in locks)
         print(f"watch-codex: {'running' if watching else 'not running'}")
     print(f"state: {state}")
     return 0
+
+
+def hub_coverage(state: Path, alias: str, waiting: bool) -> str:
+    """Say whether the wait covers the hub, from its ``<slug>.hub`` file.
+
+    No file under a held lock is a wait that does not report the hub.
+    """
+    if not waiting:
+        return "not covered (no wait listens)"
+    try:
+        said = (state / f"{alias_slug(alias)}.hub").read_text(encoding="utf-8")
+    except OSError:
+        return "unknown (the wait does not report the hub)"
+    return said.strip() or "unknown (the wait does not report the hub)"
 
 
 def _parser() -> argparse.ArgumentParser:

@@ -9,22 +9,33 @@ the owner is gone, so the next wait delivers that batch.
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .addressing import Wake, thread_root, wakes
-from .config import Config
-from .matrix import Client, MatrixError
-from .note import Message
+from .addressing import (
+    Wake,
+    addressees,
+    hub_field,
+    hub_wakes,
+    project_address,
+    thread_root,
+    wakes,
+)
+from .config import PROJECT_TOKEN, AgentChatError, Config
+from .matrix import AuthError, Client, MatrixError
+from .note import HubMail, Message
 from .room import Rooms, alias_slug, read_json, write_json
-from .threads import Budget
+from .threads import Budget, Thread
 
 # Each /sync long-polls for at most this long, so a gone owner is noticed soon.
 SYNC_SECONDS = 30.0
 TIMELINE_LIMIT = 50
+# The hub's resolve and join at wait start share this many seconds.
+HUB_SECONDS = 10.0
 _NONE = {"not_types": ["*"]}
 MEMBER = "m.room.member"
 
@@ -208,8 +219,23 @@ class SyncLoop:
             yield got.get("rooms") or {}
 
 
+def _write_text(path: Path, text: str) -> None:
+    """Replace ``path`` with ``text`` atomically; a failure is ignored."""
+    tmp = path.with_name(f".{path.name}.{os.getpid()}")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
 class Listener(SyncLoop):
-    """Waits for mail to ``account`` in the room behind ``alias``.
+    """Waits for mail to ``account`` in the room behind ``alias``, and in the hub.
+
+    The hub is served for the session (``account``, ``project``) when the
+    config names one; it never keeps project-room mail from being delivered.
+    While a wait runs, ``<slug>.hub`` next to its lock says ``covered`` or
+    ``unavailable: <reason>``.
 
     Args:
         client: The account's homeserver client.
@@ -217,14 +243,103 @@ class Listener(SyncLoop):
         account: The listening account's full ID.
         state: The account's state directory.
         alias: The project room's alias.
+        project: The project this wait serves in the hub; None serves no hub.
+        log: Takes one line per hub failure or unreadable hub thread.
     """
 
     def __init__(
-        self, client: Client, cfg: Config, account: str, state: Path, alias: str
+        self,
+        client: Client,
+        cfg: Config,
+        account: str,
+        state: Path,
+        alias: str,
+        project: str | None = None,
+        log: Callable[[str], None] = lambda line: None,
     ) -> None:
         super().__init__(client, cfg, account, state, alias_slug(alias))
         self.alias = alias
         self.rooms = Rooms(client, cfg, state)
+        self.project = project
+        self.log = log
+        self.hub_file = state / f"{alias_slug(alias)}.hub"
+
+    def _hub_down(self, why: str) -> None:
+        self.log(
+            f"the hub {self.cfg.hub_alias} is unavailable ({why}); this wait "
+            f"serves {self.alias} only, the next wait tries again"
+        )
+        _write_text(self.hub_file, f"unavailable: {why}\n")
+
+    def _hub(self, deadline: float) -> str | None:
+        """Join the hub within :data:`HUB_SECONDS`; return its room, or None."""
+        hub, project = self.cfg.hub_alias, self.project
+        if hub is None or project is None:
+            return None
+        if not PROJECT_TOKEN.fullmatch(project):
+            self._hub_down(f"the project name {project!r} cannot be addressed")
+            return None
+        until = min(deadline, self.client.now() + HUB_SECONDS)
+        try:
+            room = self.rooms.room_id(hub, until, verify=True)
+        except AuthError:
+            raise
+        except AgentChatError as exc:
+            self._hub_down(str(exc).splitlines()[0] if str(exc) else repr(exc))
+            return None
+        if room is None:
+            self._hub_down("no such alias")
+            return None
+        _write_text(self.hub_file, "covered\n")
+        return room
+
+    def _hub_message(self, e: dict[str, Any], thread: Thread | None) -> Message:
+        content, sender = e["content"], str(e["sender"])
+        project = str(self.project)
+        field = hub_field(content) if sender in self.cfg.agents else None
+        if field is not None:
+            hub = HubMail(project, field.sender, field.to)
+        else:
+            parsed = project_address(content, self.cfg.server_name)
+            hub = HubMail(project, None, parsed.projects if parsed else ())
+        eid = str(e.get("event_id", ""))
+        return Message(sender, str(content["body"]), eid, thread, hub)
+
+    def hub_mail(self, room: str, events: list[Any], budget: Budget) -> list[Message]:
+        """Return the hub messages among ``events`` that wake this session.
+
+        The user's unaddressed reply asks its thread; when the thread cannot be
+        read it wakes nobody and is logged. Addressed mail is delivered even
+        then.
+
+        Raises:
+            AuthError: When a lookup's token is refused.
+        """
+        me, project = self.account, str(self.project)
+        out = []
+        for e in since_join(events, me):
+            if not isinstance(e, dict):
+                continue
+            verdict = hub_wakes(e, me, project, self.cfg)
+            if verdict is Wake.NO:
+                continue
+            content = e["content"]
+            root = thread_root(content)
+            thread = None if root is None else budget.thread(room, root)
+            if verdict is Wake.THREAD:
+                if thread is None or not thread.read:
+                    self.log(
+                        f"hub: the thread {root} of the user's unaddressed reply "
+                        f"{e.get('event_id')} could not be read; it wakes nobody"
+                    )
+                    continue
+                mentions = addressees(content, self.cfg.server_name)
+                if mentions and me not in mentions:
+                    continue
+                if not thread.hub_selects(me, project, self.cfg):
+                    continue
+            out.append(self._hub_message(e, thread))
+        return out
 
     def _left(self, room: str, rooms: dict[str, Any]) -> bool:
         """Tell whether this sync shows the account out of ``room``."""
@@ -248,6 +363,19 @@ class Listener(SyncLoop):
         room = self.rooms.room_id(self.alias, deadline, verify=True)
         if room is None:
             return WaitResult("no-room")
+        try:
+            return self._serve(room, deadline, owner_alive, now)
+        finally:
+            self.hub_file.unlink(missing_ok=True)
+
+    def _serve(
+        self,
+        room: str,
+        deadline: float,
+        owner_alive: Callable[[], bool],
+        now: Callable[[], float],
+    ) -> WaitResult:
+        hub = self._hub(deadline)
         rejoined = False
         for rooms in self.batches(deadline, owner_alive, now):
             if not rejoined and self._left(room, rooms):
@@ -259,7 +387,14 @@ class Listener(SyncLoop):
                 )
                 if room is None:
                     return WaitResult("no-room")
-            mail = self.mail(room, timeline(rooms, room), self.budget())
+            if hub is not None and self._left(hub, rooms):
+                self.rooms.forget(str(self.cfg.hub_alias))
+                self._hub_down("this account left it")
+                hub = None
+            budget = self.budget()
+            mail = self.mail(room, timeline(rooms, room), budget)
+            if hub is not None:
+                mail += self.hub_mail(hub, timeline(rooms, hub), budget)
             if mail:
                 return WaitResult("mail", mail)
         return WaitResult("owner-gone" if self.owner_gone else "timeout")
