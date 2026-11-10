@@ -4,7 +4,7 @@ title: agent-chat hub config and send --hub
 status: Done
 assignee: []
 created_date: '2026-11-10T14:06:00Z'
-updated_date: '2026-11-10T14:33:00Z'
+updated_date: '2026-11-10T14:59:00Z'
 labels:
   - feature:agent-chat-hub
 dependencies: []
@@ -203,4 +203,6 @@ Commit: `6e30bfd` - task-74: agent-chat hub key and send --hub with the sender p
 Commit: `a8d1c8f` - task-74: send checks the hub flags before the project names; test a non-token project directory
 
 Review: APPROVED 6e30bfd (task-reviewer, score 8). Both minors fixed in a8d1c8f: the --hub flag check runs before the project names are parsed, and a test covers a working directory whose name is not a project token. Decisions: a bare send --hub (no --project, no --thread) is refused; the hub body is '<from> → <to>: ' followed by the existing '@acct: ' mention prefix; a plain send from the hub's own directory is refused while the hub is on; targets and the own room are only resolved (resolve_alias), the hub is joined through Rooms like any prefixed room. Final: ruff clean, pytest plugins/agent-chat 230 passed, 7 skipped (codex execpolicy).
+
+Review: APPROVED a8d1c8f (task-reviewer, score 9): the follow-up commit fixes exactly the two minors of the 6e30bfd review; one non-blocking minor, the new non-token-directory test registers a room it never needs.
 <!-- SECTION:NOTES:END -->
