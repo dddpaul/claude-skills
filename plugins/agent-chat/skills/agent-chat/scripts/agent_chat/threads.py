@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .addressing import addressees
+from .addressing import addressees, hub_field, root_address
 from .config import AgentChatError, Config
 from .matrix import AuthError, Client
 
@@ -31,6 +31,8 @@ class Thread:
             mentions and the senders of ``events``.
         posted: The accounts among the root's sender and the senders of
             ``events``.
+        pairs: The (agent account, project) pairs among the root and
+            ``events`` that carry a valid hub field: the hub's participants.
     """
 
     root_id: str
@@ -38,6 +40,7 @@ class Thread:
     events: tuple[dict[str, Any], ...] = ()
     agents: frozenset[str] = frozenset()
     posted: frozenset[str] = frozenset()
+    pairs: frozenset[tuple[str, str]] = frozenset()
 
     @property
     def read(self) -> bool:
@@ -51,6 +54,33 @@ class Thread:
         could not be read, it wakes every listener (the rule before threads).
         """
         return not self.read or not self.agents or me in self.agents
+
+    def hub_selects(self, me: str, project: str, cfg: Config) -> bool:
+        """Tell whether the user's unaddressed hub reply here reaches (me, project).
+
+        It reaches the sessions the root's address selects and the thread's
+        participant pairs; a thread that could not be read reaches nobody.
+        """
+        if self.root is None:
+            return False
+        if (me, project) in self.pairs:
+            return True
+        address = root_address(self.root, cfg)
+        return address is not None and address.selects(me, project)
+
+
+def participants(
+    events: tuple[dict[str, Any], ...], cfg: Config
+) -> frozenset[tuple[str, str]]:
+    """Return the (agent, project) pairs of ``events`` with a valid hub field."""
+    out = set()
+    for e in events:
+        content, sender = e.get("content"), e.get("sender")
+        if sender in cfg.agents and isinstance(content, dict):
+            field = hub_field(content)
+            if field is not None:
+                out.add((str(sender), field.sender))
+    return frozenset(out)
 
 
 def observe(
@@ -70,6 +100,7 @@ def observe(
         events,
         frozenset((seen | mentioned) & set(cfg.agents)),
         frozenset(seen),
+        participants((root, *events), cfg),
     )
 
 
