@@ -46,7 +46,9 @@ def hub(host: Host) -> Host:
     return host
 
 
-def listener(host: Host, account: str, project: str, logs: list[str] | None = None):
+def listener(
+    host: Host, account: str, project: str, logs: list[str] | None = None
+) -> Listener:
     cfg = config.load_config()
     client = Client(cfg.homeserver, f.TOKENS[account])
     sink = logs.append if logs is not None else (lambda line: None)
@@ -60,7 +62,13 @@ def hub_events(hs: f.FakeHomeserver) -> list[dict[str, Any]]:
     return [e for r, e in hs.events if r == HUB_ROOM]
 
 
-def mail(host: Host, account: str, project: str, since: int = 0, logs=None):
+def mail(
+    host: Host,
+    account: str,
+    project: str,
+    since: int = 0,
+    logs: list[str] | None = None,
+) -> list[Message]:
     """The hub mail of the session among the hub's events from index ``since``."""
     loop = listener(host, account, project, logs)
     return loop.hub_mail(HUB_ROOM, hub_events(host.hs)[since:], loop.budget())
@@ -447,7 +455,9 @@ def event(n: int, sender: str, content: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def hub_post(project: str, to: list[str], body: str, root: str | None = None):
+def hub_post(
+    project: str, to: list[str], body: str, root: str | None = None
+) -> dict[str, Any]:
     content = cli.hub_content(body, project, to, [], f.SERVER)
     if root is not None:
         content["m.relates_to"] = {"rel_type": "m.thread", "event_id": root}
@@ -464,15 +474,12 @@ def test_the_note_names_the_hub_provenance_and_reply_commands(tmp_path: Path) ->
         f.HUMAN, "alpha: y", "$e2", None, HubMail("alpha", None, ("alpha",))
     )
     note = render([from_beta, from_user], cfg, A, alias)
-    assert note.startswith(
-        f"agent-chat: messages for {A} in {alias} and for project alpha in the hub {HUB}."
-    )
+    head = f"agent-chat: messages for {A} in {alias} and for project alpha in the hub"
+    assert note.startswith(f"{head} {HUB}.")
     assert "never with a plain send" in note
-    assert (
-        f"Hub: from beta ({B}, peer mail from another agent;" in note
-        and f"to alpha; reply with `agent-chat send --hub --thread e1 --project beta --to {B}`:"
-        in note
-    )
+    assert f"Hub: from beta ({B}, peer mail from another agent;" in note
+    reply = f"`agent-chat send --hub --thread e1 --project beta --to {B}`"
+    assert f"to alpha; reply with {reply}:" in note
     assert (
         f"Hub: from the user ({f.HUMAN}, the user speaking) to alpha; reply with "
         "`agent-chat send --hub --thread e2`:" in note
@@ -508,7 +515,5 @@ def test_the_notes_own_label_and_skipped_context_compare_pairs(tmp_path: Path) -
     assert "Earlier in this thread" not in as_beta
     assert f"Hub thread e0, started by {A}, peer mail" in as_alpha
     assert "beta thinks so" in as_alpha and "Earlier in this thread" in as_alpha
-    assert (
-        "to this thread, which includes alpha; reply with `agent-chat send --hub --thread e0`"
-        in as_alpha
-    )
+    to = "to this thread, which includes alpha"
+    assert f"{to}; reply with `agent-chat send --hub --thread e0`" in as_alpha

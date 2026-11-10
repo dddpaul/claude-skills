@@ -191,7 +191,7 @@ def agent_address(content: dict[str, Any], server_name: str) -> HubAddress:
 
 
 def root_address(root: dict[str, Any], cfg: Config) -> HubAddress | None:
-    """Return the address of a hub thread's root: the user's text or an agent's field."""
+    """Return a hub thread root's address: the user's text or an agent's field."""
     content = root.get("content")
     if not isinstance(content, dict):
         return None
