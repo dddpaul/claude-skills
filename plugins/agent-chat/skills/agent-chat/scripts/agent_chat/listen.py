@@ -332,7 +332,7 @@ class SyncLoop:
             yield got.get("rooms") or {}
 
 
-def _write_text(path: Path, text: str) -> None:
+def write_text(path: Path, text: str) -> None:
     """Replace ``path`` with ``text`` atomically; a failure is ignored."""
     tmp = path.with_name(f".{path.name}.{os.getpid()}")
     try:
@@ -382,7 +382,7 @@ class Listener(SyncLoop):
             f"the hub {self.cfg.hub_alias} is unavailable ({why}); this wait "
             f"serves {self.alias} only, the next wait tries again"
         )
-        _write_text(self.hub_file, f"unavailable: {why}\n")
+        write_text(self.hub_file, f"unavailable: {why}\n")
 
     def _hub(self, deadline: float) -> str | None:
         """Join the hub within :data:`HUB_SECONDS`; return its room, or None."""
@@ -403,7 +403,7 @@ class Listener(SyncLoop):
         if room is None:
             self._hub_down("no such alias")
             return None
-        _write_text(self.hub_file, "covered\n")
+        write_text(self.hub_file, "covered\n")
         return room
 
     def hub_mail(self, room: str, events: list[Any], budget: Budget) -> list[Message]:

@@ -23,7 +23,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from .config import AgentChatError, Config
-from .listen import HUB_SECONDS, SyncLoop, timeline
+from .listen import HUB_SECONDS, SyncLoop, timeline, write_text
 from .matrix import AuthError, Client, MatrixError, NetworkError
 from .note import CODEX_REPLY, Message, notes
 from .room import Rooms, alias_slug, project_alias, read_json, room_alias
@@ -224,7 +224,9 @@ class CodexWatcher(SyncLoop):
     message to the session (Codex account, project) it wakes: in all-rooms
     mode to each such project's registered session, with ``--thread`` only
     for the watched project. A failed hub join is logged and tried again at
-    the next sweep; it never holds up project-room mail.
+    the next sweep; it never holds up project-room mail. While a watcher
+    that serves the hub runs, ``<lock name>.hub`` in the state directory says
+    ``covered`` or ``unavailable: <reason>``.
 
     Args:
         client: The Codex account's homeserver client.
@@ -273,6 +275,10 @@ class CodexWatcher(SyncLoop):
         self._hub_down: str | None = None
         project = None if alias is None else room_dir(alias, cfg)
         self.project = None if alias == cfg.hub_alias else project
+        serves_hub = cfg.hub_alias is not None and (
+            alias is None or self.project is not None
+        )
+        self.hub_file = state / f"{name}.hub" if serves_hub else None
         self._next_sweep = 0.0
         self._in_sync = False
         self.stopping = False
@@ -415,6 +421,10 @@ class CodexWatcher(SyncLoop):
         projects = None if self.project is None else [self.project]
         return self.hub_routes(hub, timeline(rooms, hub), budget, projects)
 
+    def _report_hub(self, text: str) -> None:
+        if self.hub_file is not None:
+            write_text(self.hub_file, text)
+
     def _hub_failed(self, why: str) -> None:
         """Log a hub failure once until the hub is joined again."""
         if why != self._hub_down:
@@ -423,6 +433,7 @@ class CodexWatcher(SyncLoop):
                 "waits for the next sweep"
             )
         self._hub_down = why
+        self._report_hub(f"unavailable: {why}\n")
 
     def _join_hub(self, deadline: float) -> None:
         """Join the hub within :data:`HUB_SECONDS` unless it is joined already."""
@@ -441,6 +452,7 @@ class CodexWatcher(SyncLoop):
             self._hub_failed("no such alias")
             return
         self.hub_room, self._hub_down = room, None
+        self._report_hub("covered\n")
         self.log(f"serving the hub {hub}")
 
     def _sweep(self, deadline: float) -> None:
@@ -485,6 +497,13 @@ class CodexWatcher(SyncLoop):
             AuthError: When the token is refused.
             AgentChatError: When the ``--thread`` room does not exist.
         """
+        try:
+            return self._run()
+        finally:
+            if self.hub_file is not None:
+                self.hub_file.unlink(missing_ok=True)
+
+    def _run(self) -> int:
         deadline = math.inf
         self.client.keep_going = lambda: not self.stopping
         if self.alias is not None:
