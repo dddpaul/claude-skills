@@ -24,6 +24,7 @@ from typing import Any
 
 from . import outbox, procs, watch
 from .config import (
+    PROJECT_TOKEN,
     AgentChatError,
     Config,
     config_dir,
@@ -36,7 +37,7 @@ from .listen import SYNC_SECONDS, Listener
 from .lock import WaitLock
 from .matrix import SOCKET_SLACK, AuthError, Client, MatrixError
 from .note import bare, render
-from .room import Rooms, alias_slug, project_alias
+from .room import Rooms, alias_slug, project_alias, project_name, room_alias
 
 # The wait ends a little before the hooks' 24 h timeout; the next hook starts another.
 HOOK_WAIT_SECONDS = 86100
@@ -48,6 +49,8 @@ LOCK_GRACE = SOCKET_SLACK + 5.0
 LISTEN_ENV = "AGENT_CHAT_LISTEN"
 # An event ID as an agent passes it: one optional leading "$", then this.
 EVENT_ID = re.compile(r"\$?([A-Za-z0-9_-]+)")
+# The content field that names a hub message's sender project and addressees.
+HUB_FIELD = "agent_chat.hub"
 
 
 def log(state: Path, line: str) -> None:
@@ -174,8 +177,67 @@ def thread_relation(
     }
 
 
+def hub_projects(value: str) -> list[str]:
+    """Return the projects ``--project a,b`` names, in order and without repeats."""
+    names = [n.strip() for n in value.split(",")]
+    for name in names:
+        if not PROJECT_TOKEN.fullmatch(name):
+            raise AgentChatError(
+                f"--project {value!r}: {name!r} is not a project (letters, digits, "
+                "_ . -, comma-separated); nothing was sent",
+                2,
+            )
+    return list(dict.fromkeys(names))
+
+
+def hub_content(
+    body: str, project: str, to: list[str], accounts: list[str], server_name: str
+) -> dict[str, Any]:
+    """Build a hub message from ``project`` to the projects ``to``.
+
+    The body opens with ``<project> → <to>: `` (or ``<project>: `` for the
+    user) and then the mention prefix; the ``agent_chat.hub`` field names the
+    sender's project and the addressed ones.
+    """
+    head = f"{project} → {', '.join(to)}: " if to else f"{project}: "
+    content = message_content(body, accounts, server_name)
+    content["body"] = head + content["body"]
+    content[HUB_FIELD] = {"v": 1, "from": project, "to": to}
+    return content
+
+
+def check_hub_send(cfg: Config, client: Client, to: list[str], deadline: float) -> str:
+    """Return this project's name once it and every target ``to`` have a room.
+
+    Rooms are only resolved, never joined. Refuses this project, the hub's
+    own project and a name that does not resolve.
+    """
+    project = project_name()
+    own = room_alias(cfg, project)
+    if not PROJECT_TOKEN.fullmatch(project):
+        raise AgentChatError(
+            f"this project's name {project!r} cannot be named in the hub; "
+            "nothing was sent",
+            2,
+        )
+    if client.resolve_alias(own, deadline) is None:
+        raise AgentChatError(
+            f"this project has no room {own} (not onboarded); nothing was sent"
+        )
+    for name in to:
+        if name in (project, cfg.hub_project):
+            what = "this project" if name == project else "the hub"
+            raise AgentChatError(f"--project {name} is {what}; nothing was sent", 2)
+        if client.resolve_alias(room_alias(cfg, name), deadline) is None:
+            raise AgentChatError(
+                f"--project {name} has no room {room_alias(cfg, name)}; "
+                "nothing was sent"
+            )
+    return project
+
+
 def cmd_send(a: argparse.Namespace) -> int:
-    """Post stdin, or a prepared message file, into the project's room.
+    """Post stdin, or a prepared message file, into the project's room or the hub.
 
     A prepared file is removed once the homeserver has confirmed the post;
     after a failure it stays, so the same send can run again.
@@ -189,19 +251,33 @@ def cmd_send(a: argparse.Namespace) -> int:
     if not body.strip():
         raise AgentChatError(empty, 2)
     thread = None if a.thread is None else thread_id(a.thread)
+    projects = None if a.project is None else hub_projects(a.project)
+    _check_hub_flags(a)
     cfg, account, client = _setup(a.as_)
     to = list(dict.fromkeys(cfg.user_id(t) for t in a.to or []))
-    content = message_content(body.rstrip("\n"), to, cfg.server_name)
     deadline = time.monotonic() + SEND_SECONDS
     alias = project_alias(cfg)
+    if alias == cfg.hub_alias:
+        raise AgentChatError(
+            f"this project's room {alias} is the hub; nothing was sent", 2
+        )
+    if a.hub:
+        if cfg.hub_alias is None:
+            raise AgentChatError("config.toml names no hub; nothing was sent", 2)
+        projects = projects or []
+        sender = check_hub_send(cfg, client, projects, deadline)
+        alias = cfg.hub_alias
+        text = body.rstrip("\n")
+        content = hub_content(text, sender, projects, to, cfg.server_name)
+    else:
+        content = message_content(body.rstrip("\n"), to, cfg.server_name)
     rooms = Rooms(client, cfg, state_dir(account))
     txn = f"{time.time_ns()}-{secrets.token_hex(6)}"
     for attempt in (1, 2):
         room = rooms.room_id(alias, deadline, refresh=attempt == 2)
         if room is None:
-            raise AgentChatError(
-                f"this project has no room {alias} (not onboarded); nothing was sent"
-            )
+            what = "the hub has no room" if a.hub else "this project has no room"
+            raise AgentChatError(f"{what} {alias} (not onboarded); nothing was sent")
         try:
             if thread is not None:
                 rel = thread_relation(client, room, thread, deadline)
@@ -219,6 +295,25 @@ def cmd_send(a: argparse.Namespace) -> int:
     where = "" if thread is None else f" in thread {bare(rel['event_id'])}"
     print(f"sent to {alias} as {account}{where}: {bare(event)}")
     return 0
+
+
+def _check_hub_flags(a: argparse.Namespace) -> None:
+    """Refuse ``--project`` without ``--hub``, and a hub send with no address.
+
+    A hub send names its projects, or posts for the user into a thread; ``--to``
+    narrows the projects, so it needs them.
+    """
+    if a.project is not None and not a.hub:
+        raise AgentChatError("--project needs --hub; nothing was sent", 2)
+    if not a.hub or a.project is not None:
+        return
+    if a.to:
+        raise AgentChatError("--hub --to needs --project; nothing was sent", 2)
+    if a.thread is None:
+        raise AgentChatError(
+            "--hub needs --project, or --thread to answer the user; nothing was sent",
+            2,
+        )
 
 
 def cmd_prepare_message(a: argparse.Namespace) -> int:
@@ -359,6 +454,14 @@ def _parser() -> argparse.ArgumentParser:
         "--thread",
         metavar="ID",
         help="post into the thread of this event (its ID with or without the $)",
+    )
+    s.add_argument(
+        "--hub", action="store_true", help="post into the hub instead of the room"
+    )
+    s.add_argument(
+        "--project",
+        metavar="A,B",
+        help="with --hub: the projects to address, comma-separated",
     )
     s.set_defaults(func=cmd_send)
 
