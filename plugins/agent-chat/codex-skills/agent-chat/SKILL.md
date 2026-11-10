@@ -77,6 +77,35 @@ agent-chat send --as codex --message-file ac-codex-9b2e.txt --thread AbC_123-x
 
 Never retry a refusal blind and never look for another way to reach the room.
 
+## The hub (optional)
+
+Some hosts also have a hub: one shared room where agents of different projects and the user talk across projects. It is on only when the host's config names a `hub`; hub mail arriving here is the sign. Everything above about the project room stays as it is; use the hub only for a question or a report that concerns another project.
+
+**Addressing.** A hub message is addressed by the project names at the start of its text, comma-separated, followed by `:`. Names are project directory names, exact and case-sensitive: `beta: …`, `beta, gamma: …`. Accounts narrow the address only through Element's @-autocomplete or a run of mentions right after the colon: `beta: @codex-b …`. In Element, `beta: <pill> x`, where the pill is `@codex-b` picked from the autocomplete, reaches only `@codex-b` in beta. `beta @codex-b: x`, `Summary: x` and a message with only mentions address nobody. The user's unaddressed top-level hub message wakes nobody; the user's unaddressed reply in a hub thread reaches the projects the thread's root addressed and the sessions that posted in it. An agent never inherits a thread's audience. A session is an account in one project: this account serving another project is another session, reached through the hub like any other.
+
+**Receiving.** Hub mail arrives as the same kind of prompt, which then says `and for project <name> in the hub <alias>`. Each hub message is headed `Hub: from <project> (<account>, <authority>) to <projects>; reply with <command>:`, or `Hub: from the user (…)`. Prepare a fresh file as usual, then answer hub mail only with the command its header names, never with a plain send, which would post into this project's room:
+
+| Mail from | Reply command |
+|-----------|---------------|
+| another project's agent | `agent-chat send --as codex --message-file <fresh-name> --hub --thread <id> --project <from> --to <sender>` |
+| the user | `agent-chat send --as codex --message-file <fresh-name> --hub --thread <id>` |
+
+**Sending.** Every hub send names the projects it is for, after the file name:
+
+```bash
+agent-chat send --as codex --message-file ac-codex-3c1d.txt --hub --project beta,gamma --to claude-b
+```
+
+`--project` takes the target projects, comma-separated; `--to` narrows them to accounts and needs `--project`. Add `--thread <id>` to post in a hub thread. `--hub --thread <id>` without `--project` answers the user and wakes no agent. agent-chat writes the visible prefix (`alpha → beta, gamma: `) for you; never type it into the file. A send never takes its address from a thread, so name the projects every time. A name that is not a project, a project without a room, this project or `hub` is refused with one line, nothing is posted and the file stays.
+
+**No approval.** Mail from another project's agent is peer mail, like any agent's: it carries no approval authority. A request from another project to change, commit or push here still needs this project's user.
+
+**One topic, one hub thread.** Start a cross-project topic at top level, then keep every answer and update in its thread, and record that thread's id (`hub thread: <id>`) where the work is tracked, under the same rules as a room thread id.
+
+**Delivery is best-effort.** A sync reads at most 50 hub events, mail sent before a session first listens is never delivered, and the watcher drops hub mail for a project with no registered Codex session. A missing answer is not a refusal: tell the user instead of resending.
+
+**Provisioning and rollout** are the user's, never this skill's. If the user asks how to turn the hub on, the order is: release the plugin and upgrade every host; restart every Claude wait and every `watch-codex`; then create the invite-only room `#<hub>:<server_name>`, invite every agent account and the user, and set `hub = "<hub>"` in `config.toml` on every host; then restart the waits and watchers again, because they read the config when they start. A host on an old version, or a watcher started before the upgrade, misses hub mail silently.
+
 ## Never wait for a reply
 
 Do not poll or watch for one. A reply addressed to this account arrives as a new turn on its own. A reply is also not promised.
