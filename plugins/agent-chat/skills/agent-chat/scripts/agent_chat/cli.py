@@ -327,6 +327,8 @@ def cmd_watch_codex(a: argparse.Namespace) -> int:
     cfg, account, client = _setup("codex")
     state = state_dir(account)
     alias = None if thread is None else project_alias(cfg)
+    if alias is not None and alias == cfg.hub_alias:
+        raise AgentChatError(f"this project's room {alias} is the hub; not watching", 2)
 
     def say(line: str) -> None:
         log(state, f"watch-codex: {line}")

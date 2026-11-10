@@ -23,10 +23,11 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from .config import AgentChatError, Config
-from .listen import SyncLoop, timeline
+from .listen import HUB_SECONDS, SyncLoop, timeline
 from .matrix import AuthError, Client, MatrixError, NetworkError
 from .note import CODEX_REPLY, Message, notes
-from .room import Rooms, alias_slug, project_alias, read_json
+from .room import Rooms, alias_slug, project_alias, read_json, room_alias
+from .threads import Budget
 
 CODEX_ENV = "AGENT_CHAT_CODEX"
 ZMX_ENV = "AGENT_CHAT_ZMX"
@@ -219,13 +220,20 @@ def check_screen(session: Session, history: Callable[[str], str]) -> str:
 class CodexWatcher(SyncLoop):
     """Delivers mail addressed to the Codex account with ``codex queue``.
 
+    When the config names a hub, the watcher joins it and routes each hub
+    message to the session (Codex account, project) it wakes: in all-rooms
+    mode to each such project's registered session, with ``--thread`` only
+    for the watched project. A failed hub join is logged and tried again at
+    the next sweep; it never holds up project-room mail.
+
     Args:
         client: The Codex account's homeserver client.
         cfg: The host's configuration.
         account: The Codex account's full ID.
         state: The account's state directory.
         log: Takes one line per delivery, refusal or failure.
-        thread: The one thread to queue to; then only ``alias`` is served.
+        thread: The one thread to queue to; then only ``alias`` is served,
+            and the hub only for its project.
         alias: The room ``thread`` belongs to.
         sessions: Lists the zmx sessions.
         history: Returns the screen of a zmx session.
@@ -261,6 +269,10 @@ class CodexWatcher(SyncLoop):
         self.queue = queue
         self._now = now
         self._aliases: dict[str, str] = {}
+        self.hub_room: str | None = None
+        self._hub_down: str | None = None
+        project = None if alias is None else room_dir(alias, cfg)
+        self.project = None if alias == cfg.hub_alias else project
         self._next_sweep = 0.0
         self._in_sync = False
         self.stopping = False
@@ -321,11 +333,18 @@ class CodexWatcher(SyncLoop):
         if self.alias is not None:
             return self.alias if room == self.room else None
         alias = self._alias_of(room, deadline)
-        return alias if alias and room_dir(alias, self.cfg) else None
+        if alias is None or alias == self.cfg.hub_alias:
+            return None
+        return alias if room_dir(alias, self.cfg) else None
 
     def _deliver(self, alias: str, mail: list[Message]) -> None:
         senders = ", ".join(sorted({m.sender for m in mail}))
-        what = f"{len(mail)} message(s) from {senders} in {alias}"
+        where = alias
+        if hub := next((m.hub for m in mail if m.hub), None):
+            hub_part = f"the hub {self.cfg.hub_alias} for {hub.project}"
+            mixed = any(m.hub is None for m in mail)
+            where = f"{alias} and {hub_part}" if mixed else hub_part
+        what = f"{len(mail)} message(s) from {senders} in {where}"
         thread, why = self.thread, ""
         if thread is None:
             try:
@@ -358,10 +377,13 @@ class CodexWatcher(SyncLoop):
         The rooms are checked first and every lookup runs before any delivery,
         so neither an unserved room nor a slow ``codex queue`` spends the
         batch's lookup budget. Each room's alias lookup has its own
-        :data:`ALIAS_SECONDS`, so one failing room holds up no other.
+        :data:`ALIAS_SECONDS`, so one failing room holds up no other. Hub
+        mail joins the mail of the project room it is routed to.
         """
         served = []
         for room in rooms.get("join") or {}:
+            if room == self.hub_room:
+                continue
             events = timeline(rooms, room)
             if not self.candidates(events):
                 continue
@@ -369,14 +391,69 @@ class CodexWatcher(SyncLoop):
             if alias := self._served(room, until):
                 served.append((room, alias, events))
         budget = self.budget()
-        found = [(a, self.mail(room, events, budget)) for room, a, events in served]
-        return [(alias, mail) for alias, mail in found if mail]
+        found: dict[str, list[Message]] = {}
+        for room, alias, events in served:
+            found.setdefault(alias, []).extend(self.mail(room, events, budget))
+        for project, m in self._hub_routes(rooms, budget):
+            found.setdefault(room_alias(self.cfg, project), []).append(m)
+        return [(alias, mail) for alias, mail in found.items() if mail]
+
+    def _hub_routes(
+        self, rooms: dict[str, Any], budget: Budget
+    ) -> list[tuple[str, Message]]:
+        """Return the hub mail of one sync, each message with its project."""
+        hub = self.hub_room
+        if hub is None:
+            return []
+        if self._left(hub, rooms):
+            self.rooms.forget(str(self.cfg.hub_alias))
+            self.hub_room = None
+            self._hub_failed("this account left it")
+            return []
+        if self.alias is not None and self.project is None:
+            return []
+        projects = None if self.project is None else [self.project]
+        return self.hub_routes(hub, timeline(rooms, hub), budget, projects)
+
+    def _hub_failed(self, why: str) -> None:
+        """Log a hub failure once until the hub is joined again."""
+        if why != self._hub_down:
+            self.log(
+                f"the hub {self.cfg.hub_alias} is unavailable ({why}); hub mail "
+                "waits for the next sweep"
+            )
+        self._hub_down = why
+
+    def _join_hub(self, deadline: float) -> None:
+        """Join the hub within :data:`HUB_SECONDS` unless it is joined already."""
+        hub = self.cfg.hub_alias
+        if hub is None or self.hub_room is not None:
+            return
+        until = min(deadline, self.client.now() + HUB_SECONDS)
+        try:
+            room = self.rooms.room_id(hub, until, verify=True)
+        except AuthError:
+            raise
+        except AgentChatError as exc:
+            self._hub_failed(str(exc).splitlines()[0] if str(exc) else repr(exc))
+            return
+        if room is None:
+            self._hub_failed("no such alias")
+            return
+        self.hub_room, self._hub_down = room, None
+        self.log(f"serving the hub {hub}")
 
     def _sweep(self, deadline: float) -> None:
-        """Join the rooms of registered Codex sessions (all-rooms mode only)."""
-        if self.alias is not None or self._now() < self._next_sweep:
+        """Join the hub, and the rooms of registered Codex sessions.
+
+        The session rooms are joined in all-rooms mode only.
+        """
+        if self._now() < self._next_sweep:
             return
         self._next_sweep = self._now() + SWEEP_SECONDS
+        self._join_hub(deadline)
+        if self.alias is not None:
+            return
         try:
             sessions = self.sessions()
         except AgentChatError as exc:
@@ -386,6 +463,8 @@ class CodexWatcher(SyncLoop):
             if s.labels.get(ROLE) != "codex" or not s.cwd:
                 continue
             alias = project_alias(self.cfg, s.cwd)
+            if alias == self.cfg.hub_alias:
+                continue  # the hub is never a project's room
             try:
                 if self.rooms.room_id(alias, deadline) is None:
                     continue  # that project is not onboarded
