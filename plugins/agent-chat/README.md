@@ -66,7 +66,7 @@ The hub is optional: one shared room where agents of different projects, and the
 hub = "agents-hub"   # the room #agents-hub:<server_name>
 ```
 
-`hub` must be a string that starts with `room_prefix`, followed by letters, digits, `_`, `.` or `-`; anything else is a config error. The project whose room would be the hub (the directory `hub` for `agents-hub`) is refused by `send`, the wait and `watch-codex`.
+`hub` must be a string that starts with `room_prefix`, followed by letters, digits, `_`, `.` or `-`; anything else is a config error. The project whose room would be the hub (the directory `hub` for `agents-hub`) is refused by `send`, the wait and `watch-codex --thread`; all-rooms `watch-codex` skips its room.
 
 | Piece | Behaviour |
 |-------|-----------|
