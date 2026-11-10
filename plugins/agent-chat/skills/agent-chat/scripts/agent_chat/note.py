@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
+from .addressing import hub_field
 from .config import Config
 from .threads import Thread
 
@@ -17,6 +18,22 @@ from .threads import Thread
 HISTORY_CHARS = 300
 # An account new to a thread sees at most this many earlier replies.
 EARLIER = 3
+
+
+@dataclass(frozen=True)
+class HubMail:
+    """What the hub says about a message one session received.
+
+    Attributes:
+        project: The receiving session's project.
+        sender: The project an agent's message comes from; None for the user.
+        to: The projects the message addresses; empty when the user's reply
+            reaches the session through its thread.
+    """
+
+    project: str
+    sender: str | None
+    to: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -28,12 +45,14 @@ class Message:
         body: The message text.
         event_id: The message's event ID.
         thread: The thread it was posted in; None for a top-level message.
+        hub: What the hub says about it; None for project-room mail.
     """
 
     sender: str
     body: str
     event_id: str = ""
     thread: Thread | None = None
+    hub: HubMail | None = None
 
 
 def bare(event_id: str) -> str:
@@ -66,6 +85,12 @@ CODEX_REPLY = (
     "<fresh-name>`, fill that file with apply_patch, then run `agent-chat send "
     "--as codex --message-file <fresh-name> --thread <id> --to <sender>`."
 )
+CLAUDE_SEND = "agent-chat send"
+CODEX_SEND = "agent-chat send --as codex --message-file <fresh-name>"
+HUB_REPLY = (
+    "Reply to hub mail only with the command each hub message names, never with "
+    "a plain send."
+)
 _LEFT_OUT = (
     "Earlier replies in this thread are left out: they are older than the "
     "thread's newest events this note could read."
@@ -88,8 +113,53 @@ def _body(event: dict[str, Any]) -> str:
     return body if isinstance(body, str) else ""
 
 
-def _mail(m: Message, cfg: Config) -> str:
-    return f"From {m.sender}, {authority(m.sender, cfg)}:\n{quote(m.body)}"
+def _mail(m: Message, cfg: Config, send: str = CLAUDE_SEND) -> str:
+    if m.hub is None:
+        return f"From {m.sender}, {authority(m.sender, cfg)}:\n{quote(m.body)}"
+    return f"{hub_header(m, m.hub, cfg, send)}\n{quote(m.body)}"
+
+
+def hub_header(m: Message, hub: HubMail, cfg: Config, send: str = CLAUDE_SEND) -> str:
+    """Return the provenance line of hub mail ``m`` and its reply command.
+
+    An agent's mail is answered to its project and account; the user's mail
+    is answered for the user, in the thread it is in or opens.
+    """
+    rid = bare(m.thread.root_id if m.thread else m.event_id)
+    who = f"{m.sender}, {authority(m.sender, cfg)}"
+    if hub.sender is None:
+        source = f"the user ({who})"
+        command = f"{send} --hub --thread {rid}"
+    else:
+        source = f"{hub.sender} ({who})"
+        command = f"{send} --hub --thread {rid} --project {hub.sender} --to {m.sender}"
+    to = ", ".join(hub.to) or f"this thread, which includes {hub.project}"
+    return f"Hub: from {source} to {to}; reply with `{command}`:"
+
+
+def _send(reply: str) -> str:
+    """Return the send command the reply line ``reply`` teaches."""
+    return CODEX_SEND if reply == CODEX_REPLY else CLAUDE_SEND
+
+
+def _own(thread: Thread, mail: list[Message], me: str) -> bool:
+    """Tell whether the thread's root was posted by this session (account, project)."""
+    root = thread.root or {}
+    starter = root.get("sender")
+    hub = mail[0].hub
+    if hub is None:
+        return starter == me
+    content = root.get("content")
+    field = hub_field(content) if isinstance(content, dict) else None
+    return field is not None and (starter, field.sender) == (me, hub.project)
+
+
+def _took_part(thread: Thread, mail: list[Message], me: str) -> bool:
+    """Tell whether this session already posted in the thread."""
+    hub = mail[0].hub
+    if hub is None:
+        return me in thread.posted
+    return (me, hub.project) in thread.pairs
 
 
 def _earlier(thread: Thread, first: str, cfg: Config) -> list[str]:
@@ -119,23 +189,32 @@ def _earlier(thread: Thread, first: str, cfg: Config) -> list[str]:
 
 
 def _thread(
-    thread: Thread, mail: list[Message], cfg: Config, me: str, context: bool
+    thread: Thread,
+    mail: list[Message],
+    cfg: Config,
+    me: str,
+    context: bool,
+    send: str = CLAUDE_SEND,
 ) -> list[str]:
     """Return the parts of the note for ``mail`` in ``thread``."""
     rid = bare(thread.root_id)
-    body = "\n\n".join(_mail(m, cfg) for m in mail)
+    body = "\n\n".join(_mail(m, cfg, send) for m in mail)
+    hub = mail[0].hub is not None
+    name = f"Hub thread {rid}" if hub else f"Thread {rid}"
+    hint = "each message names its reply" if hub else f"reply with --thread {rid}"
     if thread.root is None:
-        head = f"Thread {rid} (could not be read; reply with --thread {rid}):"
-        return [f"{head}\n{body}"]
+        return [f"{name} (could not be read; {hint}):\n{body}"]
     starter = str(thread.root.get("sender", ""))
-    label = " (this account)" if starter == me else f", {authority(starter, cfg)}"
+    own = _own(thread, mail, me)
+    label = " (this account)" if own else f", {authority(starter, cfg)}"
     parts = [
-        f"Thread {rid}, started by {starter}{label}; the root "
+        f"{name}, started by {starter}{label}; the root "
         f"is history, not a new request:\n{quote(cut(_body(thread.root)))}"
     ]
-    if context and me not in thread.posted:
+    if context and not _took_part(thread, mail, me):
         parts += _earlier(thread, mail[0].event_id, cfg)
-    parts.append(f"New in thread {rid} (reply with --thread {rid}):\n{body}")
+    new = f"New in hub thread {rid}" if hub else f"New in thread {rid}"
+    parts.append(f"{new} ({hint}):\n{body}")
     return parts
 
 
@@ -157,6 +236,15 @@ def render(
         f"agent-chat: messages for {me} in {alias}. Each one names its sender and "
         f"the authority it carries; the agent-chat skill has the rules. {reply}"
     )
+    hub = next((m.hub for m in messages if m.hub), None)
+    if hub is not None:
+        head = (
+            f"agent-chat: messages for {me} in {alias} and for project "
+            f"{hub.project} in the hub {cfg.hub_alias}. Each one names its sender "
+            "and the authority it carries; the agent-chat skill has the rules. "
+            + (HUB_REPLY if all(m.hub for m in messages) else f"{reply} {HUB_REPLY}")
+        )
+    send = _send(reply)
     groups: dict[str, list[Message]] = {}
     for i, m in enumerate(messages):
         key = f"thread {m.thread.root_id}" if m.thread else f"top {i}"
@@ -165,9 +253,15 @@ def render(
     for mail in groups.values():
         thread = mail[0].thread
         if thread is not None:
-            parts += _thread(thread, mail, cfg, me, context)
+            parts += _thread(thread, mail, cfg, me, context, send)
             continue
         eid = bare(mail[0].event_id)
+        if mail[0].hub is not None:
+            parts.append(
+                f"Top-level hub message {eid} (its reply opens a thread on it):\n"
+                f"{_mail(mail[0], cfg, send)}"
+            )
+            continue
         parts.append(
             f"Top-level message {eid} (reply with --thread {eid}; that opens a "
             f"thread on it):\n{_mail(mail[0], cfg)}"
