@@ -1139,3 +1139,14 @@ def test_the_users_unaddressed_hub_thread_reply_reaches_the_threads_projects(
     [gamma] = queued_to(fakes, THREAD_B)
     for text in (beta, gamma):
         assert "what do you both think?" in text
+
+
+def test_watch_codex_refuses_a_thread_in_the_directory_whose_room_is_the_hub(
+    hub: Host, fakes: Fakes, tmp_path: Path, capsys, monkeypatch
+) -> None:
+    directory = tmp_path / "hub"
+    directory.mkdir()
+    monkeypatch.chdir(directory)
+    code, _, err, _ = f.run(capsys, monkeypatch, "watch-codex", "--thread", THREAD)
+    assert code == 2 and f"this project's room {HUB} is the hub" in err
+    assert fakes.calls() == []
