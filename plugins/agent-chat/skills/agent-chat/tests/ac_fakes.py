@@ -491,8 +491,13 @@ def _pipe(src: socket.socket, dst: socket.socket) -> None:
                 pass
 
 
-def write_config(home: Path, homeserver: str, accounts: dict[str, str]) -> None:
-    """Write ``config.toml`` and the token files the way provisioning would."""
+def write_config(
+    home: Path, homeserver: str, accounts: dict[str, str], hub: str | None = None
+) -> None:
+    """Write ``config.toml`` and the token files the way provisioning would.
+
+    ``hub`` is the TOML value of the optional ``hub`` key, as written.
+    """
     d = home / ".config" / "agent-chat"
     d.mkdir(parents=True, exist_ok=True)
     agents = [CLAUDE_A, CODEX_A, CLAUDE_B, CODEX_B]
@@ -502,6 +507,7 @@ def write_config(home: Path, homeserver: str, accounts: dict[str, str]) -> None:
         'room_prefix = "agents-"',
         f'human = "{HUMAN}"',
         "agents = [" + ", ".join(f'"{a}"' for a in agents) + "]",
+        *([] if hub is None else [f"hub = {hub}"]),
         "",
         "[accounts]",
         *(f'{tool} = "{acct}"' for tool, acct in accounts.items()),

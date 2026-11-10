@@ -15,10 +15,19 @@ from .matrix import Client
 _SAFE = re.compile(r"[A-Za-z0-9._-]{1,64}")
 
 
+def project_name(cwd: str | None = None) -> str:
+    """Return the project: the basename of the physical working directory."""
+    return os.path.basename(os.path.realpath(cwd or os.getcwd()))
+
+
+def room_alias(cfg: Config, project: str) -> str:
+    """Return ``#<room_prefix><project>:<server_name>``."""
+    return f"#{cfg.room_prefix}{project}:{cfg.server_name}"
+
+
 def project_alias(cfg: Config, cwd: str | None = None) -> str:
     """Return ``#<room_prefix><basename of the physical cwd>:<server_name>``."""
-    base = os.path.basename(os.path.realpath(cwd or os.getcwd()))
-    return f"#{cfg.room_prefix}{base}:{cfg.server_name}"
+    return room_alias(cfg, project_name(cwd))
 
 
 def alias_slug(alias: str) -> str:

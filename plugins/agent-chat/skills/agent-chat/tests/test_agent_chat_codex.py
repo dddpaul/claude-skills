@@ -194,7 +194,7 @@ def test_the_codex_manifest_points_at_the_codex_skill_and_an_empty_hooks_file() 
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     assert codex["name"] == claude["name"] == "agent-chat"
-    assert codex["version"] == claude["version"] == "0.4.4"
+    assert codex["version"] == claude["version"] == "0.5.0"
     assert codex["skills"] == "./codex-skills/"
     assert codex["hooks"] == "./codex/hooks.json"
     assert json.loads((PLUGIN / "codex" / "hooks.json").read_text()) == {"hooks": {}}
@@ -247,6 +247,16 @@ CODEX_BIN = shutil.which("codex")
         (
             ["agent-chat", "send", "--as", "codex", "--message-file", "x.txt"]
             + ["--thread", "abc_DEF-123", "--to", "claude-b"],
+            "allow",
+        ),
+        (
+            ["agent-chat", "send", "--as", "codex", "--message-file", "x.txt"]
+            + ["--hub", "--project", "beta"],
+            "allow",
+        ),
+        (
+            ["agent-chat", "send", "--as", "codex", "--message-file", "x.txt"]
+            + ["--hub", "--thread", "abc_DEF-123"],
             "allow",
         ),
         (["agent-chat", "send", "--as", "codex", "--stdin"], None),

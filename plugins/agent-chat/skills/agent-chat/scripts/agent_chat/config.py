@@ -11,12 +11,14 @@ import os
 import re
 import stat
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 # A Matrix localpart as it may appear in a file name: no slash, no leading dot.
 _LOCALPART = re.compile(r"[a-z0-9_=.-]{1,255}")
 _USER_ID = re.compile(r"@([^:\s]+):(\S+)")
+# A project as a hub message names it: exact and case-sensitive.
+PROJECT_TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 
 
 class AgentChatError(Exception):
@@ -41,6 +43,17 @@ class Config:
     human: str
     agents: tuple[str, ...]
     accounts: dict[str, str]
+    hub: str | None = None
+
+    @property
+    def hub_alias(self) -> str | None:
+        """Return the hub's alias ``#<hub>:<server_name>``, or None without a hub."""
+        return None if self.hub is None else f"#{self.hub}:{self.server_name}"
+
+    @property
+    def hub_project(self) -> str | None:
+        """Return the project whose room is the hub: ``hub`` for ``agents-hub``."""
+        return None if self.hub is None else self.hub.removeprefix(self.room_prefix)
 
     def account(self, tool: str) -> str:
         """Return this host's account for ``tool`` (``claude`` or ``codex``)."""
@@ -98,7 +111,19 @@ def load_config(path: Path | None = None) -> Config:
         )
     except (KeyError, TypeError, AttributeError) as exc:
         raise AgentChatError(f"{path} lacks or mistypes {exc}") from exc
-    return cfg
+    hub = raw.get("hub")
+    if hub is None:
+        return cfg
+    prefix = cfg.room_prefix
+    if not isinstance(hub, str) or not hub.startswith(prefix):
+        raise AgentChatError(
+            f"{path}: hub must be a string that starts with {prefix!r}"
+        )
+    if not PROJECT_TOKEN.fullmatch(hub.removeprefix(prefix)):
+        raise AgentChatError(
+            f"{path}: hub {hub!r} must be {prefix!r} and then letters, digits, _ . -"
+        )
+    return replace(cfg, hub=hub)
 
 
 def localpart(user_id: str) -> str:
