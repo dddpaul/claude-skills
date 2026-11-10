@@ -22,6 +22,7 @@ from .addressing import (
     hub_field,
     hub_wakes,
     project_address,
+    root_address,
     thread_root,
     wakes,
 )
@@ -114,6 +115,7 @@ class SyncLoop:
         self.state = state
         self.cursor_file = state / f"{cursor_name}.cursor"
         self.owner_gone = False
+        self.log: Callable[[str], None] = lambda line: None
 
     def _filter(self, deadline: float, fresh: bool = False) -> str:
         path = self.state / "filter.json"
@@ -182,6 +184,117 @@ class SyncLoop:
             sender, body = str(e["sender"]), str(content["body"])
             out.append(Message(sender, body, str(e.get("event_id", "")), thread))
         return out
+
+    def _hub_message(
+        self, e: dict[str, Any], thread: Thread | None, project: str
+    ) -> Message:
+        content, sender = e["content"], str(e["sender"])
+        field = hub_field(content) if sender in self.cfg.agents else None
+        if field is not None:
+            hub = HubMail(project, field.sender, field.to)
+        else:
+            parsed = project_address(content, self.cfg.server_name)
+            hub = HubMail(project, None, parsed.projects if parsed else ())
+        eid = str(e.get("event_id", ""))
+        return Message(sender, str(content["body"]), eid, thread, hub)
+
+    def _hub_targets(
+        self, e: dict[str, Any], room: str, budget: Budget
+    ) -> list[str] | None:
+        """Return the projects hub ``e`` may wake for this account, in order.
+
+        They are the projects its field or address names; for the user's
+        unaddressed thread reply, this account's participant pairs and the
+        root's address. None when that thread could not be read.
+        """
+        content, sender = e.get("content"), e.get("sender")
+        if not isinstance(content, dict):
+            return []
+        if sender in self.cfg.agents:
+            field = hub_field(content)
+            return list(field.to) if field else []
+        if sender != self.cfg.human:
+            return []
+        address = project_address(content, self.cfg.server_name)
+        if address is not None:
+            return list(address.projects)
+        root = thread_root(content)
+        if root is None:
+            return []
+        thread = budget.thread(room, root)
+        if not thread.read or thread.root is None:
+            return None
+        mine = sorted(p for a, p in thread.pairs if a == self.account)
+        address = root_address(thread.root, self.cfg)
+        return mine + list(address.projects if address else ())
+
+    def _unread(self, e: dict[str, Any]) -> None:
+        root = thread_root(e["content"])
+        self.log(
+            f"hub: the thread {root} of the user's unaddressed reply "
+            f"{e.get('event_id')} could not be read; it wakes nobody"
+        )
+
+    def hub_routes(
+        self,
+        room: str,
+        events: list[Any],
+        budget: Budget,
+        projects: list[str] | None = None,
+    ) -> list[tuple[str, Message]]:
+        """Return each hub message among ``events`` with the project it wakes.
+
+        A message is returned once for each session (this account, project)
+        it wakes, among ``projects``, or among the projects it names when
+        ``projects`` is None. The user's unaddressed reply asks its thread;
+        when the thread cannot be read it wakes nobody and is logged once.
+        Addressed mail is delivered even then.
+
+        Raises:
+            AuthError: When a lookup's token is refused.
+        """
+        me, out = self.account, []
+        for e in since_join(events, me):
+            if not isinstance(e, dict):
+                continue
+            targets = projects
+            if targets is None:
+                targets = self._hub_targets(e, room, budget)
+            if targets is None:
+                self._unread(e)
+                continue
+            for project in dict.fromkeys(targets):
+                if project == self.cfg.hub_project:
+                    continue
+                verdict = hub_wakes(e, me, project, self.cfg)
+                if verdict is Wake.NO:
+                    continue
+                content = e["content"]
+                root = thread_root(content)
+                thread = None if root is None else budget.thread(room, root)
+                if verdict is Wake.THREAD:
+                    if thread is None or not thread.read:
+                        self._unread(e)
+                        break
+                    mentions = addressees(content, self.cfg.server_name)
+                    if mentions and me not in mentions:
+                        continue
+                    if not thread.hub_selects(me, project, self.cfg):
+                        continue
+                out.append((project, self._hub_message(e, thread, project)))
+        return out
+
+    def _left(self, room: str, rooms: dict[str, Any]) -> bool:
+        """Tell whether this sync shows the account out of ``room``."""
+        if room in (rooms.get("leave") or {}):
+            return True
+        return any(
+            isinstance(e, dict)
+            and e.get("type") == MEMBER
+            and e.get("state_key") == self.account
+            and (e.get("content") or {}).get("membership") in ("leave", "ban")
+            for e in timeline(rooms, room)
+        )
 
     def batches(
         self,
@@ -293,65 +406,14 @@ class Listener(SyncLoop):
         _write_text(self.hub_file, "covered\n")
         return room
 
-    def _hub_message(self, e: dict[str, Any], thread: Thread | None) -> Message:
-        content, sender = e["content"], str(e["sender"])
-        project = str(self.project)
-        field = hub_field(content) if sender in self.cfg.agents else None
-        if field is not None:
-            hub = HubMail(project, field.sender, field.to)
-        else:
-            parsed = project_address(content, self.cfg.server_name)
-            hub = HubMail(project, None, parsed.projects if parsed else ())
-        eid = str(e.get("event_id", ""))
-        return Message(sender, str(content["body"]), eid, thread, hub)
-
     def hub_mail(self, room: str, events: list[Any], budget: Budget) -> list[Message]:
         """Return the hub messages among ``events`` that wake this session.
-
-        The user's unaddressed reply asks its thread; when the thread cannot be
-        read it wakes nobody and is logged. Addressed mail is delivered even
-        then.
 
         Raises:
             AuthError: When a lookup's token is refused.
         """
-        me, project = self.account, str(self.project)
-        out = []
-        for e in since_join(events, me):
-            if not isinstance(e, dict):
-                continue
-            verdict = hub_wakes(e, me, project, self.cfg)
-            if verdict is Wake.NO:
-                continue
-            content = e["content"]
-            root = thread_root(content)
-            thread = None if root is None else budget.thread(room, root)
-            if verdict is Wake.THREAD:
-                if thread is None or not thread.read:
-                    self.log(
-                        f"hub: the thread {root} of the user's unaddressed reply "
-                        f"{e.get('event_id')} could not be read; it wakes nobody"
-                    )
-                    continue
-                mentions = addressees(content, self.cfg.server_name)
-                if mentions and me not in mentions:
-                    continue
-                if not thread.hub_selects(me, project, self.cfg):
-                    continue
-            out.append(self._hub_message(e, thread))
-        return out
-
-    def _left(self, room: str, rooms: dict[str, Any]) -> bool:
-        """Tell whether this sync shows the account out of ``room``."""
-        if room in (rooms.get("leave") or {}):
-            return True
-        return any(
-            isinstance(e, dict)
-            and e.get("type") == MEMBER
-            and e.get("state_key") == self.account
-            and (e.get("content") or {}).get("membership") in ("leave", "ban")
-            for e in timeline(rooms, room)
-        )
+        project = str(self.project)
+        return [m for _, m in self.hub_routes(room, events, budget, [project])]
 
     def wait(
         self,

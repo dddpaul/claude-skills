@@ -25,7 +25,7 @@ import ac_fakes as f
 import pytest
 from conftest import Host
 
-from agent_chat import config, listen, matrix, threads, watch
+from agent_chat import cli, config, listen, matrix, threads, watch
 
 PLUGIN = Path(__file__).resolve().parents[3]
 REPO = PLUGIN.parents[1]
@@ -194,7 +194,7 @@ def test_the_codex_manifest_points_at_the_codex_skill_and_an_empty_hooks_file() 
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     assert codex["name"] == claude["name"] == "agent-chat"
-    assert codex["version"] == claude["version"] == "0.5.1"
+    assert codex["version"] == claude["version"] == "0.5.2"
     assert codex["skills"] == "./codex-skills/"
     assert codex["hooks"] == "./codex/hooks.json"
     assert json.loads((PLUGIN / "codex" / "hooks.json").read_text()) == {"hooks": {}}
@@ -989,4 +989,164 @@ def test_a_refused_token_on_the_alias_lookup_still_ends_the_watcher(
         w.run()
     assert watch.ALIAS_SECONDS == 10.0
     assert gaps and all(0 < g <= 10.0 for g in gaps)
+    assert fakes.calls() == []
+
+
+# The hub
+
+HUB, HUB_ROOM = f"#agents-hub:{f.SERVER}", "!hub0001:example.test"
+HUB_PROJECTS = {p: f"!{p}0001:example.test" for p in ("alpha", "beta", "gamma")}
+
+
+def hub_config(host: Host) -> None:
+    f.write_config(
+        host.home,
+        f"http://127.0.0.1:{host.hs.port}",
+        {"claude": f.CLAUDE_A, "codex": f.CODEX_A},
+        hub='"agents-hub"',
+    )
+
+
+@pytest.fixture
+def hub(host: Host) -> Host:
+    """The host with ``hub = "agents-hub"``; everyone is in the hub and the rooms."""
+    hub_config(host)
+    everyone = {f.HUMAN, f.CLAUDE_A, f.CODEX_A, f.CLAUDE_B, f.CODEX_B}
+    host.hs.room(HUB, HUB_ROOM, joined=everyone, invited=set())
+    for project, room in HUB_PROJECTS.items():
+        alias = f"#agents-{project}:{f.SERVER}"
+        host.hs.room(alias, room, joined=everyone, invited=set())
+    return host
+
+
+def hub_say(hs: f.FakeHomeserver, sender: str, body: str) -> str:
+    return hs.add(HUB_ROOM, sender, {"msgtype": "m.text", "body": body})
+
+
+def hub_agent(
+    hs: f.FakeHomeserver, sender: str, project: str, to: list[str], body: str
+) -> str:
+    """Post what ``send --hub`` posts for ``sender`` of ``project``."""
+    return hs.add(HUB_ROOM, sender, cli.hub_content(body, project, to, [], f.SERVER))
+
+
+def project_sessions(fakes: Fakes, tmp_path: Path, rows: dict[str, str]) -> None:
+    """Register one Codex session per project directory, bound to its thread."""
+    resolved = []
+    for project, thread in rows.items():
+        directory = tmp_path / "box" / project
+        directory.mkdir(parents=True)
+        resolved.append((f"{project}-codex", directory, "codex", thread))
+    fakes.sessions(resolved)
+
+
+def queued_to(fakes: Fakes, thread: str) -> list[str]:
+    return [c["argv"][-1] for c in fakes.calls() if c["argv"][2] == thread]
+
+
+def test_all_rooms_mode_queues_a_hub_message_once_to_each_addressed_project(
+    hub: Host, fakes: Fakes, tmp_path: Path
+) -> None:
+    project_sessions(fakes, tmp_path, {"beta": THREAD, "gamma": THREAD_B})
+    run = Running()
+    hub_say(hub.hs, f.HUMAN, "beta, gamma, delta: hello all")
+    until(lambda: any("delta" in line for line in run.lines))
+    until(lambda: len(fakes.calls()) == 2)
+    hub_say(hub.hs, f.HUMAN, "gamma: sentinel")
+    until(lambda: "sentinel" in fakes.texts())
+    run.stop()
+    [beta] = queued_to(fakes, THREAD)
+    first, sentinel = queued_to(fakes, THREAD_B)
+    for text, project in ((beta, "beta"), (first, "gamma")):
+        assert "hello all" in text
+        assert f"for project {project} in the hub {HUB}" in text
+        assert "--as codex --message-file <fresh-name> --hub --thread" in text
+    assert "hello all" not in sentinel
+    [line] = [x for x in run.lines if x.startswith("not queued") and "delta" in x]
+    assert f"in the hub {HUB} for delta" in line
+    assert "no registered Codex session works in a directory named delta" in line
+
+
+def test_single_thread_mode_queues_only_its_projects_hub_mail(
+    hub: Host, fakes: Fakes
+) -> None:
+    run = Running(THREAD, f"#agents-beta:{f.SERVER}")
+    hub_say(hub.hs, f.HUMAN, "gamma: for gamma")
+    hub_say(hub.hs, f.HUMAN, "alpha, gamma: for alpha and gamma")
+    hub_say(hub.hs, f.HUMAN, "beta: for beta")
+    hub.hs.post(HUB_PROJECTS["beta"], f.HUMAN, "@codex-a: in the beta room")
+    until(lambda: "in the beta room" in fakes.texts())
+    run.stop()
+    texts = fakes.texts()
+    assert "for beta" in texts
+    assert "for gamma" not in texts and "for alpha and gamma" not in texts
+    assert all(c["argv"][2] == THREAD for c in fakes.calls())
+    assert not (fakes.bin / "zmx.log").exists()
+
+
+def test_the_own_pair_does_not_wake_its_codex_but_another_project_does(
+    hub: Host, fakes: Fakes, tmp_path: Path
+) -> None:
+    project_sessions(fakes, tmp_path, {"beta": THREAD})
+    run = Running()
+    hub_agent(hub.hs, f.CODEX_A, "beta", ["beta"], "talking to myself")
+    hub_agent(hub.hs, f.CODEX_A, "alpha", ["beta"], "from alpha's codex")
+    until(lambda: "from alpha's codex" in fakes.texts())
+    run.stop()
+    texts = fakes.texts()
+    assert "talking to myself" not in texts
+    assert "Hub: from alpha" in texts
+    assert "--hub --thread" in texts and f"--project alpha --to {f.CODEX_A}" in texts
+
+
+def test_an_unavailable_hub_is_logged_once_and_project_mail_still_arrives(
+    host: Host, fakes: Fakes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(watch, "SWEEP_SECONDS", 0.1)
+    hub_config(host)  # no hub room on the homeserver
+    run = Running(THREAD, f.ALIAS)
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: one")
+    until(lambda: "one" in fakes.texts())
+    time.sleep(0.5)  # several sweeps try the hub again
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: two")
+    until(lambda: "two" in fakes.texts())
+    run.stop()
+    down = [x for x in run.lines if f"the hub {HUB} is unavailable" in x]
+    assert len(down) == 1
+
+
+def test_the_users_unaddressed_hub_thread_reply_reaches_the_threads_projects(
+    hub: Host, fakes: Fakes, tmp_path: Path
+) -> None:
+    project_sessions(fakes, tmp_path, {"beta": THREAD, "gamma": THREAD_B})
+    root = hub_agent(hub.hs, f.CLAUDE_B, "alpha", ["beta"], "a question for beta")
+    run = Running()
+    chime = cli.hub_content("gamma chimes in", "gamma", [], [], f.SERVER)
+    chime["m.relates_to"] = {"rel_type": "m.thread", "event_id": root}
+    hub.hs.add(HUB_ROOM, f.CODEX_A, chime)
+    hub.hs.add(
+        HUB_ROOM,
+        f.HUMAN,
+        {
+            "msgtype": "m.text",
+            "body": "what do you both think?",
+            "m.relates_to": {"rel_type": "m.thread", "event_id": root},
+        },
+    )
+    until(lambda: len(fakes.calls()) == 2)
+    run.stop()
+    [beta] = queued_to(fakes, THREAD)
+    [gamma] = queued_to(fakes, THREAD_B)
+    for text in (beta, gamma):
+        assert "what do you both think?" in text
+
+
+def test_watch_codex_refuses_a_thread_in_the_directory_whose_room_is_the_hub(
+    hub: Host, fakes: Fakes, tmp_path: Path, capsys, monkeypatch
+) -> None:
+    directory = tmp_path / "hub"
+    directory.mkdir()
+    monkeypatch.chdir(directory)
+    code, _, err, _ = f.run(capsys, monkeypatch, "watch-codex", "--thread", THREAD)
+    assert code == 2 and f"this project's room {HUB} is the hub" in err
     assert fakes.calls() == []
