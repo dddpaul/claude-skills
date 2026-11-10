@@ -23,7 +23,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from .config import AgentChatError, Config
-from .listen import HUB_SECONDS, SyncLoop, _write_text, timeline
+from .listen import HUB_SECONDS, SyncLoop, timeline, write_text
 from .matrix import AuthError, Client, MatrixError, NetworkError
 from .note import CODEX_REPLY, Message, notes
 from .room import Rooms, alias_slug, project_alias, read_json, room_alias
@@ -423,7 +423,7 @@ class CodexWatcher(SyncLoop):
 
     def _report_hub(self, text: str) -> None:
         if self.hub_file is not None:
-            _write_text(self.hub_file, text)
+            write_text(self.hub_file, text)
 
     def _hub_failed(self, why: str) -> None:
         """Log a hub failure once until the hub is joined again."""

@@ -2,27 +2,21 @@
 
 **Verdict: Aligned**
 
-The code delivers every locked decision in the addendum's "Distilled for ralph-task" block. No scope cut is broken and
-no scope creep was found. There are three small gaps: Codex `status`, a missing step in the rollout docs, and one
-design caveat left out of the README. None of them blocks the rollout, and each has an easy fix.
+The code delivers every locked decision in the addendum's "Distilled for ralph-task" block. No scope cut is broken and no scope creep was found. There are three small gaps: Codex `status`, a missing step in the rollout docs, and one design caveat left out of the README. None of them blocks the rollout, and each has an easy fix.
 
 No `.claude/ralph-review-rules.md` exists, so only the standard rubric was applied.
 
 **Passes run:** 3 (brainstorm scope cuts) and 5 (out-of-scope creep).
-**Passes skipped:** 1, 2 and 4, because there is no `design/agent-chat-hub-prd.md` (no PRD user stories or FRs, no
-Non-Goals section, no Success Metrics section).
 
-The intent-to-implementation matrix below uses Pass 1's Delivered / Partial / Missing labels, but it is checked against
-the brainstorm addendum's locked decisions (LD) and acceptance sketch, not a PRD. The verdict comes from Passes 3 and 5,
-and the matrix agrees with it.
+**Passes skipped:** 1, 2 and 4, because there is no `design/agent-chat-hub-prd.md` (no PRD user stories or FRs, no Non-Goals section, no Success Metrics section).
 
-Review range: `e1dd7e8..185681f` (TASK-74 to TASK-77). Tests were not re-run by the reviewer; the host result was 281
-passed, ruff clean.
+The intent-to-implementation matrix below uses Pass 1's Delivered / Partial / Missing labels, but it is checked against the brainstorm addendum's locked decisions (LD) and acceptance sketch, not a PRD. The verdict comes from Passes 3 and 5, and the matrix agrees with it.
+
+Review range: TASK-74 to TASK-77. Tests were not re-run by the reviewer; the host result was 281 passed, ruff clean.
 
 ## Intent → Implementation Matrix
 
-Paths: code is under `plugins/agent-chat/skills/agent-chat/scripts/agent_chat/`, tests under
-`plugins/agent-chat/skills/agent-chat/tests/`.
+Paths: code is under `plugins/agent-chat/skills/agent-chat/scripts/agent_chat/`, tests under `plugins/agent-chat/skills/agent-chat/tests/`.
 
 | ID | Requirement | Status | Evidence |
 |----|-------------|--------|----------|
