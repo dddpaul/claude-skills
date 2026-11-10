@@ -26,6 +26,7 @@ import pytest
 from conftest import Host
 
 from agent_chat import cli, config, listen, matrix, threads, watch
+from agent_chat.lock import WaitLock
 
 PLUGIN = Path(__file__).resolve().parents[3]
 REPO = PLUGIN.parents[1]
@@ -175,11 +176,16 @@ class Running:
             alias,
         )
         self.codes: list[int] = []
-        self.t = threading.Thread(
-            target=lambda: self.codes.append(self.w.run()), daemon=True
-        )
+        self.errors: list[BaseException] = []
+        self.t = threading.Thread(target=self._run, daemon=True)
         self.t.start()
         until(self.w.cursor_file.exists)
+
+    def _run(self) -> None:
+        try:
+            self.codes.append(self.w.run())
+        except BaseException as exc:  # noqa: BLE001 - a test checks it
+            self.errors.append(exc)
 
     def stop(self) -> None:
         self.w.request_stop()
@@ -194,7 +200,7 @@ def test_the_codex_manifest_points_at_the_codex_skill_and_an_empty_hooks_file() 
     codex = json.loads((PLUGIN / ".codex-plugin" / "plugin.json").read_text())
     claude = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     assert codex["name"] == claude["name"] == "agent-chat"
-    assert codex["version"] == claude["version"] == "0.5.3"
+    assert codex["version"] == claude["version"] == "0.5.4"
     assert codex["skills"] == "./codex-skills/"
     assert codex["hooks"] == "./codex/hooks.json"
     assert json.loads((PLUGIN / "codex" / "hooks.json").read_text()) == {"hooks": {}}
@@ -255,6 +261,23 @@ def test_the_docs_document_the_optional_hub(doc: Path, reply: str) -> None:
     ):
         assert phrase in text, (doc.name, phrase)
     assert "only through the hub" not in text
+
+
+def test_the_readme_documents_hub_coverage_and_the_watcher_pair() -> None:
+    text = README.read_text()
+    for phrase in (
+        "confirm that `agent-chat status` and `agent-chat status --as codex` both "
+        "print `hub: <hub alias>: covered` before anyone relies on the hub",
+        "its hub line comes from the running watch-codex",
+        "`<lock name>.hub`",
+        "Running `watch-codex --thread <uuid>` and all-rooms `watch-codex` for the "
+        "same account on one host is unsupported",
+        "both may queue the same hub mail",
+        "`--hub` with neither `--project` nor `--thread`",
+        "`--hub needs --project, or --thread to answer the user; nothing was sent`",
+    ):
+        assert phrase in text, phrase
+    assert "the same for the Codex account" not in text
 
 
 @pytest.mark.parametrize("doc", [CLAUDE_SKILL, SKILL])
@@ -1195,3 +1218,133 @@ def test_watch_codex_refuses_a_thread_in_the_directory_whose_room_is_the_hub(
     code, _, err, _ = f.run(capsys, monkeypatch, "watch-codex", "--thread", THREAD)
     assert code == 2 and f"this project's room {HUB} is the hub" in err
     assert fakes.calls() == []
+
+
+# The hub coverage file and status --as codex
+
+
+def coverage_file(host: Host, name: str) -> Path:
+    return host.state(f.CODEX_A) / f"{name}.hub"
+
+
+def test_all_rooms_watch_codex_reports_the_hub_covered_then_left(
+    hub: Host, fakes: Fakes
+) -> None:
+    flag = coverage_file(hub, "watch-codex")
+    run = Running()
+    until(lambda: flag.exists() and flag.read_text() == "covered\n")
+    hub.hs.kick(HUB_ROOM, f.CODEX_A)
+    until(lambda: flag.read_text() == "unavailable: this account left it\n")
+    run.stop()
+    assert not flag.exists()
+
+
+def test_thread_watch_codex_reports_the_hub_covered_or_unavailable(
+    host: Host, fakes: Fakes
+) -> None:
+    hub_config(host)  # no hub room on the homeserver yet
+    flag = coverage_file(host, f"watch-codex-agents-{f.PROJECT}")
+    run = Running(THREAD, f.ALIAS)
+    until(lambda: flag.exists())
+    assert flag.read_text() == "unavailable: no such alias\n"
+    run.stop()
+    assert not flag.exists()
+    host.hs.room(HUB, HUB_ROOM, joined={f.HUMAN, f.CODEX_A}, invited=set())
+    run = Running(THREAD, f.ALIAS)
+    until(lambda: flag.exists())
+    assert flag.read_text() == "covered\n"
+    run.stop()
+    assert not flag.exists()
+
+
+def test_watch_codex_removes_its_hub_file_after_an_error(
+    hub: Host, fakes: Fakes
+) -> None:
+    flag = coverage_file(hub, f"watch-codex-agents-{f.PROJECT}")
+    run = Running(THREAD, f.ALIAS)
+    until(flag.exists)
+
+    def crash(alias: str, mail: list[Any]) -> None:
+        raise RuntimeError("a delivery bug")
+
+    run.w._deliver = crash  # type: ignore[method-assign]
+    hub.hs.post(f.ROOM, f.HUMAN, "@codex-a: crash it")
+    run.t.join(10)
+    assert not run.t.is_alive() and run.codes == []
+    assert [str(e) for e in run.errors] == ["a delivery bug"]
+    assert not flag.exists()
+
+
+def test_watch_codex_removes_its_hub_file_after_a_refused_token(
+    hub: Host, fakes: Fakes
+) -> None:
+    flag = coverage_file(hub, "watch-codex")
+    run = Running()
+    until(flag.exists)
+    account = config.load_config().account("codex")
+    hub.hs.revoked.add(config.read_token(account))
+    hub.hs.post(f.ROOM, f.HUMAN, "@codex-a: wake the sync")
+    run.t.join(10)
+    assert not run.t.is_alive() and run.codes == []
+    assert [type(e) for e in run.errors] == [matrix.AuthError]
+    assert not flag.exists()
+
+
+def test_a_thread_watcher_that_serves_no_hub_writes_no_hub_file(
+    host: Host, fakes: Fakes
+) -> None:
+    run = Running(THREAD, f.ALIAS)  # the config names no hub
+    host.hs.post(f.ROOM, f.HUMAN, "@codex-a: hello")
+    until(lambda: "hello" in fakes.texts())
+    run.stop()
+    assert list(host.state(f.CODEX_A).glob("*.hub")) == []
+    hub_config(host)
+    cfg = config.load_config()
+    account = cfg.account("codex")
+    client = matrix.Client(cfg.homeserver, config.read_token(account))
+    state = config.state_dir(account)
+    w = watch.CodexWatcher(client, cfg, account, state, print, THREAD, HUB)
+    assert w.project is None and w.hub_file is None
+
+
+def codex_status(capsys, monkeypatch) -> dict[str, str]:
+    code, out, _, _ = f.run(capsys, monkeypatch, "status", "--as", "codex")
+    assert code == 0
+    return dict(x.split(": ", 1) for x in out.splitlines() if ": " in x)
+
+
+def test_status_as_codex_takes_the_hub_line_from_the_running_watch_codex(
+    hub: Host, capsys, monkeypatch
+) -> None:
+    state = config.state_dir(config.load_config().account("codex"))
+    own, every = f"watch-codex-agents-{f.PROJECT}", "watch-codex"
+    shown = codex_status(capsys, monkeypatch)
+    assert shown["hub"] == f"{HUB}: not covered (no watch-codex runs)"
+    assert shown["watch-codex"] == "not running"
+    every_lock = WaitLock(state, every)
+    assert every_lock.try_acquire()
+    try:
+        shown = codex_status(capsys, monkeypatch)
+        assert shown["hub"] == f"{HUB}: unknown (watch-codex does not report the hub)"
+        (state / f"{every}.hub").write_text("unavailable: no such alias\n")
+        shown = codex_status(capsys, monkeypatch)
+        assert shown["hub"] == f"{HUB}: unavailable: no such alias"
+        assert shown["watch-codex"] == "running"
+        own_lock = WaitLock(state, own)
+        assert own_lock.try_acquire()
+        try:
+            (state / f"{own}.hub").write_text("covered\n")
+            assert codex_status(capsys, monkeypatch)["hub"] == f"{HUB}: covered"
+        finally:
+            own_lock.release()
+    finally:
+        every_lock.release()
+    # A hook-wait's coverage file says nothing about the Codex account's hub.
+    hook = WaitLock(state, f"agents-{f.PROJECT}")
+    assert hook.try_acquire()
+    try:
+        (state / f"agents-{f.PROJECT}.hub").write_text("covered\n")
+        shown = codex_status(capsys, monkeypatch)
+        assert shown["hub"] == f"{HUB}: not covered (no watch-codex runs)"
+    finally:
+        hook.release()
