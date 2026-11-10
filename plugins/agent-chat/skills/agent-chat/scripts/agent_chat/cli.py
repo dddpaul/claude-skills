@@ -251,8 +251,8 @@ def cmd_send(a: argparse.Namespace) -> int:
     if not body.strip():
         raise AgentChatError(empty, 2)
     thread = None if a.thread is None else thread_id(a.thread)
-    projects = None if a.project is None else hub_projects(a.project)
     _check_hub_flags(a)
+    projects = None if a.project is None else hub_projects(a.project)
     cfg, account, client = _setup(a.as_)
     to = list(dict.fromkeys(cfg.user_id(t) for t in a.to or []))
     deadline = time.monotonic() + SEND_SECONDS

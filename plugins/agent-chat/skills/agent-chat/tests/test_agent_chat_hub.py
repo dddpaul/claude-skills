@@ -165,6 +165,20 @@ def test_send_hub_refuses_when_this_projects_room_does_not_resolve(
     assert f"this project has no room {f.ALIAS}" in err
 
 
+def test_a_project_that_cannot_be_named_in_the_hub_cannot_send_to_it(
+    hub: Host, tmp_path: Path, capsys, monkeypatch
+) -> None:
+    there = tmp_path / "work" / "my proj"
+    there.mkdir()
+    monkeypatch.chdir(there)
+    hub.hs.room(
+        f"#agents-my proj:{f.SERVER}", "!odd0001:example.test", {f.CLAUDE_A}, set()
+    )
+    code, out, err = send(capsys, monkeypatch, "--hub", "--project", "beta")
+    refused(hub, code, out, err)
+    assert "this project's name 'my proj' cannot be named in the hub" in err
+
+
 @pytest.mark.parametrize(
     "argv",
     [["--hub", "--project", "beta"], ["--hub", "--thread", "abc"], []],
@@ -188,6 +202,7 @@ def test_the_hubs_own_directory_cannot_send(
         (["--hub", "--thread", "abc", "--to", "claude-b"], "--to needs --project"),
         (["--hub"], "--hub needs --project, or --thread"),
         (["--project", "beta"], "--project needs --hub"),
+        (["--project", "be ta"], "--project needs --hub"),
     ],
 )
 def test_send_hub_refuses_a_missing_address(
