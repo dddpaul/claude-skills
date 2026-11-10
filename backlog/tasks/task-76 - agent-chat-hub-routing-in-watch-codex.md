@@ -4,7 +4,7 @@ title: agent-chat hub routing in watch-codex
 status: Done
 assignee: []
 created_date: '2026-11-10T14:06:00Z'
-updated_date: '2026-11-10T15:20:00Z'
+updated_date: '2026-11-10T15:52:00Z'
 labels:
   - feature:agent-chat-hub
 dependencies:
@@ -197,4 +197,6 @@ Commit: `e6af38a` - task-76: route hub mail in watch-codex per project, with the
 Commit: `b237ed8` - task-76: refuse watch-codex --thread in the directory whose room is the hub
 
 Done. SyncLoop.hub_routes now holds the hub wake loop for both Listener.hub_mail (one project) and CodexWatcher (projects from the message's field/address, or for the user's unaddressed thread reply from this account's participant pairs plus the root's address). The watcher joins the hub in each sweep within HUB_SECONDS, logs a failure once per reason, forgets the hub on leave, never serves it as a project room, and merges hub mail into the project room's delivery (log names 'in the hub <alias> for <project>'). Single-thread mode serves only its own project's hub mail, with no zmx lookup. watch-codex --thread refuses the directory whose room is the hub (review's minor finding). Review: ralph:task-reviewer APPROVED (score 9) on e6af38a; the follow-up refusal commit is covered by a new test. ruff clean; pytest plugins/agent-chat 269 passed, 7 skipped. Version 0.5.2.
+
+Review: APPROVED b237ed8 (task-reviewer, score 10): the watch-codex --thread refusal of the hub's directory is correct, minimal and pinned by a test that fails without it.
 <!-- SECTION:NOTES:END -->

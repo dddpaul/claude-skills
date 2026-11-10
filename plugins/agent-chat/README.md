@@ -58,6 +58,40 @@ The command needs Python 3.11 or later (for `tomllib`); on an older `python3`, `
 
 State (cursor, lock, room and filter cache, log) lives under `${XDG_STATE_HOME:-~/.local/state}/agent-chat/<localpart>/`.
 
+## The hub
+
+The hub is optional: one shared room where agents of different projects, and the user, talk across projects. Without the `hub` key everything above works as it did before, and `send --hub` refuses with one line. Project rooms keep working, with the same rules, while the hub is on.
+
+```toml
+hub = "agents-hub"   # the room #agents-hub:<server_name>
+```
+
+`hub` must be a string that starts with `room_prefix`, followed by letters, digits, `_`, `.` or `-`; anything else is a config error. The project whose room would be the hub (the directory `hub` for `agents-hub`) is refused by `send`, the wait and `watch-codex --thread`; all-rooms `watch-codex` skips its room.
+
+| Piece | Behaviour |
+|-------|-----------|
+| Address | The run of comma-separated project names at the start of the body, followed by `:`. A name is `[A-Za-z0-9._-]+`, exact and case-sensitive, and is the project directory's basename. `beta: …`, `beta, gamma: …` and `beta: @claude-b …` are addresses; `beta @claude-b: …`, `Summary: …` (unless `Summary` is a project), a name without `:` and a mention-only message are not. |
+| Accounts | Accounts narrow an address, and come only from `m.mentions` and the literal `@`-run right after the colon. In Element, type `beta: `, pick `@claude-b` from the @-autocomplete and write the text: `beta: <pill> x` shows the pill as a display name, which agent-chat does not read, but `m.mentions` names `@claude-b` exactly, so only (`@claude-b`, beta) wakes. Without mentions, every agent of every named project wakes. |
+| Sessions | A session is the pair (account, project): `@claude-a` waiting in `alpha` and `@claude-a` waiting in `beta` are two sessions, and reach each other through the hub. Own-message suppression, thread participants, the note's labels, Codex routing and `status` all compare pairs. |
+| Agent mail | `send --hub` writes the visible prefix `<from> → <to, comma-separated>: `, or `<from>: ` when it answers the user, and the content field `"agent_chat.hub": {"v": 1, "from": "<project>", "to": [<projects>]}`. For an agent's message the field decides, the text is for people: a missing or invalid field wakes nobody. The field names a project, never an authority; the sender's account still sets the authority label. |
+| Waking | An agent message wakes (me, P) when P is in its `to`, it is not the own pair, and it has no mentions or mentions me; an empty `to` (an answer to the user) wakes nobody. The user's addressed message wakes the named projects' sessions, narrowed by mentions, even when its thread cannot be read. The user's unaddressed top-level hub message wakes nobody: there is no hub-wide broadcast. The user's unaddressed reply in a hub thread wakes the root's addressees and the thread's participant pairs, the (sender, `from`) pairs of valid fields among the root and the newest 50 events; when it mentions accounts, only theirs. When that thread cannot be read, it wakes nobody and is logged. Agents never inherit a thread's audience, so they cannot wake each other in a loop. |
+| Sending | Every agent send to the hub names its projects: `agent-chat send --hub --project beta,gamma [--to claude-b] [--thread <id>]`. `--hub --thread <id>` without `--project` answers the user (`to` empty). `send` never derives an address from a thread. Refused, with one line and nothing posted: a name that is not a token or whose room does not resolve, the own project or the hub's own project (`hub` for `agents-hub`), a sender project without a room, `--to` without `--project`, `--project` without `--hub`. Target rooms are only resolved, never joined. |
+| The note | Each hub message is headed `Hub: from <project> (<account>, <authority>) to <projects>; reply with <command>:`, or `Hub: from the user (<account>, <authority>) to …`, with the command in backticks. The reply command for an agent's mail is `agent-chat send --hub --thread <id> --project <from> --to <sender>`, and for the user's mail `agent-chat send --hub --thread <id>`; Codex's note puts `--as codex --message-file <fresh-name>` first. A plain `send` would answer into the project room, so hub mail is answered only with the command it names. |
+| Waits | Each wait also serves its project in the hub, from the same `/sync`. Locks and cursors stay per (account, project room), so alpha's wait never consumes beta's mail; a message addressed to both is delivered once to each session. The hub is resolved and joined at wait start within 10 s; a failure is logged once, project-room mail still arrives, and the next wait tries again. `status` prints `hub: <hub alias>: covered`, `unavailable: <why>`, `not covered (no wait listens)` or `unknown`, from `<slug>.hub` next to the wait's lock. |
+| watch-codex | All-rooms mode joins the hub and queues each hub message once to the registered `zpc.role=codex` session of every addressed project, as for that project's room; a project with no session logs `not queued: …`. `--thread <uuid>` mode queues only the hub mail of its directory's project. The own pair (`@codex-a`, beta) never wakes beta's Codex. |
+
+**Delivery is best-effort.** A sync takes at most 50 events from the hub, as from any room; mail beyond that is not replayed. Each (account, project) cursor starts at now on first use, so mail sent before a session first waits is not delivered. `watch-codex` drops hub mail for a project with no matching Codex session, with a `not queued` line. Mail from another project's agent is peer mail: it carries no approval authority, whatever project it names.
+
+**One topic, one hub thread.** Start a cross-project topic at top level, then answer and update only in its thread, with the id recorded where the work is tracked, as for project rooms.
+
+**Provisioning**, done outside this plugin:
+
+1. Create the room `#agents-hub:<server_name>`, invite-only, on the homeserver.
+2. Invite every agent account of every host, and `human`; each agent joins on its wait's or watcher's first start.
+3. Add `hub = "agents-hub"` to `config.toml` on every host.
+
+**Rollout order.** Release the plugin and upgrade every host first. Restart every wait (end and start each interactive Claude session, or stop its `hook-wait` so the next hook starts a new one) and every `watch-codex` supervisor, because a process started before the upgrade runs the old code. Only then provision the room and set the `hub` key. A wait and a watcher read `config.toml` when they start, so restart them once more after the key is set; until then they serve no hub. A host on an old version, or a wait started before the upgrade, misses hub mail silently.
+
 ## Install
 
 ### Claude Code
@@ -74,7 +108,7 @@ codex plugin add agent-chat@dddpaul-claude-skills
 Codex reads `.agents/plugins/marketplace.json`, installs the plugin and lists its skill as `agent-chat:agent-chat`. The Codex manifest points `hooks` at the empty `codex/hooks.json`, so Codex does not load the Claude hooks and a new TUI does not stop at "Hooks need review". Two more steps are needed on each host:
 
 - **PATH.** Codex runs commands in its app-server daemon, with a shell snapshot taken from a login shell, so `agent-chat` must be on the login shell's `PATH`. Link the installed plugin's `bin/agent-chat` (under `~/.codex/plugins/cache/dddpaul-claude-skills/agent-chat/<version>/`) into a directory on that `PATH`.
-- **Rules.** Copy `codex/rules/agent-chat.rules` into `~/.codex/rules/`, or merge its lines into `~/.codex/rules/default.rules`. A send reaches the homeserver over the network, which Codex's sandbox does not allow; the rules let exactly `agent-chat prepare-message` and `agent-chat send --as codex --message-file` run outside it without a per-call approval; `--to` and `--thread` come after the file name, so the same rule covers a thread reply. Check them with `codex execpolicy check --rules codex/rules/agent-chat.rules agent-chat prepare-message x.txt`.
+- **Rules.** Copy `codex/rules/agent-chat.rules` into `~/.codex/rules/`, or merge its lines into `~/.codex/rules/default.rules`. A send reaches the homeserver over the network, which Codex's sandbox does not allow; the rules let exactly `agent-chat prepare-message` and `agent-chat send --as codex --message-file` run outside it without a per-call approval; `--to`, `--thread`, `--hub` and `--project` come after the file name, so the same rule covers a thread reply and a hub send. Check them with `codex execpolicy check --rules codex/rules/agent-chat.rules agent-chat prepare-message x.txt`.
 
 Codex sends in two steps, because its prefix rules cannot match a command with a heredoc, stdin, redirection or a substitution:
 
@@ -104,7 +138,7 @@ A supervisor's `PATH` may lack `codex` or `zmx`: `AGENT_CHAT_CODEX` and `AGENT_C
 ## Checks
 
 ```sh
-agent-chat status             # the account, the project room, whether a wait listens
+agent-chat status             # the account, the project room, whether a wait listens, the hub
 agent-chat status --as codex  # the same for the Codex account, and whether watch-codex runs
 uv run pytest plugins/agent-chat
 ```
