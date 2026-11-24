@@ -1,7 +1,7 @@
 """The Codex daemon client fails closed.
 
 ``thread/loaded/list``, ``thread/read``, ``thread/name/set``, ``thread/list``,
-``config/read``, ``skills/list`` and the ``thread/started`` notification over
+``skills/list`` and the ``thread/started`` notification over
 ``codex app-server proxy`` are an internal, undocumented API. Anything
 unexpected in the handshake, the WebSocket framing or a response raises
 ``DaemonError`` (exit code 3), so no caller acts on a guess.
@@ -135,22 +135,26 @@ def test_started_threads_refuses_an_unexpected_notification(params: Any) -> None
 
 def test_latest_params_are_the_tuis_resume_last_query() -> None:
     # Pinned to latest_session_lookup_params in codex-rs/tui/src/lib.rs at
-    # rust-v0.166.0: limit 1, sortKey updated_at (ThreadSortKey is snake_case),
-    # the cwd filter, resume_source_kinds(false) = cli and vscode, archived
-    # false, the history model provider, and useStateDbOnly true then false
-    # (serde leaves false out).
-    assert latest_params("/w", "openai", True) == {
+    # rust-v0.172.0, as a resume calls it: currentAccountOnly true, limit 1,
+    # sortKey updated_at (ThreadSortKey is snake_case), every model provider
+    # (an empty list), resume_source_kinds(false) = cli and vscode, archived
+    # false, the cwd filter, and useStateDbOnly true then false (serde leaves
+    # false out, as it does includeAttachedThreads).
+    assert latest_params("/w", True) == {
+        "currentAccountOnly": True,
         "limit": 1,
         "sortKey": "updated_at",
+        "modelProviders": [],
         "sourceKinds": ["cli", "vscode"],
         "archived": False,
         "cwd": "/w",
-        "modelProviders": ["openai"],
         "useStateDbOnly": True,
     }
-    assert latest_params("/w", None, False) == {
+    assert latest_params("/w", False) == {
+        "currentAccountOnly": True,
         "limit": 1,
         "sortKey": "updated_at",
+        "modelProviders": [],
         "sourceKinds": ["cli", "vscode"],
         "archived": False,
         "cwd": "/w",
@@ -164,15 +168,11 @@ def _listed(rid: int, tid: str, path: str | None) -> bytes:
 def test_latest_thread_sends_the_tuis_query(tmp_path: Path) -> None:
     rollout = tmp_path / "rollout.jsonl"
     rollout.write_text("")
-    d = _daemon(
-        _answer(1, {"config": {"model_provider": None}, "origins": {}}),
-        _listed(2, THREAD_B, str(rollout)),
-    )
+    d = _daemon(_listed(1, THREAD_B, str(rollout)))
     assert d.latest_thread("/w") == THREAD_B
     sent = [json.loads(p) for _, p in _sent(d)]
     assert [(m["method"], m["params"]) for m in sent] == [
-        ("config/read", {"includeLayers": True, "cwd": "/w"}),
-        ("thread/list", latest_params("/w", "openai", True)),
+        ("thread/list", latest_params("/w", True)),
     ]
 
 
@@ -180,28 +180,27 @@ def test_latest_thread_scans_when_the_state_db_misses(tmp_path: Path) -> None:
     rollout = tmp_path / "rollout.jsonl"
     rollout.write_text("")
     d = _daemon(
-        _answer(1, error={"code": -32601, "message": "unknown method"}),
-        _listed(2, THREAD_A, str(tmp_path / "gone.jsonl")),
-        _listed(3, THREAD_B, str(rollout)),
+        _listed(1, THREAD_A, str(tmp_path / "gone.jsonl")),
+        _listed(2, THREAD_B, str(rollout)),
     )
     assert d.latest_thread("/w") == THREAD_B
-    sent = [json.loads(p)["params"] for _, p in _sent(d)][1:]
-    assert sent == [latest_params("/w", None, True), latest_params("/w", None, False)]
+    sent = [json.loads(p)["params"] for _, p in _sent(d)]
+    assert sent == [latest_params("/w", True), latest_params("/w", False)]
 
 
 def test_latest_thread_returns_none_without_a_thread() -> None:
     d = _daemon(
-        _answer(1, {"config": {"model_provider": "oss"}}),
-        _answer(2, error={"message": "no state db"}),
-        _answer(3, {"data": [], "nextCursor": None}),
+        _answer(1, error={"message": "no state db"}),
+        _answer(2, {"data": [], "nextCursor": None}),
     )
     assert d.latest_thread("/w") is None
-    assert json.loads(_sent(d)[2][1])["params"]["modelProviders"] == ["oss"]
+    assert [json.loads(p)["params"] for _, p in _sent(d)] == [
+        latest_params("/w", True),
+        latest_params("/w", False),
+    ]
     for bad in ({"data": {}}, {"data": [1]}):
         with pytest.raises(DaemonError, match="unexpected list"):
-            _daemon(_answer(1, {"config": {}}), _answer(2, bad)).latest_thread("/w")
-    with pytest.raises(DaemonError, match="unexpected config"):
-        _daemon(_answer(1, {"config": {"model_provider": 3}})).latest_thread("/w")
+            _daemon(_answer(1, bad)).latest_thread("/w")
 
 
 @pytest.mark.parametrize(

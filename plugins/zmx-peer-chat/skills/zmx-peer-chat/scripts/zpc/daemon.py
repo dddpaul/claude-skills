@@ -347,25 +347,6 @@ class Daemon:
         self.notifications = rest
         return out
 
-    def history_model_provider(self, cwd: str) -> str | None:
-        """Return the model provider whose threads ``codex resume --last`` lists.
-
-        As the TUI derives it without an explicit provider: the effective
-        config for ``cwd``, ``openai`` when it names none, no filter at all
-        when the daemon refuses ``config/read``.
-        """
-        try:
-            result = self.call("config/read", {"includeLayers": True, "cwd": cwd})
-        except DaemonRefused:
-            return None
-        config = result.get("config")
-        provider = config.get("model_provider") if isinstance(config, dict) else 0
-        if provider is None:
-            return "openai"
-        if not isinstance(provider, str):
-            raise DaemonError("config/read answered an unexpected config")
-        return provider
-
     def latest_thread(self, cwd: str) -> str | None:
         """Return the thread ``codex resume --last`` resumes in ``cwd``, or None.
 
@@ -373,12 +354,9 @@ class Daemon:
         one that scans the rollouts, each taking the most recently updated
         thread only when its rollout file exists.
         """
-        provider = self.history_model_provider(cwd)
         for state_db_only in (True, False):
             try:
-                result = self.call(
-                    "thread/list", latest_params(cwd, provider, state_db_only)
-                )
+                result = self.call("thread/list", latest_params(cwd, state_db_only))
             except DaemonRefused:
                 if state_db_only:
                     continue
@@ -410,24 +388,24 @@ class Daemon:
         return names
 
 
-def latest_params(
-    cwd: str, provider: str | None, state_db_only: bool
-) -> dict[str, Any]:
+def latest_params(cwd: str, state_db_only: bool) -> dict[str, Any]:
     """Return the ``thread/list`` params of the TUI's ``codex resume --last`` lookup.
 
     They follow ``latest_session_lookup_params`` in ``codex-rs/tui/src/lib.rs``
-    at codex-cli ``rust-v0.166.0``; ``useStateDbOnly`` is left out when false,
-    as the daemon's own serializer does.
+    at codex-cli ``rust-v0.172.0``, called for a resume: every model provider
+    (an empty list) and the current account's threads only. Fields the TUI
+    leaves at None or false are left out, as the daemon's own serializer does
+    for ``includeAttachedThreads`` and ``useStateDbOnly``.
     """
     params: dict[str, Any] = {
+        "currentAccountOnly": True,
         "limit": 1,
         "sortKey": "updated_at",
+        "modelProviders": [],
         "sourceKinds": ["cli", "vscode"],
         "archived": False,
         "cwd": cwd,
     }
-    if provider is not None:
-        params["modelProviders"] = [provider]
     if state_db_only:
         params["useStateDbOnly"] = True
     return params
