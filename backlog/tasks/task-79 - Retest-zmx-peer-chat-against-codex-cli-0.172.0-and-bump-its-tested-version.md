@@ -1,10 +1,10 @@
 ---
 id: TASK-79
 title: Retest zmx-peer-chat against codex-cli 0.172.0 and bump its tested version
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-24T17:18:00Z'
-updated_date: '2026-11-24T17:57:00Z'
+updated_date: '2026-11-24T17:58:00Z'
 labels:
   - zmx-peer-chat
 dependencies: []
@@ -81,4 +81,8 @@ Retest on the box 2026-11-24 (recorded in design/zmx-peer-chat.md, "Retest with 
 Commit: `3b4144e` - task-79: test zmx-peer-chat against codex-cli 0.172.0 and follow its resume --last query
 
 Scope: AC #7 added after the retest found that 0.172.0 changed the TUI's resume --last query; the user chose to follow it in this task (latest_params, config/read lookup removed), so this behaviour change is in scope. Box-only ACs (#2, #4, the live half of #7): they ran over ssh from the host in the interactive session, with the user's explicit OK for the zpc-retest-* Codex sessions; Ralph's devcontainer and a review environment cannot reach the box, so a review checks the records (task notes, design/zmx-peer-chat.md). Re-check from the host: `ssh <box> 'bash -l'`; `npm install --prefix ~/zpc-retest/codex @openai/codex@0.172.0` and put ~/zpc-retest/codex/node_modules/.bin first on PATH; copy this tree to ~/zpc-retest/copy and run `~/zpc-retest/copy/bin/zmx-peer-chat daemon check` (expect exit 0, `codex-cli 0.172.0 (tested with codex-cli 0.172.0); daemon ok, ...`); cleanup: `zmx ls | grep -c zpc-retest` (expect 0) and `test ! -e ~/zpc-retest`. Re-checked at 20:57: 0 zpc-retest sessions, no ~/zpc-retest, the user's 11 sessions still there. Review fixes: design table manifest version 0.1.10, README bind time names 0.172.0, the record notes the re-copy of the tree before the new-query probes.
+
+Commit: `cad3dad` - task-79: fix the review findings: manifest version, README bind time, re-copy note, scope AC
+
+Review: APPROVED cad3dad1e0be20a3bd9c90d9b0ea2fbb4040ea7c (task-reviewer, second pass, score 10; the first pass on 3b4144e requested changes, fixed in cad3dad). Final checks: uv run pytest plugins/zmx-peer-chat 157 passed, uv run ruff check . clean.
 <!-- SECTION:NOTES:END -->
